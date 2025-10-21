@@ -1,6 +1,9 @@
+import {
+  ApiResponse,
+  HealthStatus,
+  createApiResponse,
+} from '@instabuild/shared';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ApiResponse, HealthStatus } from '@instabuild/shared';
-import { createApiResponse } from '@instabuild/shared';
 
 export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{

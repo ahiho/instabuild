@@ -12,4 +12,4 @@ export interface HealthStatus {
 }
 
 // Export additional common types
-export * from './common';
+export * from './common.js';

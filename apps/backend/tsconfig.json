@@ -3,6 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "moduleResolution": "node",
     "types": ["node", "vitest/globals"],
     "lib": ["ES2022"]
   },

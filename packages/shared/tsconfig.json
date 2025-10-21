@@ -4,6 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "moduleResolution": "node",
     "types": ["vitest/globals"],
     "lib": ["ES2022"]
   },

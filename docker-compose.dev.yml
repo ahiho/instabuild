@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  instabuild-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - '3000:3000' # Backend
+      - '5173:5173' # Frontend
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/backend/node_modules
+      - /app/apps/frontend/node_modules
+      - /app/packages/shared/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - HOST=0.0.0.0
+    command: pnpm dev

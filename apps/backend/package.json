@@ -11,7 +11,9 @@
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "fastify": "^4.0.0",
@@ -22,7 +24,9 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0",
+    "eslint": "^9.35.0",
+    "neostandard": "^0.12.2",
+    "typescript": "~5.9.2",
     "vitest": "^1.0.0"
   },
   "engines": {

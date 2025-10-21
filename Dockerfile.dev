@@ -1,0 +1,29 @@
+# Development Dockerfile for InstaBuild monorepo
+FROM node:18-alpine
+
+# Install pnpm
+RUN npm install -g pnpm@8
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build shared package
+RUN pnpm --filter @instabuild/shared build
+
+# Expose ports
+EXPOSE 3000 5173
+
+# Default command
+CMD ["pnpm", "dev"]
