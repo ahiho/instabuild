@@ -1,0 +1,194 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aws/amazon-q-developer-cli/refs/heads/main/schemas/agent-v1.json",
+  "name": "code-review-agent",
+  "description": "Code review and quality analysis agent with security scanning, performance analysis, and best practices enforcement",
+  "prompt": "You are an expert code review specialist with deep knowledge of software engineering best practices, security vulnerabilities, performance optimization, and code maintainability. Your role is to:\n\n1. Analyze code for bugs, security issues, and performance problems\n2. Enforce coding standards and best practices\n3. Suggest improvements for readability and maintainability\n4. Identify potential technical debt\n5. Provide constructive feedback with specific examples\n6. Prioritize critical issues over minor style preferences\n\nAlways explain WHY changes are recommended and provide code examples when possible.",
+  "tools": ["fs_read", "execute_bash", "web_search"],
+  "allowedTools": ["fs_read", "execute_bash", "web_search"],
+  "toolsSettings": {
+    "execute_bash": {
+      "allowedCommands": [
+        "grep",
+        "find",
+        "wc",
+        "head",
+        "tail",
+        "cat",
+        "less",
+        "file",
+        "stat",
+        "du",
+        "tree",
+        "git diff",
+        "git log",
+        "git show",
+        "git status",
+        "git blame",
+        "git ls-files",
+        "git rev-parse",
+        "eslint",
+        "pylint",
+        "flake8",
+        "black",
+        "prettier",
+        "rubocop",
+        "clippy",
+        "golint",
+        "ktlint",
+        "bandit",
+        "semgrep",
+        "safety",
+        "npm audit",
+        "yarn audit",
+        "bundle audit",
+        "gosec",
+        "pytest",
+        "jest",
+        "mocha",
+        "go test",
+        "rspec",
+        "coverage",
+        "nyc",
+        "gocov",
+        "npm ls",
+        "pip list",
+        "bundle list",
+        "go mod graph",
+        "composer show",
+        "cargo tree",
+        "time",
+        "node --check",
+        "python -m py_compile",
+        "javac",
+        "tsc --noEmit",
+        "cargo check",
+        "go vet"
+      ],
+      "timeout_ms": 30000,
+      "max_output_size": 8192,
+      "working_directory": "."
+    },
+
+    "fs_read": {
+      "max_file_size": "10MB",
+      "allowed_extensions": [
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".vue",
+        ".svelte",
+        ".py",
+        ".pyx",
+        ".pyi",
+        ".rb",
+        ".php",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".scala",
+        ".cs",
+        ".cpp",
+        ".c",
+        ".h",
+        ".hpp",
+        ".swift",
+        ".dart",
+        ".elm",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".md",
+        ".txt",
+        ".sql",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".dockerfile",
+        ".gitignore",
+        ".env.example"
+      ]
+    }
+  },
+
+  "resources": [
+    "file://packages/*/package.json",
+    "file://apps/*/package.json",
+    "file://package.json",
+    "file://requirements.txt",
+    "file://Gemfile",
+    "file://go.mod",
+    "file://Cargo.toml",
+    "file://pom.xml",
+    "file://build.gradle",
+    "file://.eslintrc.json",
+    "file://.eslintrc.js",
+    "file://tsconfig.json",
+    "file://.pylintrc",
+    "file://pyproject.toml",
+    "file://setup.cfg",
+    "file://.rubocop.yml",
+    "file://clippy.toml",
+    "file://README.md",
+    "file://CONTRIBUTING.md",
+    "file://CHANGELOG.md",
+    "file://docs/coding-standards.md",
+    "file://docs/security-guidelines.md",
+    "file://docs/architecture.md",
+    "file://.github/workflows/",
+    "file://.gitlab-ci.yml",
+    "file://Dockerfile",
+    "file://docker-compose.yml",
+    "file://.nvmrc",
+    "file://.python-version",
+    "file://Pipfile.lock",
+    "file://yarn.lock",
+    "file://package-lock.json"
+  ],
+
+  "hooks": {
+    "agentSpawn": [
+      {
+        "name": "get_changed_files",
+        "command": "git diff --name-only HEAD~1 HEAD 2>/dev/null || echo 'No git history'",
+        "timeout_ms": 5000,
+        "max_output_size": 2048,
+        "cache_ttl_seconds": 300
+      },
+      {
+        "name": "get_project_info",
+        "command": "find . -maxdepth 2 -name 'package.json' -o -name 'requirements.txt' -o -name 'Gemfile' -o -name 'go.mod' -o -name 'Cargo.toml' | head -5",
+        "timeout_ms": 3000,
+        "max_output_size": 1024,
+        "cache_ttl_seconds": 600
+      }
+    ],
+
+    "userPromptSubmit": [
+      {
+        "name": "count_code_files",
+        "command": "find . -type f \\( -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.jsx' -o -name '*.tsx' -o -name '*.rb' -o -name '*.go' -o -name '*.rs' -o -name '*.java' \\) | grep -v node_modules | grep -v __pycache__ | grep -v target | grep -v build | wc -l",
+        "timeout_ms": 5000,
+        "cache_ttl_seconds": 120
+      },
+      {
+        "name": "check_git_status",
+        "command": "git status --porcelain 2>/dev/null | wc -l || echo '0'",
+        "timeout_ms": 3000,
+        "cache_ttl_seconds": 60
+      }
+    ],
+
+    "postToolUse": [
+      {
+        "name": "generate_summary",
+        "command": "echo 'Review completed at $(date)'",
+        "timeout_ms": 1000
+      }
+    ]
+  }
+}
