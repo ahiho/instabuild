@@ -5,7 +5,7 @@ description: Execute the implementation planning workflow using the plan templat
 ## User Input
 
 ```text
-$ARGUMENTS
+Create the detailed file and directory structure for the monorepo. Plan for two main packages, 'backend' and 'frontend', and include all necessary root-level and package-specific configuration files as defined in the constitution.
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).

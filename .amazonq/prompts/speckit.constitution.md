@@ -5,7 +5,7 @@ description: Create or update the project constitution from interactive or provi
 ## User Input
 
 ```text
-$ARGUMENTS
+Establish the monorepo principles using pnpm workspaces. Define a Fastify + TypeScript backend and a Vite + React + TypeScript frontend. Enforce shared ESLint, Prettier, and TypeScript configurations across the workspace.
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).

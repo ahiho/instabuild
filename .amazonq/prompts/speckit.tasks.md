@@ -5,7 +5,7 @@ description: Generate an actionable, dependency-ordered tasks.md for the feature
 ## User Input
 
 ```text
-$ARGUMENTS
+Break down the project setup plan into a sequence of actionable shell commands. The tasks should cover initializing the workspace, creating each directory and file, and finally installing all dependencies using pnpm.
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).

@@ -17,13 +17,13 @@
   the iteration process.
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
+**Language/Version**: TypeScript (strict mode required)
+**Primary Dependencies**: [e.g., Fastify (backend), Vite+React (frontend), or NEEDS CLARIFICATION]  
+**Storage**: [if applicable, e.g., PostgreSQL, Redis, files or N/A]  
+**Testing**: [e.g., Vitest (unit), Playwright (E2E) or NEEDS CLARIFICATION]  
+**Target Platform**: [e.g., Node.js server, Web browser, or NEEDS CLARIFICATION]
+**Project Type**: [backend/frontend/fullstack/package - determines workspace structure]  
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, <100ms response, 60 fps or NEEDS CLARIFICATION]  
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
@@ -31,7 +31,11 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] **Monorepo Architecture**: Feature fits within pnpm workspace structure
+- [ ] **TypeScript-First**: All code will use TypeScript with strict mode
+- [ ] **Shared Configuration**: Will inherit from root ESLint/Prettier/TypeScript configs
+- [ ] **Full-Stack Integration**: Backend uses Fastify, frontend uses Vite+React (if applicable)
+- [ ] **Code Quality Standards**: Plan includes linting, testing, and quality gates
 
 ## Project Structure
 
@@ -56,39 +60,42 @@ specs/[###-feature]/
 -->
 
 ```
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
+# [REMOVE IF UNUSED] Option 1: Backend service (Fastify + TypeScript)
+apps/backend/
 ├── src/
 │   ├── models/
 │   ├── services/
-│   └── api/
+│   ├── routes/
+│   └── lib/
 └── tests/
+    ├── contract/
+    ├── integration/
+    └── unit/
 
-frontend/
+# [REMOVE IF UNUSED] Option 2: Frontend application (Vite + React + TypeScript)
+apps/frontend/
 ├── src/
 │   ├── components/
 │   ├── pages/
-│   └── services/
+│   ├── services/
+│   └── lib/
+└── tests/
+    ├── e2e/
+    ├── integration/
+    └── unit/
+
+# [REMOVE IF UNUSED] Option 3: Shared package
+packages/shared/
+├── src/
+│   ├── types/
+│   ├── utils/
+│   └── lib/
 └── tests/
 
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+# [REMOVE IF UNUSED] Option 4: Full-stack application
+apps/backend/ (Fastify + TypeScript)
+apps/frontend/ (Vite + React + TypeScript)
+packages/shared/ (shared types and utilities)
 ```
 
 **Structure Decision**: [Document the selected structure and reference the real
