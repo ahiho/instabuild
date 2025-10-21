@@ -2,24 +2,24 @@
 # Defines the workspace structure for the InstaBuild monorepo
 
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 
 # Package manager specification
-packageManager: "pnpm@latest"
+packageManager: 'pnpm@latest'
 
 # Workspace configuration
 workspace:
   # Enable workspace protocol for internal dependencies
   linkWorkspacePackages: true
-  
+
   # Shared dependency hoisting
   hoistPattern:
-    - "*"
-  
+    - '*'
+
   # Public hoist pattern for tools
   publicHoistPattern:
-    - "*eslint*"
-    - "*prettier*"
-    - "*typescript*"
-    - "*vitest*"
+    - '*eslint*'
+    - '*prettier*'
+    - '*typescript*'
+    - '*vitest*'

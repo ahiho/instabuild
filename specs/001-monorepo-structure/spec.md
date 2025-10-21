@@ -5,7 +5,7 @@
 **Status**: Draft  
 **Input**: User description: "Create the detailed file and directory structure for the monorepo. Plan for two main packages, 'backend' and 'frontend', and include all necessary root-level and package-specific configuration files as defined in the constitution."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Project Initialization (Priority: P1)
 
@@ -53,7 +53,7 @@ Developer can build and deploy backend and frontend packages independently or to
 2. **Given** monorepo structure, **When** developer builds frontend, **Then** optimized static assets are generated
 3. **Given** workspace dependencies, **When** developer builds all packages, **Then** build order respects dependency graph
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -68,14 +68,14 @@ Developer can build and deploy backend and frontend packages independently or to
 - **FR-009**: System MUST configure pre-commit hooks for code quality enforcement
 - **FR-010**: System MUST include proper .gitignore for Node.js monorepo
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Workspace**: Root-level pnpm workspace containing all packages
 - **Backend Package**: Fastify-based API service with TypeScript
 - **Frontend Package**: Vite + React application with TypeScript
 - **Shared Configuration**: ESLint, Prettier, TypeScript configs used by all packages
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

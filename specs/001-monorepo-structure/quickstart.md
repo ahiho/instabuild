@@ -4,13 +4,14 @@ This guide walks you through setting up and working with the InstaBuild monorepo
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - pnpm 8+ (`npm install -g pnpm`)
 - Git
 
 ## Initial Setup
 
 1. **Clone and setup the repository**:
+
    ```bash
    git clone <repository-url>
    cd InstaBuild
@@ -18,13 +19,14 @@ This guide walks you through setting up and working with the InstaBuild monorepo
    ```
 
 2. **Verify the setup**:
+
    ```bash
    # Check workspace structure
    pnpm list --depth=0
-   
+
    # Run type checking across all packages
    pnpm type-check
-   
+
    # Run linting across all packages
    pnpm lint
    ```

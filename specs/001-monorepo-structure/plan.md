@@ -23,9 +23,10 @@ Create comprehensive monorepo structure with pnpm workspaces, backend (Fastify +
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Initial Check (Pre-Research):**
+
 - [x] **Monorepo Architecture**: Feature creates pnpm workspace structure
 - [x] **TypeScript-First**: All packages will use TypeScript with strict mode
 - [x] **Shared Configuration**: Root ESLint/Prettier/TypeScript configs for inheritance
@@ -33,6 +34,7 @@ Create comprehensive monorepo structure with pnpm workspaces, backend (Fastify +
 - [x] **Code Quality Standards**: Includes linting, testing, and quality gates setup
 
 **Post-Design Validation:**
+
 - [x] **Monorepo Architecture**: ✅ Detailed workspace structure with apps/ and packages/ organization
 - [x] **TypeScript-First**: ✅ Strict TypeScript configuration with shared base config
 - [x] **Shared Configuration**: ✅ Root-level ESLint, Prettier, TypeScript configs with package inheritance
@@ -113,5 +115,4 @@ specs/001-monorepo-structure/
 
 ## Complexity Tracking
 
-*No constitution violations - all requirements align with established principles.*
-
+_No constitution violations - all requirements align with established principles._
