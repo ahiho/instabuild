@@ -13,7 +13,7 @@ Configuration for pnpm workspace setup.
 **Fields**:
 
 - `packages`: Array of workspace patterns (apps/_, packages/_)
-- `packageManager`: Package manager specification (pnpm@latest)
+- `packageManager`: Package manager specification (pnpm@10.18.2)
 
 **Relationships**: Root-level configuration that defines all workspace packages
 

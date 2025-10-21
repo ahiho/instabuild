@@ -6,7 +6,7 @@ packages:
   - 'packages/*'
 
 # Package manager specification
-packageManager: 'pnpm@latest'
+packageManager: 'pnpm@10.18.2'
 
 # Workspace configuration
 workspace:
