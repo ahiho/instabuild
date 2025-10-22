@@ -32,11 +32,11 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
+      "npm run lint:fix",
+      "npm run format"
     ],
     "*.{json,md,yaml,yml}": [
-      "prettier --write"
+      "npm run format"
     ]
   },
   "engines": {

@@ -5,7 +5,76 @@ description: Execute the implementation planning workflow using the plan templat
 ## User Input
 
 ```text
-Create the detailed file and directory structure for the monorepo. Plan for two main packages, 'backend' and 'frontend', and include all necessary root-level and package-specific configuration files as defined in the constitution.
+The system is designed as a full-stack monorepo application, separating the backend services from the frontend user interface.
+
+1. High-Level Architecture
+The project will be structured as a pnpm workspace (monorepo) containing two primary packages: backend and frontend. This approach allows for shared configurations (ESLint, Prettier, TypeScript) while maintaining a clear separation of concerns.
+
+The overall data flow is as follows:
+
+The user interacts with the Frontend (React SPA).
+
+The Frontend communicates with the Backend via a RESTful API and a streaming chat endpoint.
+
+The Backend orchestrates the core logic, communicating with external services:
+
+PostgreSQL Database (via Prisma) for state persistence.
+
+MinIO/S3 for asset storage.
+
+GitHub API for version control (source code storage).
+
+Vercel API for deployment.
+
+LLM API for chat and code generation logic.
+
+2. Backend Architecture (packages/backend)
+Framework: Fastify will be used for its high performance and extensible plugin architecture. It will be set up with TypeScript.
+
+Database & ORM: Prisma will manage all database interactions with a PostgreSQL database. The schema will include three core models: LandingPage, LandingPageVersion, and Asset, with relationships defined to manage versions and assets for each page.
+
+Agentic Workflow (Core Logic):
+
+Chat & Tool Calling: The chat endpoints (/api/v1/chat and /api/v1/pages/:id/chat) will be the primary entry point. They will manage the conversation state and handle Tool Calling to request structured user input.
+
+Generation & Versioning: Upon a successful generation or edit command, a service will:
+
+Generate/modify React source code in a temporary environment.
+
+Use the GitHub API to commit the changes to a dedicated private repository for that landing page.
+
+Create a LandingPageVersion record in the database, linking it to the new commit SHA.
+
+Deployment: The deployment service will use the Vercel API to trigger deployments from the GitHub repository, targeting specific commit SHAs for new versions or rollbacks.
+
+Asset Handling: File uploads will be handled by @fastify/multipart and streamed directly to a MinIO bucket (for local development) or an S3-compatible service.
+
+3. Frontend Architecture (packages/frontend)
+Framework: A Vite-powered React application will be used for a fast development experience and optimized builds. The entire codebase will be in TypeScript (.tsx).
+
+State Management Strategy:
+
+Server State: TanStack Query v5 is the exclusive choice for managing all server state. It will handle fetching page details, version history, and polling for status updates with refetchInterval, eliminating manual setInterval logic.
+
+Chat & UI State: The Vercel AI SDK's useChat hook will manage the entire lifecycle of the conversational interface, including message history, pending states, and handling streaming responses and tool calls.
+
+Routing: React Router v6 will manage application routing, with two primary routes: / for the initial creation flow and /pages/:id for the main editor workspace.
+
+Component & Styling:
+
+Tailwind CSS will be used for all styling.
+
+shadcn/ui will be used to generate the base UI components (buttons, inputs, cards), ensuring consistency and accessibility. These will be customized as needed.
+
+Custom Build Process (Vite Plugin):
+
+A custom Vite plugin (vite-plugin-agent-enhancer.ts) will be developed.
+
+Using Babel for AST transformation, this plugin will be responsible for:
+
+Injecting Metadata: Automatically adding a structured data-agent-id attribute to every significant JSX element. This ID will contain a coordinate (filePath:componentStack:elementType) that provides precise context to the backend agent.
+
+Injecting Communication Script: Adding an inline script to the final index.html to enable postMessage communication between the EditorPage and the preview iframe for the element selection feature.
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).

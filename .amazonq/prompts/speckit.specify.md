@@ -5,7 +5,19 @@ description: Create or update the feature specification from a natural language 
 ## User Input
 
 ```text
-$ARGUMENTS
+Build a web application that provides an AI-powered workspace for creating and editing landing pages. The core of the application is a real-time, conversational editing experience.
+
+Functional Requirements:
+
+Dual-Mode Editing: The primary interface is an editor with a side-by-side live preview and a chat panel. Users must be able to modify their page in two ways:
+
+Conversational Commands: By giving natural language instructions to the AI assistant (e.g., "Make the header larger and change the main button's color to blue").
+
+Direct Element Selection: By activating a "select mode" to click on any element in the live preview, providing precise context for their commands.
+
+Proactive AI Interaction: The AI assistant must be able to request necessary information. If a user's command is ambiguous or requires an asset (like a logo), the AI should prompt the user for the specific input (a file upload, a text input, a choice from a list) directly within the chat flow.
+
+Versioning and Rollback: Every successful modification to the page must be saved as a distinct version. The application must provide a clear history of all versions, allowing the user to easily view and restore their page to any previous state.
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).

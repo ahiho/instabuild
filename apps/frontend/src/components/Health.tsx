@@ -5,8 +5,8 @@ interface HealthComponentProps {
   apiUrl?: string;
 }
 
-export const Health: React.FC<HealthComponentProps> = ({ 
-  apiUrl = 'http://localhost:3000' 
+export const Health: React.FC<HealthComponentProps> = ({
+  apiUrl = 'http://localhost:3000',
 }) => {
   const [healthData, setHealthData] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -18,7 +18,7 @@ export const Health: React.FC<HealthComponentProps> = ({
         setLoading(true);
         const response = await fetch(`${apiUrl}/health`);
         const data: ApiResponse<HealthStatus> = await response.json();
-        
+
         if (data.success && data.data) {
           setHealthData(data.data);
           setError(null);
@@ -26,7 +26,9 @@ export const Health: React.FC<HealthComponentProps> = ({
           setError(data.error || 'Unknown error');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch health status');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch health status'
+        );
       } finally {
         setLoading(false);
       }
@@ -36,7 +38,9 @@ export const Health: React.FC<HealthComponentProps> = ({
   }, [apiUrl]);
 
   if (loading) {
-    return <div className="health-status loading">Checking health status...</div>;
+    return (
+      <div className="health-status loading">Checking health status...</div>
+    );
   }
 
   if (error) {

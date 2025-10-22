@@ -1,0 +1,512 @@
+openapi: 3.0.3
+info:
+  title: AI Landing Page Editor API
+  description: RESTful API for AI-powered landing page creation and editing
+  version: 1.0.0
+  contact:
+    name: InstaBuild Team
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.instabuild.com/v1
+    description: Production server
+
+paths:
+  /pages:
+    post:
+      summary: Create new landing page
+      operationId: createLandingPage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePageRequest'
+      responses:
+        '201':
+          description: Page created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      summary: List landing pages
+      operationId: listLandingPages
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of landing pages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageList'
+
+  /pages/{pageId}:
+    get:
+      summary: Get landing page details
+      operationId: getLandingPage
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: Landing page details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPageWithVersions'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update landing page metadata
+      operationId: updateLandingPage
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePageRequest'
+      responses:
+        '200':
+          description: Page updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /pages/{pageId}/versions:
+    get:
+      summary: Get page version history
+      operationId: getPageVersions
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: Version history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionList'
+
+  /pages/{pageId}/versions/{versionId}/rollback:
+    post:
+      summary: Rollback to specific version
+      operationId: rollbackToVersion
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+        - $ref: '#/components/parameters/VersionId'
+      responses:
+        '200':
+          description: Rollback successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPageVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /pages/{pageId}/chat:
+    post:
+      summary: Send chat message for page editing
+      operationId: sendChatMessage
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessageRequest'
+      responses:
+        '200':
+          description: Chat response (streaming)
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/ChatStreamResponse'
+
+  /pages/{pageId}/assets:
+    post:
+      summary: Upload asset for page
+      operationId: uploadAsset
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssetUploadRequest'
+      responses:
+        '201':
+          description: Asset uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  parameters:
+    PageId:
+      name: pageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Landing page unique identifier
+
+    VersionId:
+      name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Version unique identifier
+
+  schemas:
+    LandingPage:
+      type: object
+      required:
+        - id
+        - title
+        - githubRepoUrl
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        githubRepoUrl:
+          type: string
+          format: uri
+        currentVersionId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LandingPageVersion:
+      type: object
+      required:
+        - id
+        - landingPageId
+        - versionNumber
+        - commitSha
+        - sourceCode
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        landingPageId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+          minimum: 1
+        commitSha:
+          type: string
+          pattern: '^[a-f0-9]{40}$'
+        sourceCode:
+          type: string
+        previewUrl:
+          type: string
+          format: uri
+        changeDescription:
+          type: string
+          maxLength: 1000
+        createdAt:
+          type: string
+          format: date-time
+
+    Asset:
+      type: object
+      required:
+        - id
+        - landingPageVersionId
+        - filename
+        - mimeType
+        - fileSize
+        - storageUrl
+        - uploadedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        landingPageVersionId:
+          type: string
+          format: uuid
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        mimeType:
+          type: string
+          enum: ['image/png', 'image/jpeg', 'image/svg+xml']
+        fileSize:
+          type: integer
+          minimum: 1
+          maximum: 10485760 # 10MB
+        storageUrl:
+          type: string
+          format: uri
+        uploadedAt:
+          type: string
+          format: date-time
+
+    ChatMessage:
+      type: object
+      required:
+        - id
+        - landingPageId
+        - role
+        - content
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        landingPageId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: ['user', 'assistant', 'system']
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        toolCalls:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolCall'
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    ToolCall:
+      type: object
+      required:
+        - id
+        - type
+        - function
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: ['function']
+        function:
+          type: object
+          required:
+            - name
+            - arguments
+          properties:
+            name:
+              type: string
+            arguments:
+              type: string
+
+    CreatePageRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+
+    UpdatePageRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+
+    ChatMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        selectedElementId:
+          type: string
+          description: Element ID for context (from select mode)
+
+    AssetUploadRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Image file (PNG, JPG, SVG)
+
+    LandingPageWithVersions:
+      allOf:
+        - $ref: '#/components/schemas/LandingPage'
+        - type: object
+          properties:
+            versions:
+              type: array
+              items:
+                $ref: '#/components/schemas/LandingPageVersion'
+            currentVersion:
+              $ref: '#/components/schemas/LandingPageVersion'
+
+    PageList:
+      type: object
+      required:
+        - pages
+        - total
+        - limit
+        - offset
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/LandingPage'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+
+    VersionList:
+      type: object
+      required:
+        - versions
+      properties:
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/LandingPageVersion'
+
+    ChatStreamResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ['message', 'tool_call', 'error', 'done']
+        content:
+          type: string
+        toolCall:
+          $ref: '#/components/schemas/ToolCall'
+        error:
+          type: string
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: ['healthy']
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

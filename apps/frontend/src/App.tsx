@@ -14,7 +14,7 @@ function App(): JSX.Element {
           <li>Shared TypeScript types</li>
           <li>pnpm workspaces</li>
         </ul>
-        
+
         <div className="health-section">
           <h2>Backend Health Status</h2>
           <Health />
