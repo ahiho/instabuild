@@ -1,0 +1,122 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: ['class'],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        chart: {
+          1: 'hsl(var(--chart-1))',
+          2: 'hsl(var(--chart-2))',
+          3: 'hsl(var(--chart-3))',
+          4: 'hsl(var(--chart-4))',
+          5: 'hsl(var(--chart-5))',
+        },
+        // Brand colors inspired by CodeDesign.ai
+        brand: {
+          purple: {
+            DEFAULT: '#5C33FF',
+            50: '#F5F3FF',
+            100: '#EDE9FE',
+            200: '#DDD6FE',
+            300: '#C4B5FD',
+            400: '#A78BFA',
+            500: '#5C33FF',
+            600: '#5226CC',
+            700: '#4C1D95',
+            800: '#3B1575',
+            900: '#2E1065',
+          },
+          navy: {
+            DEFAULT: '#050628',
+            50: '#F8F9FB',
+            100: '#E8EAF0',
+            200: '#C8CCE0',
+            300: '#9BA2C8',
+            400: '#4E5A9A',
+            500: '#050628',
+            600: '#040520',
+            700: '#030419',
+            800: '#020312',
+            900: '#01020C',
+          },
+          yellow: {
+            DEFAULT: '#FFF706',
+            50: '#FFFEF0',
+            100: '#FFFCD6',
+            200: '#FFF9AD',
+            300: '#FFF785',
+            400: '#FFF445',
+            500: '#FFF706',
+            600: '#E6DE05',
+            700: '#B3AB04',
+            800: '#807903',
+            900: '#4D4702',
+          },
+          red: {
+            DEFAULT: '#DF2020',
+            50: '#FEF2F2',
+            100: '#FEE2E2',
+            200: '#FECACA',
+            300: '#FCA5A5',
+            400: '#F87171',
+            500: '#DF2020',
+            600: '#C71C1C',
+            700: '#991515',
+            800: '#6B0F0F',
+            900: '#3D0909',
+          },
+        },
+      },
+      fontSize: {
+        'display-lg': ['80px', { lineHeight: '79px', fontWeight: '700' }],
+        'display-md': ['64px', { lineHeight: '64px', fontWeight: '700' }],
+        'display-sm': ['48px', { lineHeight: '48px', fontWeight: '700' }],
+      },
+      boxShadow: {
+        'glow-purple': '0 0 30px rgba(92, 51, 255, 0.4)',
+        'glow-purple-lg': '0 0 40px rgba(92, 51, 255, 0.5)',
+        'glow-purple-sm': '0 0 20px rgba(92, 51, 255, 0.25)',
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+};

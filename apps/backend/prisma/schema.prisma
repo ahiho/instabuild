@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model LandingPage {
+  id               String   @id @default(cuid())
+  title            String   @db.VarChar(100)
+  description      String?  @db.VarChar(500)
+  githubRepoUrl    String
+  currentVersionId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relationships
+  versions     LandingPageVersion[]
+  chatMessages ChatMessage[]
+  currentVersion LandingPageVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+
+  @@map("landing_pages")
+}
+
+model LandingPageVersion {
+  id                String   @id @default(cuid())
+  landingPageId     String
+  versionNumber     Int
+  commitSha         String   @db.VarChar(40)
+  sourceCode        String   @db.Text
+  previewUrl        String?
+  changeDescription String?  @db.VarChar(1000)
+  createdAt         DateTime @default(now())
+
+  // Relationships
+  landingPage       LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  assets            Asset[]
+  modificationCommands ModificationCommand[]
+  currentForPages   LandingPage[] @relation("CurrentVersion")
+
+  @@unique([landingPageId, versionNumber])
+  @@map("landing_page_versions")
+}
+
+model Asset {
+  id                    String   @id @default(cuid())
+  landingPageVersionId  String
+  filename              String   @db.VarChar(255)
+  mimeType              String   @db.VarChar(100)
+  fileSize              Int
+  storageUrl            String
+  uploadedAt            DateTime @default(now())
+
+  // Relationships
+  landingPageVersion LandingPageVersion @relation(fields: [landingPageVersionId], references: [id], onDelete: Cascade)
+
+  @@map("assets")
+}
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  landingPageId String
+  role          String   @db.VarChar(20) // user, assistant, system
+  content       String   @db.Text
+  toolCalls     Json?    // JSON array of tool calls
+  metadata      Json?    // Additional metadata
+  createdAt     DateTime @default(now())
+
+  // Relationships
+  landingPage         LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  modificationCommands ModificationCommand[]
+
+  @@map("chat_messages")
+}
+
+model ModificationCommand {
+  id               String   @id @default(cuid())
+  chatMessageId    String
+  targetElements   Json     // JSON array of element selectors
+  requestedChanges Json     // JSON object describing changes
+  status           String   @default("pending") // pending, processing, completed, failed
+  resultVersionId  String?
+  errorMessage     String?  @db.Text
+  processedAt      DateTime @default(now())
+
+  // Relationships
+  chatMessage   ChatMessage         @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  resultVersion LandingPageVersion? @relation(fields: [resultVersionId], references: [id])
+
+  @@map("modification_commands")
+}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "type": "stdio",
+      "url": "",
+      "headers": {},
+      "oauthScopes": ["openid", "email", "profile", "offline_access"],
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "env": {},
+      "timeout": 120000,
+      "disabled": false
+    }
+  }
+}

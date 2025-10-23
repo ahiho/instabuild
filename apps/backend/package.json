@@ -16,16 +16,24 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "fastify": "^4.0.0",
     "@fastify/cors": "^8.0.0",
     "@fastify/helmet": "^11.0.0",
-    "@instabuild/shared": "workspace:*"
+    "@fastify/multipart": "^8.3.1",
+    "@instabuild/shared": "workspace:*",
+    "@octokit/rest": "^22.0.0",
+    "@prisma/client": "^6.17.1",
+    "@types/minio": "^7.1.1",
+    "fastify": "^4.0.0",
+    "minio": "^8.0.6",
+    "prisma": "^6.17.1",
+    "zod": "^4.1.12",
+    "@ai-sdk/openai": "^2.0.53"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "tsx": "^4.0.0",
     "eslint": "^9.35.0",
     "neostandard": "^0.12.2",
+    "tsx": "^4.0.0",
     "typescript": "~5.9.2",
     "vitest": "^1.0.0"
   },

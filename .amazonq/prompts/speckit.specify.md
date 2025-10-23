@@ -5,19 +5,29 @@ description: Create or update the feature specification from a natural language 
 ## User Input
 
 ```text
-Build a web application that provides an AI-powered workspace for creating and editing landing pages. The core of the application is a real-time, conversational editing experience.
+Drastically overhaul the Home Page UI/UX. The current version feels unprofessional, basic, and lacks the dynamic, high-tech feel of an AI product.
 
-Functional Requirements:
+Functional & Design Requirements:
 
-Dual-Mode Editing: The primary interface is an editor with a side-by-side live preview and a chat panel. Users must be able to modify their page in two ways:
+1.  **Dynamic Animated Background:**
+    * The static white/gradient background is forbidden.
+    * Implement a **subtle, dynamic, and modern background animation**.
+    * This should be a generative art, particle constellation, or subtle wave animation (e.g., using a lightweight JS library or CSS animation) that is visually engaging but does not distract from the main content.
+    *
 
-Conversational Commands: By giving natural language instructions to the AI assistant (e.g., "Make the header larger and change the main button's color to blue").
+2.  **"Action-First" Hero Section:**
+    * The primary focus of the hero section **must** be an interactive prompt.
+    * Use a large `shadcn/ui Textarea` with an inspiring placeholder (e.g., "Describe the landing page for your new AI startup...") and a prominent "Generate" button. This UX is superior as it removes the extra click of the old CTA.
 
-Direct Element Selection: By activating a "select mode" to click on any element in the live preview, providing precise context for their commands.
+3.  **"Showcase" Gallery (Mandatory):**
+    * Add a "Showcase" section directly below the hero prompt. This must be an auto-scrolling `shadcn/ui Carousel` displaying high-quality thumbnails of 4-5 example pages, proving the product's capability.
 
-Proactive AI Interaction: The AI assistant must be able to request necessary information. If a user's command is ambiguous or requires an asset (like a logo), the AI should prompt the user for the specific input (a file upload, a text input, a choice from a list) directly within the chat flow.
+4.  **Complete Removal of "Backend Health Status" from UI:**
+    * This component is an internal developer tool and **must not be rendered anywhere in the user-facing application**.
+    * The health check endpoint itself (e.g., `/api/v1/health`) should still exist, but it is only for internal monitoring tools (like UptimeRobot) and should **never** be called or displayed by the React application.
 
-Versioning and Rollback: Every successful modification to the page must be saved as a distinct version. The application must provide a clear history of all versions, allowing the user to easily view and restore their page to any previous state.
+5.  **Visual Polish:**
+    * The 3-column feature section (Natural Language, etc.) must be redesigned using `shadcn/ui Card` components with custom icons and a subtle hover effect to give them a more premium feel.
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).

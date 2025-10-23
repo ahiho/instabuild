@@ -5,7 +5,7 @@ description: Generate an actionable, dependency-ordered tasks.md for the feature
 ## User Input
 
 ```text
-Break down the landing generator editor task
+
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).
