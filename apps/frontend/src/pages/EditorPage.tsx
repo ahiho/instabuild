@@ -63,7 +63,7 @@ export function EditorPage() {
               <h2 className="text-lg font-semibold mb-4">Version History</h2>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">
-                  Current: v{page.currentVersion}
+                  Current: v{page.currentVersion?.versionNumber || 'N/A'}
                 </div>
                 {/* Version history content will be added later */}
               </div>

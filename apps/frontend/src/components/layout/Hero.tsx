@@ -5,6 +5,7 @@ import { VignetteShader } from '../../shaders/vignetteShader';
 import { Particles } from '../home/Particles';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const suggestions = [
   'A sleek landing page for a new AI-powered code editor...',
@@ -14,9 +15,13 @@ const suggestions = [
 ];
 
 export function Hero() {
+  const navigate = useNavigate();
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userInput, setUserInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleTyping = () => {
@@ -24,15 +29,19 @@ export function Hero() {
       if (isDeleting) {
         // Deleting
         if (displayedText.length > 0) {
-          setDisplayedText(currentSuggestion.substring(0, displayedText.length - 1));
+          setDisplayedText(
+            currentSuggestion.substring(0, displayedText.length - 1)
+          );
         } else {
           setIsDeleting(false);
-          setSuggestionIndex((prevIndex) => (prevIndex + 1) % suggestions.length);
+          setSuggestionIndex(prevIndex => (prevIndex + 1) % suggestions.length);
         }
       } else {
         // Typing
         if (displayedText.length < currentSuggestion.length) {
-          setDisplayedText(currentSuggestion.substring(0, displayedText.length + 1));
+          setDisplayedText(
+            currentSuggestion.substring(0, displayedText.length + 1)
+          );
         } else {
           // Wait for a bit then start deleting
           setTimeout(() => setIsDeleting(true), 2000);
@@ -45,6 +54,54 @@ export function Hero() {
 
     return () => clearTimeout(timeout);
   }, [displayedText, isDeleting, suggestionIndex]);
+
+  /**
+   * Handle the "Next" button click to create a new page and navigate to the editor
+   */
+  const handleNext = async () => {
+    // Validate input
+    if (!userInput.trim()) {
+      setError('Please enter a description for your landing page');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Create a new page via API - backend will decide the title
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/pages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            description: userInput,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to create page: ${response.statusText}`);
+      }
+
+      const page = await response.json();
+
+      // Navigate to the editor page with the new page ID
+      navigate(`/editor/${page.id}`);
+    } catch (err) {
+      console.error('Error creating page:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to create page. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -112,7 +169,9 @@ export function Hero() {
       >
         <motion.div className="text-center" variants={itemVariants}>
           <h1 className="text-5xl font-bold text-white mb-4">
-            Bring your <span className="font-serif italic text-purple-300">ideal</span> landing page to life.
+            Bring your{' '}
+            <span className="font-serif italic text-purple-300">ideal</span>{' '}
+            landing page to life.
           </h1>
           <p className="text-md text-gray-400">
             Let our AI bring it to life. No code required.
@@ -123,14 +182,36 @@ export function Hero() {
             <textarea
               className="w-full h-24 p-4 bg-transparent text-white placeholder-gray-400 rounded-xl focus:outline-none resize-none"
               placeholder={displayedText}
+              value={userInput}
+              onChange={e => setUserInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  handleNext();
+                }
+              }}
+              disabled={isLoading}
             />
-            <button className="absolute bottom-4 right-4 flex items-center justify-center size-8 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-md transition-colors">
-              <ArrowRight className="size-4" />
+            <button
+              onClick={handleNext}
+              disabled={isLoading || !userInput.trim()}
+              className="absolute bottom-4 right-4 flex items-center justify-center size-8 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <ArrowRight className="size-4" />
+              )}
             </button>
           </div>
-          <p className="text-center text-sm text-gray-400 mt-2">
-            Trusted by <span className="font-bold text-purple-300">1M+</span> creators worldwide.
-          </p>
+          {error && (
+            <p className="text-center text-sm text-red-400 mt-2">{error}</p>
+          )}
+          {!error && (
+            <p className="text-center text-sm text-gray-400 mt-2">
+              Trusted by <span className="font-bold text-purple-300">1M+</span>{' '}
+              creators worldwide.
+            </p>
+          )}
         </motion.div>
       </motion.div>
     </section>

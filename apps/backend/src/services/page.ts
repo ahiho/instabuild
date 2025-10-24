@@ -9,15 +9,21 @@ import {
 
 export class PageService {
   async createPage(data: CreateLandingPageRequest) {
-    if (!data.title?.trim()) {
-      throw new ValidationError('Title is required');
+    // Validate that at least title or description is provided
+    if (!data.title?.trim() && !data.description?.trim()) {
+      throw new ValidationError('Either title or description is required');
     }
+
+    // Generate title from description if not provided
+    const title =
+      data.title?.trim() ||
+      this.generateTitleFromDescription(data.description!);
 
     // Create GitHub repository
     const repoName = `landing-${Date.now()}`;
     const repo = await octokit.rest.repos.createForAuthenticatedUser({
       name: repoName,
-      description: data.description || 'AI-generated landing page',
+      description: data.description || title,
       private: false,
       auto_init: true,
     });
@@ -25,14 +31,14 @@ export class PageService {
     // Create page record
     const page = await prisma.landingPage.create({
       data: {
-        title: data.title,
+        title,
         description: data.description,
         githubRepoUrl: repo.data.html_url,
       },
     });
 
     // Create initial version with basic template
-    const initialCode = this.generateBasicTemplate(data.title);
+    const initialCode = this.generateBasicTemplate(title);
     const version = await this.createVersion(
       page.id,
       initialCode,
@@ -116,6 +122,39 @@ export class PageService {
     // TODO: Deploy to Vercel and update previewUrl
 
     return version;
+  }
+
+  /**
+   * Generate a title from the description by taking the first sentence
+   * or the first 50 characters, whichever is shorter
+   */
+  private generateTitleFromDescription(description: string): string {
+    // Remove extra whitespace
+    const cleanDescription = description.trim();
+
+    // Try to extract first sentence (ending with . ! ?)
+    const firstSentenceMatch = cleanDescription.match(/^[^.!?]+[.!?]/);
+    if (firstSentenceMatch) {
+      const firstSentence = firstSentenceMatch[0].trim();
+      // If first sentence is reasonable length, use it
+      if (firstSentence.length <= 100) {
+        return firstSentence.replace(/[.!?]+$/, '').trim();
+      }
+    }
+
+    // Otherwise, take first 50 characters and add ellipsis if needed
+    if (cleanDescription.length <= 50) {
+      return cleanDescription;
+    }
+
+    // Find last space before 50 chars to avoid cutting words
+    const truncated = cleanDescription.substring(0, 50);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 30) {
+      return truncated.substring(0, lastSpace) + '...';
+    }
+
+    return truncated + '...';
   }
 
   private generateBasicTemplate(title: string): string {

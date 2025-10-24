@@ -9,7 +9,7 @@ export interface LandingPage {
 }
 
 export interface CreateLandingPageRequest {
-  title: string;
+  title?: string;
   description?: string;
 }
 

@@ -56,7 +56,7 @@ export default function ParticleBackground() {
     };
 
     let gridDots = createGrid();
-    let startTime = Date.now();
+    const startTime = Date.now();
 
     // Animation loop
     const animate = () => {
@@ -67,17 +67,23 @@ export default function ParticleBackground() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Draw dots with synchronized wave displacement
-      gridDots.forEach((dot) => {
+      gridDots.forEach(dot => {
         // Synchronized wave: all dots follow the same wave pattern based on their position
         // Creates a rippling fabric effect across the entire grid
-        const wavePhase = (dot.baseX + dot.baseY) * WAVE_FREQUENCY + elapsed * WAVE_SPEED;
+        const wavePhase =
+          (dot.baseX + dot.baseY) * WAVE_FREQUENCY + elapsed * WAVE_SPEED;
         const displaceY = Math.sin(wavePhase) * WAVE_AMPLITUDE;
 
         const x = dot.baseX;
         const y = dot.baseY + displaceY;
 
         // Skip dots outside canvas
-        if (x < -20 || x > canvas.width + 20 || y < -20 || y > canvas.height + 20) {
+        if (
+          x < -20 ||
+          x > canvas.width + 20 ||
+          y < -20 ||
+          y > canvas.height + 20
+        ) {
           return;
         }
 

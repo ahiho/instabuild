@@ -58,6 +58,7 @@ export function Particles({
     m.uniforms.initialPositions.value =
       simulationMaterial.uniforms.positions.value;
     return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulationMaterial]);
 
   const [scene] = useState(() => new THREE.Scene());
