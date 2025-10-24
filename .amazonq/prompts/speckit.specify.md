@@ -5,29 +5,37 @@ description: Create or update the feature specification from a natural language 
 ## User Input
 
 ```text
-Drastically overhaul the Home Page UI/UX. The current version feels unprofessional, basic, and lacks the dynamic, high-tech feel of an AI product.
+Overhaul the EditorPage UI/UX. The current implementation is functionally correct but has an improper layout and does not meet the project's design standards. This refactor will implement a minimalist, 2-column layout that is visually consistent with the HomePage.
 
 Functional & Design Requirements:
 
-1.  **Dynamic Animated Background:**
-    * The static white/gradient background is forbidden.
-    * Implement a **subtle, dynamic, and modern background animation**.
-    * This should be a generative art, particle constellation, or subtle wave animation (e.g., using a lightweight JS library or CSS animation) that is visually engaging but does not distract from the main content.
-    *
+Dark Theme Consistency (Mandatory):
 
-2.  **"Action-First" Hero Section:**
-    * The primary focus of the hero section **must** be an interactive prompt.
-    * Use a large `shadcn/ui Textarea` with an inspiring placeholder (e.g., "Describe the landing page for your new AI startup...") and a prominent "Generate" button. This UX is superior as it removes the extra click of the old CTA.
+The EditorPage must use the same dark theme as the HomePage.
 
-3.  **"Showcase" Gallery (Mandatory):**
-    * Add a "Showcase" section directly below the hero prompt. This must be an auto-scrolling `shadcn/ui Carousel` displaying high-quality thumbnails of 4-5 example pages, proving the product's capability.
+The agent must reference the existing HomePage components to sample its dark theme colors (e.g., primary background, card background, text colors) to ensure visual consistency. The current white theme is incorrect.
 
-4.  **Complete Removal of "Backend Health Status" from UI:**
-    * This component is an internal developer tool and **must not be rendered anywhere in the user-facing application**.
-    * The health check endpoint itself (e.g., `/api/v1/health`) should still exist, but it is only for internal monitoring tools (like UptimeRobot) and should **never** be called or displayed by the React application.
+New 2-Column Resizable Layout:
 
-5.  **Visual Polish:**
-    * The 3-column feature section (Natural Language, etc.) must be redesigned using `shadcn/ui Card` components with custom icons and a subtle hover effect to give them a more premium feel.
+Implement a primary 2-column layout using shadcn/ui Resizable panels.
+
+Left Panel (30% width): This panel must contain the Chat Window.
+
+Right Panel (70% width): This panel must contain the Live Preview iframe.
+
+Mobile Responsive: On mobile viewports, the layout must stack vertically.
+
+Minimalist Style & Accent Color:
+
+The entire design must adhere to a minimalist aesthetic.
+
+The primary accent color for all interactive elements (buttons, active states, highlights) must be purple-300 (Tailwind color), consistent with the HomePage's branding.
+
+Relocate Other Features:
+
+The current 3-column layout (showing Version History) is wrong and must be removed from the main view.
+
+The "Version History" and "Asset Uploader" features must be accessible via icon buttons (e.g., in the Chat Window's header) that open them in a shadcn/ui Dialog (modal) or Sheet (slide-out panel).
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).
