@@ -1,10 +1,9 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChatPanel } from '../components/ChatPanel';
 import { PreviewPanel } from '../components/PreviewPanel';
-import { ThreeColumnLayout } from '../components/layout/ThreeColumnLayout';
-import { CollapsibleSidebar } from '../components/layout/CollapsibleSidebar';
-import { ResizablePreview } from '../components/layout/ResizablePreview';
+import { EditorLayout } from '../components/layout/EditorLayout';
 import { Card } from '../components/ui/card';
 
 async function fetchPage(pageId: string) {
@@ -19,6 +18,7 @@ async function fetchPage(pageId: string) {
 
 export function EditorPage() {
   const { pageId } = useParams<{ pageId: string }>();
+  const [isChatVisible, setIsChatVisible] = useState(true);
 
   const {
     data: page,
@@ -30,56 +30,58 @@ export function EditorPage() {
     enabled: !!pageId,
   });
 
+  const handleToggleChat = () => {
+    setIsChatVisible(prev => !prev);
+  };
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Loading page...</div>
+      <div className="flex items-center justify-center h-screen bg-[#0a0e27]">
+        <div className="text-lg text-white">Loading page...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-red-600">Error loading page: {error.message}</div>
+      <div className="flex items-center justify-center h-screen bg-[#0a0e27]">
+        <div className="text-red-400">Error loading page: {error.message}</div>
       </div>
     );
   }
 
   if (!page || !pageId) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-600">Page not found</div>
+      <div className="flex items-center justify-center h-screen bg-[#0a0e27]">
+        <div className="text-gray-400">Page not found</div>
       </div>
     );
   }
 
   return (
-    <ThreeColumnLayout
-      sidebar={
-        <CollapsibleSidebar>
-          <Card className="h-full">
-            <div className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Version History</h2>
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  Current: v{page.currentVersion?.versionNumber || 'N/A'}
-                </div>
-                {/* Version history content will be added later */}
-              </div>
-            </div>
-          </Card>
-        </CollapsibleSidebar>
+    <EditorLayout
+      isChatVisible={isChatVisible}
+      chatPanel={
+        <Card className="h-full bg-black/40 backdrop-blur-sm border-gray-800">
+          <div className="flex items-center justify-between border-b border-gray-800 px-4 h-12">
+            <h2 className="text-sm font-medium text-white">Chat</h2>
+          </div>
+          <div className="h-[calc(100%-3rem)]">
+            <ChatPanel pageId={pageId} />
+          </div>
+        </Card>
       }
-      chat={
-        <div className="h-full">
-          <ChatPanel pageId={pageId} />
-        </div>
-      }
-      preview={
-        <ResizablePreview>
-          <PreviewPanel pageId={pageId} currentVersion={page.currentVersion} />
-        </ResizablePreview>
+      previewPanel={
+        <Card className="h-full bg-black/40 backdrop-blur-sm border-gray-800">
+          <div className="h-full">
+            <PreviewPanel
+              pageId={pageId}
+              currentVersion={page.currentVersion}
+              onToggleChat={handleToggleChat}
+              isChatVisible={isChatVisible}
+            />
+          </div>
+        </Card>
       }
     />
   );

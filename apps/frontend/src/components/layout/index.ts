@@ -1,5 +1,3 @@
-// Layout components will be exported from here
+// Layout components
 export * from './LayoutPanel';
-export * from './ThreeColumnLayout';
-export * from './CollapsibleSidebar';
-export * from './ResizablePreview';
+export * from './EditorLayout';

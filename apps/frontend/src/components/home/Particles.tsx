@@ -1,25 +1,23 @@
-import * as THREE from 'three';
-import { useMemo, useState, useRef } from 'react';
-import { createPortal, useFrame } from '@react-three/fiber';
 import { useFBO } from '@react-three/drei';
+import { createPortal, useFrame } from '@react-three/fiber';
+import { useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
 
+import * as easing from 'maath/easing';
 import { DofPointsMaterial } from '../../shaders/pointMaterial';
 import { SimulationMaterial } from '../../shaders/simulationMaterial';
-import * as easing from 'maath/easing';
 
 export function Particles({
   speed,
   aperture,
   focus,
-  size = 512,
-  noiseScale = 1.0,
-  noiseIntensity = 0.5,
-  timeScale = 0.5,
-  pointSize = 2.0,
-  opacity = 1.0,
-  planeScale = 1.0,
-  useManualTime = false,
-  manualTime = 0,
+  size,
+  noiseScale,
+  noiseIntensity,
+  timeScale,
+  pointSize,
+  opacity,
+  planeScale,
   ...props
 }: {
   speed: number;
@@ -33,13 +31,11 @@ export function Particles({
   pointSize?: number;
   opacity?: number;
   planeScale?: number;
-  useManualTime?: boolean;
-  manualTime?: number;
 }) {
   // Reveal animation state
   const revealStartTime = useRef<number | null>(null);
   const [isRevealing, setIsRevealing] = useState(true);
-  const revealDuration = 3.5; // seconds
+  const revealDuration = 1.5; // seconds
   // Create simulation material with scale parameter
   const simulationMaterial = useMemo(() => {
     return new SimulationMaterial(planeScale);
@@ -94,8 +90,7 @@ export function Particles({
     state.gl.render(scene, camera);
     state.gl.setRenderTarget(null);
 
-    // Use manual time if enabled, otherwise use elapsed time
-    const currentTime = useManualTime ? manualTime : state.clock.elapsedTime;
+    const currentTime = state.clock.elapsedTime;
 
     // Initialize reveal start time on first frame
     if (revealStartTime.current === null) {

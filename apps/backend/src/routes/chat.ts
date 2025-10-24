@@ -1,17 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { ChatService } from '../services/chat.js';
-import { ChatMessageRequest } from '@instabuild/shared';
 
 export async function chatRoutes(fastify: FastifyInstance) {
   const chatService = new ChatService();
 
-  // Send chat message for page editing
+  // Send chat message for page editing (AI SDK format)
   fastify.post<{
     Params: { pageId: string };
-    Body: ChatMessageRequest;
+    Body: {
+      messages: Array<{ role: string; content: string }>;
+      data?: { selectedElementId?: string };
+    };
   }>('/api/v1/pages/:pageId/chat', async (request, reply) => {
     const { pageId } = request.params;
-    const { content, selectedElementId } = request.body;
+    const { messages, data } = request.body;
+
+    // Get the latest user message
+    const latestMessage = messages[messages.length - 1];
+    const content = latestMessage?.content || '';
+    const selectedElementId = data?.selectedElementId;
 
     const stream = await chatService.processChatMessage(
       pageId,

@@ -1,11 +1,12 @@
-import { Canvas } from '@react-three/fiber';
 import { Effects } from '@react-three/drei';
-import { ArrowRight } from 'lucide-react';
-import { VignetteShader } from '../../shaders/vignetteShader';
-import { Particles } from '../home/Particles';
+import { Canvas } from '@react-three/fiber';
 import { motion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { VignetteShader } from '../../shaders/vignetteShader';
+import { Particles } from '../home/Particles';
 
 const suggestions = [
   'A sleek landing page for a new AI-powered code editor...',
@@ -22,6 +23,9 @@ export function Hero() {
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false); // New state for input focus
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const fov = isMobile ? 55 : 45;
 
   useEffect(() => {
     const handleTyping = () => {
@@ -125,30 +129,30 @@ export function Hero() {
   };
 
   return (
-    <section className="relative w-full h-screen overflow-hidden bg-[#0a0e27]">
+    <section className="relative w-full h-screen overflow-hidden bg-black">
       {/* Waving particle background */}
       <div className="absolute inset-0">
         <Canvas
           camera={{
-            position: [1, 2.66, -1.2],
-            fov: 40,
+            position: [1.2, 2.8, -1.3],
+            fov,
             near: 0.01,
             far: 300,
           }}
           dpr={[1, 2]}
         >
-          <color attach="background" args={['#0a0e27']} />
+          <color attach="background" args={['#000000']} />
           <Particles
-            speed={1.0} // Controls the speed of the morphing/flowing distortion
-            aperture={1.5}
+            speed={1.0}
+            aperture={1.4}
             focus={3.8}
             size={512}
-            noiseScale={0.24} // Controls the scale of the distortion
-            noiseIntensity={1} // Controls the amount of distortion
+            noiseScale={0.3} // Controls the scale of the distortion
+            noiseIntensity={1.1} // Controls the amount of distortion
             timeScale={0.3}
             pointSize={8}
             opacity={0.75}
-            planeScale={12.0}
+            planeScale={12}
           />
           <Effects multisamping={0} disableGamma>
             <shaderPass
@@ -168,10 +172,12 @@ export function Hero() {
         animate="visible"
       >
         <motion.div className="text-center" variants={itemVariants}>
-          <h1 className="text-5xl font-bold text-white mb-4">
-            Bring your{' '}
-            <span className="font-serif italic text-purple-300">ideal</span>{' '}
-            landing page to life.
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
+            Bring your&nbsp;
+            <span className="font-serif italic text-purple-300">
+              ideal
+            </span>{' '}
+            landing&nbsp;page&nbsp;to&nbsp;life.
           </h1>
           <p className="text-md text-gray-400">
             Let our AI bring it to life. No code required.
@@ -181,8 +187,10 @@ export function Hero() {
           <div className="relative bg-black/40 backdrop-blur-sm rounded-xl shadow-2xl border border-purple-500/20 transition-all duration-300 focus-within:border-purple-500 focus-within:shadow-[-_0px_0px_30px_5px_rgba(168,_85,_247,_0.2)] focus-within:scale-[102%]">
             <textarea
               className="w-full h-24 p-4 bg-transparent text-white placeholder-gray-400 rounded-xl focus:outline-none resize-none"
-              placeholder={displayedText}
+              placeholder={displayedText + (userInput === '' && !isFocused ? '|' : '')}
               value={userInput}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               onChange={e => setUserInput(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

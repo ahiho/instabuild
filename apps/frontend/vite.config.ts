@@ -11,6 +11,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
+  },
+  optimizeDeps: {
+    include: ['react-syntax-highlighter', 'refractor'],
   },
   resolve: {
     alias: {

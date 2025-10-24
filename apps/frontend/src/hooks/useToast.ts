@@ -11,6 +11,12 @@ export interface ToastNotification {
 export const useToast = () => {
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
 
+  const removeToast = useCallback((id: string) => {
+    setNotifications(prev =>
+      prev.filter(notification => notification.id !== id)
+    );
+  }, []);
+
   const addToast = useCallback(
     (
       type: ToastNotification['type'],
@@ -36,14 +42,8 @@ export const useToast = () => {
 
       return id;
     },
-    []
+    [removeToast]
   );
-
-  const removeToast = useCallback((id: string) => {
-    setNotifications(prev =>
-      prev.filter(notification => notification.id !== id)
-    );
-  }, []);
 
   const success = useCallback(
     (title: string, description?: string, duration?: number) => {

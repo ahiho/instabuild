@@ -1,5 +1,6 @@
 ---
-description: 'Task list template for feature implementation'
+
+description: "Task list template for feature implementation"
 ---
 
 # Tasks: [FEATURE NAME]
@@ -19,27 +20,26 @@ description: 'Task list template for feature implementation'
 
 ## Path Conventions
 
-- **Backend service**: `apps/backend/src/`, `apps/backend/tests/`
-- **Frontend app**: `apps/frontend/src/`, `apps/frontend/tests/`
-- **Shared package**: `packages/shared/src/`, `packages/shared/tests/`
-- **Full-stack**: `apps/backend/`, `apps/frontend/`, `packages/shared/`
-- Paths shown below assume backend service - adjust based on plan.md structure
+- **Single project**: `src/`, `tests/` at repository root
+- **Web app**: `backend/src/`, `frontend/src/`
+- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
+- Paths shown below assume single project - adjust based on plan.md structure
 
-<!--
+<!-- 
   ============================================================================
   IMPORTANT: The tasks below are SAMPLE TASKS for illustration purposes only.
-
+  
   The /speckit.tasks command MUST replace these with actual tasks based on:
   - User stories from spec.md (with their priorities P1, P2, P3...)
   - Feature requirements from plan.md
   - Entities from data-model.md
   - Endpoints from contracts/
-
+  
   Tasks MUST be organized by user story so each story can be:
   - Implemented independently
   - Tested independently
   - Delivered as an MVP increment
-
+  
   DO NOT keep these sample tasks in the generated tasks.md file.
   ============================================================================
 -->
@@ -48,11 +48,9 @@ description: 'Task list template for feature implementation'
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create workspace structure per implementation plan (apps/, packages/)
-- [ ] T002 Initialize pnpm workspace with TypeScript and strict mode
-- [ ] T003 [P] Configure shared ESLint, Prettier, and TypeScript configurations
-- [ ] T004 [P] Setup Fastify backend workspace (if applicable)
-- [ ] T005 [P] Setup Vite + React frontend workspace (if applicable)
+- [ ] T001 Create project structure per implementation plan
+- [ ] T002 Initialize [language] project with [framework] dependencies
+- [ ] T003 [P] Configure linting and formatting tools
 
 ---
 
@@ -64,15 +62,12 @@ description: 'Task list template for feature implementation'
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T006 Setup database schema and migrations framework (if applicable)
-- [ ] T007 [P] Implement authentication/authorization framework
-- [ ] T008 [P] Setup Fastify routing and middleware structure (backend)
-- [ ] T009 [P] Setup React routing and component structure (frontend)
-- [ ] T010 Create base TypeScript types and interfaces in shared package
-- [ ] T011 Configure error handling and logging infrastructure
-- [ ] T012 Setup environment configuration management
-- [ ] T013 [P] Configure Vitest for unit testing
-- [ ] T014 [P] Configure Playwright for E2E testing (if applicable)
+- [ ] T004 Setup database schema and migrations framework
+- [ ] T005 [P] Implement authentication/authorization framework
+- [ ] T006 [P] Setup API routing and middleware structure
+- [ ] T007 Create base models/entities that all stories depend on
+- [ ] T008 Configure error handling and logging infrastructure
+- [ ] T009 Setup environment configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -86,20 +81,19 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
 
-**NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T015 [P] [US1] Contract test for [endpoint] in apps/backend/tests/contract/test\_[name].ts
-- [ ] T016 [P] [US1] Integration test for [user journey] in apps/frontend/tests/integration/test\_[name].ts
+- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 1
 
-- [ ] T017 [P] [US1] Create [Entity1] type in packages/shared/src/types/[entity1].ts
-- [ ] T018 [P] [US1] Create [Entity2] type in packages/shared/src/types/[entity2].ts
-- [ ] T019 [US1] Implement [Service] in apps/backend/src/services/[service].ts (depends on T017, T018)
-- [ ] T020 [US1] Implement [endpoint/route] in apps/backend/src/routes/[route].ts
-- [ ] T021 [US1] Implement [component/page] in apps/frontend/src/[location]/[file].tsx (if applicable)
-- [ ] T022 [US1] Add validation and error handling with TypeScript types
-- [ ] T023 [US1] Add logging for user story 1 operations
+- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
+- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
+- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
+- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T016 [US1] Add validation and error handling
+- [ ] T017 [US1] Add logging for user story 1 operations
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -113,16 +107,15 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T024 [P] [US2] Contract test for [endpoint] in apps/backend/tests/contract/test\_[name].ts
-- [ ] T025 [P] [US2] Integration test for [user journey] in apps/frontend/tests/integration/test\_[name].ts
+- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 2
 
-- [ ] T026 [P] [US2] Create [Entity] type in packages/shared/src/types/[entity].ts
-- [ ] T027 [US2] Implement [Service] in apps/backend/src/services/[service].ts
-- [ ] T028 [US2] Implement [endpoint/route] in apps/backend/src/routes/[route].ts
-- [ ] T029 [US2] Implement [component/page] in apps/frontend/src/[location]/[file].tsx (if applicable)
-- [ ] T030 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
+- [ ] T021 [US2] Implement [Service] in src/services/[service].py
+- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -136,15 +129,14 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T031 [P] [US3] Contract test for [endpoint] in apps/backend/tests/contract/test\_[name].ts
-- [ ] T032 [P] [US3] Integration test for [user journey] in apps/frontend/tests/integration/test\_[name].ts
+- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 3
 
-- [ ] T033 [P] [US3] Create [Entity] type in packages/shared/src/types/[entity].ts
-- [ ] T034 [US3] Implement [Service] in apps/backend/src/services/[service].ts
-- [ ] T035 [US3] Implement [endpoint/route] in apps/backend/src/routes/[route].ts
-- [ ] T036 [US3] Implement [component/page] in apps/frontend/src/[location]/[file].tsx (if applicable)
+- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
+- [ ] T027 [US3] Implement [Service] in src/services/[service].py
+- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -207,12 +199,12 @@ Examples of foundational tasks (adjust based on your project):
 
 ```bash
 # Launch all tests for User Story 1 together (if tests requested):
-Task: "Contract test for [endpoint] in apps/backend/tests/contract/test_[name].ts"
-Task: "Integration test for [user journey] in apps/frontend/tests/integration/test_[name].ts"
+Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
+Task: "Integration test for [user journey] in tests/integration/test_[name].py"
 
-# Launch all types for User Story 1 together:
-Task: "Create [Entity1] type in packages/shared/src/types/[entity1].ts"
-Task: "Create [Entity2] type in packages/shared/src/types/[entity2].ts"
+# Launch all models for User Story 1 together:
+Task: "Create [Entity1] model in src/models/[entity1].py"
+Task: "Create [Entity2] model in src/models/[entity2].py"
 ```
 
 ---
