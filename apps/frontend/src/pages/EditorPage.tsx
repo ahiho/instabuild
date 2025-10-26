@@ -36,7 +36,7 @@ export function EditorPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0e27]">
+      <div className="flex items-center justify-center h-screen bg-black">
         <div className="text-lg text-white">Loading page...</div>
       </div>
     );
@@ -44,7 +44,7 @@ export function EditorPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0e27]">
+      <div className="flex items-center justify-center h-screen bg-black">
         <div className="text-red-400">Error loading page: {error.message}</div>
       </div>
     );
@@ -52,7 +52,7 @@ export function EditorPage() {
 
   if (!page || !pageId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0e27]">
+      <div className="flex items-center justify-center h-screen bg-black">
         <div className="text-gray-400">Page not found</div>
       </div>
     );

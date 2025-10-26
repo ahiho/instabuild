@@ -50,7 +50,7 @@ export interface AssetUploaderDialogProps {
  */
 export const THEME_CONFIG = {
   background: {
-    primary: '#0a0e27',
+    primary: '#000000',
     card: 'bg-black/40',
     blur: 'backdrop-blur-sm',
   },

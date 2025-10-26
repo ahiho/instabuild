@@ -1,9 +1,12 @@
 import Fastify from 'fastify';
+import fastifyWebsocket from '@fastify/websocket';
 import { PrismaClient } from '@prisma/client';
 import { initializeStorage } from './lib/storage.js';
 import { errorHandler } from './middleware/error.js';
 import { pagesRoutes } from './routes/pages.js';
 import { chatRoutes } from './routes/chat.js';
+import { websocketRoutes } from './routes/websocket.js';
+import { conversationRoutes } from './routes/conversation.js';
 
 const fastify = Fastify({
   logger: true,
@@ -27,9 +30,18 @@ await fastify.register(import('@fastify/multipart'), {
   },
 });
 
+// Register WebSocket plugin
+await fastify.register(fastifyWebsocket, {
+  options: {
+    maxPayload: 1024 * 1024, // 1MB max message size
+  },
+});
+
 // Register routes
 await fastify.register(pagesRoutes);
 await fastify.register(chatRoutes);
+await fastify.register(websocketRoutes);
+await fastify.register(conversationRoutes);
 
 // Health check endpoint
 fastify.get('/api/v1/health', async () => {

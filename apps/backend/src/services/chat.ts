@@ -9,10 +9,22 @@ export class ChatService {
     message: string,
     selectedElementId?: string
   ) {
+    // Get or create conversation for this page
+    const conversation = await prisma.conversation.findFirst({
+      where: { landingPageId: pageId },
+      orderBy: { lastUpdateTime: 'desc' },
+    });
+
+    const conversationId = conversation?.id || (await prisma.conversation.create({
+      data: { landingPageId: pageId },
+    })).id;
+
     // Save user message
     await prisma.chatMessage.create({
       data: {
+        conversationId,
         landingPageId: pageId,
+        senderType: 'User',
         role: 'user',
         content: message,
         metadata: selectedElementId ? { selectedElementId } : undefined,
@@ -67,9 +79,21 @@ export class ChatService {
     content: string,
     toolCalls?: any[]
   ) {
+    // Get or create conversation for this page
+    const conversation = await prisma.conversation.findFirst({
+      where: { landingPageId: pageId },
+      orderBy: { lastUpdateTime: 'desc' },
+    });
+
+    const conversationId = conversation?.id || (await prisma.conversation.create({
+      data: { landingPageId: pageId },
+    })).id;
+
     return prisma.chatMessage.create({
       data: {
+        conversationId,
         landingPageId: pageId,
+        senderType: 'AI',
         role: 'assistant',
         content,
         toolCalls: toolCalls || undefined,

@@ -62,17 +62,33 @@ model Asset {
   @@map("assets")
 }
 
-model ChatMessage {
-  id            String   @id @default(cuid())
-  landingPageId String
-  role          String   @db.VarChar(20) // user, assistant, system
-  content       String   @db.Text
-  toolCalls     Json?    // JSON array of tool calls
-  metadata      Json?    // Additional metadata
-  createdAt     DateTime @default(now())
+model Conversation {
+  id             String   @id @default(cuid())
+  userId         String?  // Optional: for future user authentication
+  landingPageId  String?  // Optional: link to landing page if applicable
+  startTime      DateTime @default(now())
+  lastUpdateTime DateTime @updatedAt
 
   // Relationships
-  landingPage         LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  landingPageId  String?  // Made optional for backward compatibility
+  senderType     String   @db.VarChar(20) // User, AI, System
+  role           String   @db.VarChar(20) // user, assistant, system (deprecated, use senderType)
+  content        String   @db.Text
+  toolCalls      Json?    // JSON array of tool calls
+  metadata       Json?    // Additional metadata
+  createdAt      DateTime @default(now())
+
+  // Relationships
+  conversation         Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  landingPage          LandingPage?  @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
   modificationCommands ModificationCommand[]
 
   @@map("chat_messages")

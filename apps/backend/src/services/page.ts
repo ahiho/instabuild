@@ -21,9 +21,13 @@ export class PageService {
 
     // Create GitHub repository
     const repoName = `landing-${Date.now()}`;
+    // Sanitize description for GitHub (remove control characters, max 350 chars)
+    const repoDescription = this.sanitizeGitHubDescription(
+      data.description || title
+    );
     const repo = await octokit.rest.repos.createForAuthenticatedUser({
       name: repoName,
-      description: data.description || title,
+      description: repoDescription,
       private: false,
       auto_init: true,
     });
@@ -155,6 +159,26 @@ export class PageService {
     }
 
     return truncated + '...';
+  }
+
+  /**
+   * Sanitize description for GitHub repository
+   * Removes control characters and limits length to 350 characters
+   */
+  private sanitizeGitHubDescription(description: string): string {
+    // Replace newlines and tabs with spaces
+    let sanitized = description
+      .replace(/[\r\n\t]/g, ' ')
+      // Replace multiple spaces with single space
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Limit to 350 characters (GitHub's max)
+    if (sanitized.length > 350) {
+      sanitized = sanitized.substring(0, 347) + '...';
+    }
+
+    return sanitized;
   }
 
   private generateBasicTemplate(title: string): string {

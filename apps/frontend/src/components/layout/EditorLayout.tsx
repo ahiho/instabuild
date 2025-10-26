@@ -33,7 +33,7 @@ export function EditorLayout({
   }, []);
 
   return (
-    <div className={`h-screen bg-[#0a0e27] ${className}`}>
+    <div className={`h-screen bg-black ${className}`}>
       <ResizablePanelGroup
         direction={isMobile ? 'vertical' : 'horizontal'}
         className="h-full"
