@@ -12,6 +12,85 @@ export interface ToolExecutionContext {
 }
 
 /**
+ * Safety levels for tool execution
+ */
+export type SafetyLevel = 'safe' | 'potentially_destructive';
+
+/**
+ * Enhanced tool definition with user-friendly metadata and safety levels
+ */
+export interface EnhancedToolDefinition<T = any> extends ToolDefinition<T> {
+  displayName: string; // User-friendly name for UI display
+  category: ToolCategory;
+  userDescription: string; // Non-technical description for users
+  icon?: string; // Icon identifier for UI
+  estimatedDuration?: number; // Estimated execution time in ms
+  safetyLevel: SafetyLevel; // Safety level for constraint evaluation
+  metadata: ToolMetadata;
+}
+
+/**
+ * Tool metadata for enhanced functionality
+ */
+export interface ToolMetadata {
+  version: string;
+  author?: string;
+  tags: string[];
+  examples?: ToolExample[];
+  limitations?: string[];
+  relatedTools?: string[];
+}
+
+/**
+ * Tool usage example
+ */
+export interface ToolExample {
+  description: string;
+  input: any;
+  expectedOutput?: any;
+}
+
+/**
+ * Tool categories for organization and permissions
+ */
+export enum ToolCategory {
+  FILE_SYSTEM = 'file_system',
+  LANDING_PAGE = 'landing_page',
+  UPLOAD = 'upload',
+  UTILITY = 'utility',
+  EXTERNAL_API = 'external_api',
+  ANALYTICS = 'analytics',
+}
+
+/**
+ * Tool execution progress information
+ */
+export interface ToolExecutionProgress {
+  toolCallId: string;
+  toolName: string;
+  displayName: string;
+  status: ToolExecutionStatus;
+  progress: number; // 0-100
+  message: string; // User-friendly status message
+  startTime: Date;
+  estimatedCompletion?: Date;
+}
+
+/**
+ * Tool execution result with user feedback
+ */
+export interface ToolExecutionResult {
+  success: boolean;
+  data?: any;
+  userFeedback: string; // User-friendly description of what was done
+  technicalDetails?: any; // Technical details for debugging
+  previewRefreshNeeded: boolean;
+  changedFiles?: string[];
+  warnings?: string[];
+  suggestions?: string[];
+}
+
+/**
  * Definition of a tool that can be registered and executed
  */
 export interface ToolDefinition<T = any> {
@@ -19,7 +98,7 @@ export interface ToolDefinition<T = any> {
   description: string;
   inputSchema: z.ZodSchema<T>;
   execute: (input: T, context: ToolExecutionContext) => Promise<any> | any;
-  permissions?: string[];
+  safetyLevel?: SafetyLevel; // Optional safety level for basic tools
   timeout?: number;
   rateLimitKey?: string;
 }
@@ -28,16 +107,32 @@ export interface ToolDefinition<T = any> {
  * Registry interface for managing tools
  */
 export interface ToolRegistry {
-  registerTool<T>(definition: ToolDefinition<T>): void;
+  registerTool<T>(
+    definition: ToolDefinition<T>,
+    options?: ToolRegistrationOptions
+  ): void;
+  registerEnhancedTool<T>(definition: EnhancedToolDefinition<T>): void;
   getTools(): Record<string, any>; // Will be VercelAITool when we integrate
+  getAvailableTools(context: ToolExecutionContext): Record<string, any>;
   executeTool(
     name: string,
     input: any,
     context: ToolExecutionContext
-  ): Promise<any>;
-  validatePermissions(toolName: string, userId: string): boolean;
+  ): Promise<ToolExecutionResult>;
+  validateSafety(toolName: string, context: ToolExecutionContext): boolean;
   isToolRegistered(name: string): boolean;
   getToolDefinition(name: string): ToolDefinition | undefined;
+  getEnhancedToolDefinition(name: string): EnhancedToolDefinition | undefined;
+  getToolSafetyLevel(toolName: string): SafetyLevel | undefined;
+  wrapTool(
+    aiTool: any,
+    metadata: ToolMetadata & {
+      displayName: string;
+      category: ToolCategory;
+      userDescription: string;
+      safetyLevel: SafetyLevel;
+    }
+  ): any;
 }
 
 /**
@@ -143,7 +238,7 @@ export interface RateLimitConfig {
  * Tool registration options
  */
 export interface ToolRegistrationOptions {
-  permissions?: string[];
+  safetyLevel?: SafetyLevel;
   timeout?: number;
   rateLimit?: RateLimitConfig;
   enabled?: boolean;

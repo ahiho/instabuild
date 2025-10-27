@@ -1,253 +1,283 @@
 # Implementation Plan
 
-- [ ] 1. Set up core tool calling infrastructure
-  - Create the Tool Registry system with registration, validation, and execution capabilities
-  - Implement base interfaces and types for tool definitions and execution context
-  - Add database schema extensions for tool execution tracking
-  - _Requirements: 2.1, 2.2, 2.4, 6.4_
+- [x] 1. Set up enhanced tool registry system with user-friendly feedback
+  - Create ToolRegistry class that extends AI SDK tool functionality
+  - Implement tool registration with metadata for user-friendly names and descriptions
+  - Add analytics collection hooks for tool execution tracking
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [x] 1.1 Create Tool Registry core interfaces and types
-  - Define ToolDefinition, ToolExecutionContext, and ToolRegistry interfaces
-  - Create ToolError types and error handling enums
-  - Implement base tool execution tracking models
-  - _Requirements: 2.1, 2.2, 6.4_
+- [x] 1.1 Create base tool wrapper with user feedback capabilities
+  - Implement EnhancedToolDefinition interface with user-friendly metadata
+  - Create tool wrapper that adds analytics, permissions, and user feedback
+  - Add tool execution status tracking and progress reporting
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 10.1, 10.2_
 
-- [x] 1.2 Implement Tool Registry class with registration system
-  - Code the ToolRegistry class with tool registration and validation methods
-  - Add permission checking and rate limiting functionality
-  - Implement tool execution orchestration with error handling
-  - _Requirements: 2.1, 2.2, 2.5, 7.1, 7.3_
+- [x] 1.2 Implement safety constraint system for user confirmation
+  - Create SafetyConstraintSystem class for identifying destructive actions
+  - Add user confirmation prompts for potentially destructive operations
+  - Implement audit logging for system monitoring
+  - _Requirements: 7.1, 7.2, 7.4, 7.5_
 
-- [x] 1.3 Add database schema for tool execution tracking
-  - Create Prisma schema extensions for ToolExecution model
-  - Update ChatMessage model to include toolCalls and toolResults fields
-  - Generate and run database migrations
-  - _Requirements: 6.4, 7.4_
+- [ ]\* 1.3 Write unit tests for tool registry functionality
+  - Test tool registration and validation
+  - Test safety constraint checking and user confirmation
+  - Test analytics collection and reporting
+  - _Requirements: 2.1, 2.2, 7.1, 10.1_
 
-- [ ]\* 1.4 Write unit tests for Tool Registry
-  - Create unit tests for tool registration and validation
-  - Test permission checking and rate limiting functionality
-  - Write tests for error handling scenarios
-  - _Requirements: 2.1, 2.2, 2.5_
+- [ ] 2. Implement model selection service for cost optimization
+  - Create ModelSelectionService class with complexity analysis
+  - Implement TaskComplexityAnalyzer for determining model tier needs
+  - Add cost tracking and optimization recommendations
+  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
 
-- [ ] 2. Enhance AI Model Service with tool calling support
-  - Extend the existing AIModelService to support Vercel AI SDK tool calling
-  - Implement streaming responses that include tool execution results
-  - Add tool call repair and error recovery mechanisms
-  - _Requirements: 1.1, 1.2, 1.4, 6.1, 6.2_
+- [ ] 2.1 Create task complexity analyzer
+  - Implement complexity scoring based on message content and tool requirements
+  - Add logic to detect when tool calling is needed
+  - Create model tier selection algorithm (weak vs strong)
+  - _Requirements: 11.1, 11.2, 11.3_
 
-- [ ] 2.1 Extend AIModelService interfaces for tool support
-  - Add AIStreamOptionsWithTools interface extending existing options
-  - Define ToolCall and ToolResult interfaces
-  - Create streaming chunk types for tool execution events
-  - _Requirements: 1.1, 1.2_
+- [ ] 2.2 Add model usage tracking and cost optimization
+  - Implement usage analytics for model selection decisions
+  - Add cost tracking per conversation and model type
+  - Create optimization recommendations based on usage patterns
+  - _Requirements: 11.4, 11.5, 10.1, 10.2_
 
-- [ ] 2.2 Implement tool-enabled streaming in AIModelService
-  - Modify streamChatResponse to support Vercel AI SDK tools parameter
-  - Add tool execution orchestration within the streaming flow
-  - Implement multi-step tool execution with stopWhen configuration
-  - _Requirements: 1.1, 1.4, 1.2_
+- [ ]\* 2.3 Write unit tests for model selection logic
+  - Test complexity analysis accuracy
+  - Test model tier selection decisions
+  - Test cost optimization algorithms
+  - _Requirements: 11.1, 11.2, 11.3_
 
-- [ ] 2.3 Add tool call repair and error recovery
-  - Implement experimental_repairToolCall for invalid tool parameters
-  - Add graceful degradation when tools fail
-  - Create retry logic with exponential backoff for retryable errors
-  - _Requirements: 6.1, 6.2, 6.5_
+- [x] 3. Create code management tools for behind-the-scenes file operations
+  - Implement ReadCodeTools for understanding current page structure
+  - Create WriteCodeTools for modifying HTML, CSS, and JavaScript files
+  - Add CreateCodeTools for generating new components and sections
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ]\* 2.4 Write unit tests for enhanced AI Model Service
-  - Test tool-enabled streaming functionality
-  - Create tests for tool call repair mechanisms
-  - Write tests for error recovery and graceful degradation
-  - _Requirements: 1.1, 1.2, 6.1, 6.2_
+- [x] 3.1 Implement page structure analysis tools
+  - Create tools to read and parse HTML, CSS, and JavaScript files
+  - Add component detection and relationship mapping
+  - Implement asset inventory and dependency tracking
+  - _Requirements: 8.1, 8.5_
 
-- [ ] 3. Update Chat Service for tool integration
-  - Modify the existing ChatService to detect when tool calling is needed
-  - Integrate tool execution results into conversation context
-  - Update message persistence to include tool calls and results
-  - _Requirements: 1.2, 1.3, 6.4_
+- [x] 3.2 Create file modification tools with validation
+  - Implement safe file writing with backup and rollback capabilities
+  - Add code validation to prevent breaking changes
+  - Create batch file operation support for complex changes
+  - _Requirements: 8.2, 8.4, 8.5_
 
-- [ ] 3.1 Enhance ChatService with tool detection logic
-  - Add logic to determine when messages require tool calling
-  - Update model selection context to include requiresToolCalling flag
-  - Modify processChatMessage to use tool-enabled AI streaming
-  - _Requirements: 1.1, 1.2_
+- [x] 3.3 Add component and section generation tools
+  - Create tools for generating new HTML components
+  - Implement CSS generation for new elements
+  - Add JavaScript functionality generation for interactive elements
+  - _Requirements: 8.3, 8.5_
 
-- [ ] 3.2 Implement tool result integration in conversations
-  - Update saveAssistantMessage to persist tool calls and results
-  - Modify conversation history retrieval to include tool context
-  - Add tool execution tracking and logging
-  - _Requirements: 1.2, 6.4, 7.4_
+- [ ]\* 3.4 Write integration tests for code management tools
+  - Test file reading and parsing accuracy
+  - Test safe file modification and validation
+  - Test component generation and integration
+  - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ]\* 3.3 Write integration tests for Chat Service tool integration
-  - Test end-to-end chat flow with tool execution
-  - Create tests for tool result persistence and retrieval
-  - Write tests for conversation context with tool history
-  - _Requirements: 1.2, 1.3, 6.4_
-
-- [ ] 4. Extend WebSocket protocol for tool execution events
-  - Add new WebSocket message types for tool execution lifecycle
-  - Update WebSocket handler to stream tool execution status
-  - Maintain backward compatibility with existing message types
-  - _Requirements: 1.5, 5.1, 5.2, 5.3_
-
-- [ ] 4.1 Define new WebSocket message types for tools
-  - Create ToolExecutionStart, ToolExecutionProgress, and ToolExecutionComplete interfaces
-  - Update WSMessage union type to include new tool message types
-  - Add message validation for new tool execution events
-  - _Requirements: 5.1, 5.2, 5.3_
-
-- [ ] 4.2 Update WebSocket handler for tool event streaming
-  - Modify WebSocket message handling to process tool execution events
-  - Add real-time streaming of tool execution status and progress
-  - Implement tool execution timeout handling and cancellation
-  - _Requirements: 5.1, 5.2, 5.3, 5.5_
-
-- [ ]\* 4.3 Write tests for WebSocket tool event handling
-  - Test new WebSocket message types and validation
-  - Create tests for tool execution event streaming
-  - Write tests for timeout and cancellation scenarios
-  - _Requirements: 5.1, 5.2, 5.3, 5.5_
-
-- [ ] 5. Implement landing page manipulation tools
-  - Create specific tools for modifying landing page elements
-  - Integrate with existing Landing Page Editor component
-  - Add element creation, modification, and deletion capabilities
+- [x] 4. Implement visual element tools for user-facing changes
+  - Create ContentUpdateTools for text and content modifications
+  - Implement LayoutModificationTools for positioning and structure changes
+  - Add StyleApplicationTools for visual styling and theming
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 5.1 Create element modification tools
-  - Implement modifyElementTool with style, content, and attribute modification
-  - Add element validation and existence checking
-  - Create batch element modification capabilities
-  - _Requirements: 3.1, 3.2, 3.5_
+- [x] 4.1 Create content update tools with natural language processing
+  - Implement text content replacement with context awareness
+  - Add heading and paragraph modification capabilities
+  - Create content generation tools for placeholder text
+  - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 5.2 Implement element creation and deletion tools
-  - Create createElement tool for adding new page elements
-  - Implement deleteElement tool with safety checks
-  - Add element positioning and parent-child relationship management
-  - _Requirements: 3.1, 3.2, 3.4_
+- [x] 4.2 Implement layout and positioning modification tools
+  - Create tools for adjusting element positioning and spacing
+  - Add responsive layout modification capabilities
+  - Implement section reordering and restructuring tools
+  - _Requirements: 3.1, 3.2, 3.3, 3.5_
 
-- [ ] 5.3 Add element query and inspection tools
-  - Implement getElementInfo tool for retrieving element details
-  - Create listElements tool for element discovery
-  - Add element selector validation and suggestion tools
-  - _Requirements: 3.2, 3.4_
+- [x] 4.3 Add visual styling and theming tools
+  - Implement color scheme application tools
+  - Create font and typography modification capabilities
+  - Add CSS class generation and application tools
+  - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ]\* 5.4 Write unit tests for landing page tools
-  - Test element modification, creation, and deletion functionality
-  - Create tests for element validation and error scenarios
-  - Write tests for batch operations and safety checks
-  - _Requirements: 3.1, 3.2, 3.4, 3.5_
+- [x] 4.4 Create component addition tools for common elements
+  - Implement form generation tools (contact forms, signup forms)
+  - Add button and navigation element creation tools
+  - Create section and container generation capabilities
+  - _Requirements: 3.1, 3.2, 3.3, 9.3_
 
-- [ ] 6. Implement file upload and asset management tools
-  - Create tools for handling file uploads through chat interface
-  - Integrate with existing File Upload Service
-  - Add image optimization and multi-format support
+- [ ]\* 4.5 Write unit tests for visual element tools
+  - Test content update accuracy and validation
+  - Test layout modification without breaking responsive design
+  - Test styling application and CSS generation
+  - _Requirements: 3.1, 3.2, 3.3_
+
+- [ ] 5. Implement asset management tools with automatic integration
+  - Create FileUploadTools with validation and optimization
+  - Implement ImageProcessingTools for automatic resizing and optimization
+  - Add AssetIntegrationTools for automatic code integration
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 6.1 Create file upload initiation tool
-  - Implement uploadFile tool with file type and size validation
-  - Add support for different file types (images, videos, documents)
-  - Create file format validation and restriction enforcement
-  - _Requirements: 4.1, 4.4_
+- [ ] 5.1 Create file upload and validation system
+  - Implement secure file upload with type and size validation
+  - Add automatic file optimization and compression
+  - Create asset storage and URL generation system
+  - _Requirements: 4.1, 4.2, 4.4_
 
-- [ ] 6.2 Implement file processing and optimization tools
-  - Add image optimization and resizing capabilities
-  - Create multiple format generation for uploaded images
-  - Implement file storage and URL generation
+- [ ] 5.2 Implement automatic asset placement and integration
+  - Create intelligent asset placement based on user intent
+  - Add automatic code modification to integrate uploaded assets
+  - Implement responsive image handling and optimization
   - _Requirements: 4.2, 4.3, 4.5_
 
-- [ ] 6.3 Add asset management and retrieval tools
-  - Create listAssets tool for browsing uploaded files
-  - Implement deleteAsset tool with permission checking
-  - Add asset metadata and usage tracking
-  - _Requirements: 4.2, 7.1, 7.4_
+- [ ] 5.3 Add image processing and optimization capabilities
+  - Implement automatic image resizing for different use cases
+  - Add format conversion and optimization (WebP, compression)
+  - Create multiple size variant generation for responsive design
+  - _Requirements: 4.5, 9.2_
 
-- [ ]\* 6.4 Write unit tests for file upload tools
-  - Test file upload validation and processing
-  - Create tests for image optimization and format generation
-  - Write tests for asset management and permission checking
-  - _Requirements: 4.1, 4.2, 4.4, 4.5_
+- [ ]\* 5.4 Write integration tests for asset management
+  - Test file upload and validation processes
+  - Test automatic asset placement and code integration
+  - Test image optimization and variant generation
+  - _Requirements: 4.1, 4.2, 4.3_
 
-- [ ] 7. Update frontend to handle tool execution feedback
-  - Enhance useChat hook to process tool execution events
-  - Add UI components for displaying tool execution status
-  - Implement progress indicators and error handling in chat interface
-  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+- [ ] 6. Enhance chat service with tool execution feedback and preview refresh
+  - Modify ChatService to show tool execution status with user-friendly names
+  - Add automatic preview refresh triggers after tool execution
+  - Implement streaming tool execution feedback with progress indicators
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 12.1, 12.2_
 
-- [ ] 7.1 Extend useChat hook for tool execution events
-  - Add handling for ToolExecutionStart, ToolExecutionProgress, and ToolExecutionComplete messages
-  - Update message state management to include tool execution status
-  - Implement tool execution cancellation capabilities
-  - _Requirements: 5.1, 5.2, 5.3, 5.5_
+- [ ] 6.1 Add tool execution status display to chat interface
+  - Create UI components for showing active tool execution
+  - Implement user-friendly tool names and descriptions
+  - Add progress indicators and status updates during tool execution
+  - _Requirements: 5.1, 5.2, 5.4, 5.5_
 
-- [ ] 7.2 Create UI components for tool execution feedback
-  - Design and implement ToolExecutionIndicator component
-  - Add progress bars and status displays for tool operations
-  - Create error display components for failed tool executions
-  - _Requirements: 5.4, 5.5_
+- [ ] 6.2 Implement automatic preview refresh system
+  - Create preview refresh triggers after successful tool execution
+  - Add preview update notifications to user interface
+  - Implement selective refresh to minimize loading time
+  - _Requirements: 12.1, 12.2, 12.4_
 
-- [ ] 7.3 Integrate tool execution UI into chat interface
-  - Update chat message components to display tool execution status
-  - Add real-time progress updates and completion notifications
-  - Implement timeout warnings and cancellation controls
-  - _Requirements: 5.4, 5.5_
+- [ ] 6.3 Add comprehensive tool result formatting and feedback
+  - Create user-friendly success messages for tool execution
+  - Implement error handling with non-technical explanations
+  - Add visual highlighting of changes in preview when possible
+  - _Requirements: 6.2, 6.3, 12.3, 12.5_
 
-- [ ]\* 7.4 Write frontend tests for tool execution UI
-  - Test useChat hook tool execution event handling
-  - Create tests for tool execution UI components
-  - Write integration tests for chat interface with tool feedback
-  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+- [ ]\* 6.4 Write integration tests for chat service enhancements
+  - Test tool execution status display and user feedback
+  - Test automatic preview refresh functionality
+  - Test error handling and user-friendly messaging
+  - _Requirements: 5.1, 5.2, 6.2, 12.1_
 
-- [ ] 8. Add security and monitoring features
-  - Implement comprehensive permission system for tools
-  - Add audit logging and monitoring capabilities
-  - Create rate limiting and abuse prevention mechanisms
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+- [ ] 7. Integrate AI SDK tool calling with enhanced registry
+  - Update AI model service to use enhanced tool registry
+  - Implement tool call repair with user-friendly error recovery
+  - Add multi-step tool execution support for complex requests
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 6.1, 6.5_
 
-- [ ] 8.1 Implement tool permission and access control system
-  - Create role-based permission checking for sensitive tools
-  - Add user context validation for tool execution
-  - Implement API key and authentication token validation for external tools
-  - _Requirements: 7.1, 7.2_
+- [ ] 7.1 Update AI model service to use enhanced tools
+  - Integrate ToolRegistry with AI SDK generateText function
+  - Add tool selection logic based on user request analysis
+  - Implement streaming tool execution with status updates
+  - _Requirements: 1.1, 1.2, 1.5_
 
-- [ ] 8.2 Add comprehensive audit logging and monitoring
-  - Implement detailed logging for all tool execution attempts and results
-  - Create audit trail with user context and change tracking
-  - Add performance monitoring and metrics collection for tool operations
-  - _Requirements: 6.4, 7.4_
+- [ ] 7.2 Implement intelligent tool call repair and error recovery
+  - Add experimental_repairToolCall integration with user-friendly feedback
+  - Create fallback strategies for failed tool executions
+  - Implement alternative suggestion system for blocked operations
+  - _Requirements: 6.1, 6.2, 6.5_
 
-- [ ] 8.3 Implement rate limiting and abuse prevention
-  - Add per-user and per-tool rate limiting mechanisms
-  - Create circuit breaker pattern for problematic tools
-  - Implement resource usage monitoring and limits
-  - _Requirements: 7.3_
+- [ ] 7.3 Add multi-step tool execution for complex user requests
+  - Implement stopWhen logic for tool execution sequences
+  - Add coordination between multiple tools for complex changes
+  - Create transaction-like behavior for related tool calls
+  - _Requirements: 1.4, 8.5_
 
-- [ ]\* 8.4 Write security and monitoring tests
-  - Test permission validation and access control
-  - Create tests for audit logging and monitoring functionality
-  - Write tests for rate limiting and abuse prevention
-  - _Requirements: 7.1, 7.2, 7.3, 7.4_
+- [ ]\* 7.4 Write end-to-end tests for AI SDK integration
+  - Test complete tool calling flow from user message to preview update
+  - Test error recovery and repair mechanisms
+  - Test multi-step tool execution scenarios
+  - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 9. Integration and end-to-end testing
-  - Create comprehensive integration tests for the complete tool calling system
-  - Test real-world scenarios with multiple tools and complex interactions
-  - Validate performance and reliability under load
-  - _Requirements: All requirements_
+- [ ] 8. Add analytics and monitoring system for tool usage
+  - Create AnalyticsCollector for tracking tool performance and usage
+  - Implement database schema for tool execution and model usage tracking
+  - Add analytics dashboard for monitoring system performance
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 9.1 Create end-to-end integration tests
-  - Test complete user journey from chat message to tool execution and response
-  - Create tests for multi-step tool execution scenarios
-  - Validate WebSocket communication and real-time updates
-  - _Requirements: 1.1, 1.2, 1.4, 5.1, 5.2, 5.3_
+- [ ] 8.1 Create analytics collection and storage system
+  - Implement AnalyticsCollector class for tool execution tracking
+  - Add database tables for tool analytics and model usage
+  - Create data aggregation and reporting capabilities
+  - _Requirements: 10.1, 10.2_
 
-- [ ] 9.2 Implement performance and load testing
-  - Test system performance under concurrent tool executions
-  - Validate WebSocket connection stability with tool events
-  - Create stress tests for tool registry and execution system
-  - _Requirements: All requirements_
+- [ ] 8.2 Implement performance monitoring and alerting
+  - Add performance metrics tracking for tool execution times
+  - Create alerting system for performance degradation
+  - Implement usage pattern analysis and optimization recommendations
+  - _Requirements: 10.3, 10.4, 10.5_
 
-- [ ] 9.3 Add monitoring and alerting setup
-  - Configure monitoring dashboards for tool execution metrics
-  - Set up alerts for tool failures and performance degradation
-  - Create health checks for tool availability and system status
-  - _Requirements: 6.4, 7.4_
+- [ ]\* 8.3 Create analytics dashboard and reporting interface
+  - Build dashboard for viewing tool usage statistics
+  - Add performance metrics visualization
+  - Create reports for optimization opportunities
+  - _Requirements: 10.3, 10.4, 10.5_
+
+- [ ]\* 8.4 Write unit tests for analytics system
+  - Test analytics data collection and storage
+  - Test performance monitoring and alerting
+  - Test dashboard functionality and reporting
+  - _Requirements: 10.1, 10.2, 10.3_
+
+- [ ] 9. Create frontend tool execution UI components
+  - Build tool execution status components with user-friendly displays
+  - Implement preview refresh indicators and loading states
+  - Add tool result visualization with change highlighting
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 12.1, 12.2, 12.4_
+
+- [ ] 9.1 Create tool execution status display components
+  - Build UI components for showing active tool execution
+  - Add animated progress indicators and status messages
+  - Implement tool name display with user-friendly descriptions
+  - _Requirements: 5.1, 5.2, 5.4_
+
+- [ ] 9.2 Implement preview refresh and change visualization
+  - Create preview refresh indicators and loading states
+  - Add visual highlighting of changed elements when possible
+  - Implement smooth transitions for preview updates
+  - _Requirements: 12.1, 12.2, 12.4_
+
+- [ ]\* 9.3 Write component tests for tool execution UI
+  - Test tool execution status display components
+  - Test preview refresh indicators and animations
+  - Test change visualization and highlighting
+  - _Requirements: 5.1, 5.2, 12.1, 12.2_
+
+- [ ] 10. Integrate all components and test complete user workflow
+  - Connect all tool categories with chat service and preview system
+  - Test complete user scenarios from natural language to visual results
+  - Implement final error handling and user experience polish
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 12.1, 12.2, 12.3, 12.4, 12.5_
+
+- [ ] 10.1 Complete system integration and workflow testing
+  - Connect tool registry, model selection, and chat service
+  - Test complete user workflows from request to preview update
+  - Verify all tool categories work together seamlessly
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+- [ ] 10.2 Implement final user experience polish and error handling
+  - Add comprehensive error messages in user-friendly language
+  - Implement graceful degradation for tool failures
+  - Add user guidance for common scenarios and limitations
+  - _Requirements: 6.2, 6.3, 6.5, 12.3, 12.5_
+
+- [ ]\* 10.3 Create comprehensive end-to-end test suite
+  - Test complete user scenarios with multiple tool executions
+  - Test error recovery and fallback mechanisms
+  - Test performance under various load conditions
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 6.1, 6.2_

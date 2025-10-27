@@ -25,6 +25,7 @@
     "@octokit/rest": "^22.0.0",
     "@prisma/client": "^6.17.1",
     "@types/minio": "^7.1.1",
+    "ai": "^5.0.78",
     "fastify": "^5.0.0",
     "minio": "^8.0.6",
     "prisma": "^6.17.1",

@@ -30,15 +30,27 @@ import {
   PromptInputTextarea,
   type PromptInputMessage,
 } from './ai-elements/prompt-input';
-import { usePromptInputAttachments } from './ai-elements/use-prompt-input';
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from './ai-elements/reasoning';
 import { Response } from './ai-elements/response';
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from './ai-elements/tool';
+import { usePromptInputAttachments } from './ai-elements/use-prompt-input';
 
 interface ChatPanelProps {
   pageId: string;
 }
 
 /**
- * Renders different types of message parts from AI SDK
+ * Renders different types of message parts from AI SDK using proper AI elements
  */
 function renderMessagePart(part: UIMessage['parts'][0], index: number) {
   // Handle text parts
@@ -46,162 +58,62 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
     return <Response key={index}>{part.text}</Response>;
   }
 
-  // Handle tool parts (tool-* types) - simplified approach
+  // Handle tool parts (tool-* types) using the Tool component
   if (part.type.startsWith('tool-')) {
-    const toolName = part.type.replace('tool-', '');
-    const partData = part as Record<string, unknown>; // Type assertion for tool data
-
+    const toolPart = part as Record<string, unknown>; // Tool parts from AI SDK
     return (
-      <div
-        key={index}
-        className="my-2 p-3 bg-blue-500/10 border border-blue-500/50 rounded-md"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm font-medium text-blue-600">
-            🔧 {toolName}
-          </span>
-          {partData.state && (
-            <span className="text-xs px-2 py-1 bg-blue-500/20 rounded-full text-blue-600">
-              {String(partData.state)}
-            </span>
+      <Tool key={index}>
+        <ToolHeader
+          title={String(toolPart.toolName || '')}
+          type={part.type as `tool-${string}`}
+          state={
+            (toolPart.state as
+              | 'input-streaming'
+              | 'input-available'
+              | 'output-available'
+              | 'output-error') || 'input-available'
+          }
+        />
+        <ToolContent>
+          {!!toolPart.input && <ToolInput input={toolPart.input} />}
+          {!!(toolPart.output || toolPart.errorText) && (
+            <ToolOutput
+              output={toolPart.output}
+              errorText={toolPart.errorText as string}
+            />
           )}
-        </div>
-        {partData.input && (
-          <div className="mb-2">
-            <h5 className="text-xs font-medium text-muted-foreground mb-1">
-              Input:
-            </h5>
-            <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-              {JSON.stringify(partData.input, null, 2)}
-            </pre>
-          </div>
-        )}
-        {partData.output && (
-          <div>
-            <h5 className="text-xs font-medium text-muted-foreground mb-1">
-              Output:
-            </h5>
-            <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-              {typeof partData.output === 'string'
-                ? partData.output
-                : JSON.stringify(partData.output, null, 2)}
-            </pre>
-          </div>
-        )}
-        {partData.errorText && (
-          <div className="text-red-400">
-            <h5 className="text-xs font-medium mb-1">Error:</h5>
-            <p className="text-xs">{String(partData.errorText)}</p>
-          </div>
-        )}
-      </div>
+        </ToolContent>
+      </Tool>
     );
   }
 
-  // Handle dynamic tool parts
-  if (part.type === 'dynamic-tool') {
-    const partData = part as Record<string, unknown>;
+  // Handle reasoning parts using the Reasoning component
+  if (part.type === 'reasoning') {
+    const reasoningPart = part as Record<string, unknown>;
     return (
-      <div
-        key={index}
-        className="my-2 p-3 bg-green-500/10 border border-green-500/50 rounded-md"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm font-medium text-green-600">
-            🔧 {String(partData.toolName) || 'Dynamic Tool'}
-          </span>
-          {partData.state && (
-            <span className="text-xs px-2 py-1 bg-green-500/20 rounded-full text-green-600">
-              {String(partData.state)}
-            </span>
-          )}
-        </div>
-        {partData.input && (
-          <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-            {JSON.stringify(partData.input, null, 2)}
-          </pre>
-        )}
-        {partData.output && (
-          <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-            {typeof partData.output === 'string'
-              ? partData.output
-              : JSON.stringify(partData.output, null, 2)}
-          </pre>
-        )}
-      </div>
-    );
-  }
-
-  // Handle data parts (data-* types)
-  if (part.type.startsWith('data-')) {
-    const dataType = part.type.replace('data-', '');
-    const partData = part as Record<string, unknown>;
-
-    return (
-      <div
-        key={index}
-        className="my-2 p-3 bg-purple-500/10 border border-purple-500/50 rounded-md"
-      >
-        <h4 className="text-sm font-medium text-purple-600 mb-2">
-          📊 {dataType} Data
-        </h4>
-        {partData.data && (
-          <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-            {typeof partData.data === 'string'
-              ? partData.data
-              : JSON.stringify(partData.data, null, 2)}
-          </pre>
-        )}
-      </div>
+      <Reasoning key={index} isStreaming={false}>
+        <ReasoningTrigger />
+        <ReasoningContent>
+          {String(reasoningPart.text || reasoningPart.reasoning || '')}
+        </ReasoningContent>
+      </Reasoning>
     );
   }
 
   // Handle file parts
   if (part.type === 'file') {
-    const partData = part as Record<string, unknown>;
+    const filePart = part as Record<string, unknown>;
     return (
-      <div
-        key={index}
-        className="my-2 p-3 bg-orange-500/10 border border-orange-500/50 rounded-md"
-      >
-        <p className="text-sm text-orange-600">
-          📎 File: {String(partData.name) || 'Unknown file'}
+      <div key={index} className="my-2 p-3 bg-muted rounded-md">
+        <p className="text-sm text-muted-foreground">
+          📎 File: {String(filePart.name || 'Unknown file')}
         </p>
       </div>
     );
   }
 
-  // Handle reasoning parts
-  if (part.type === 'reasoning') {
-    const partData = part as Record<string, unknown>;
-    return (
-      <div
-        key={index}
-        className="my-2 p-3 bg-purple-500/10 border border-purple-500/50 rounded-md"
-      >
-        <h4 className="text-sm font-medium text-purple-600 mb-2">
-          🧠 Reasoning
-        </h4>
-        {partData.text && <Response>{String(partData.text)}</Response>}
-      </div>
-    );
-  }
-
-  // Fallback for unknown part types
-  console.warn('Unknown message part type:', part);
-  return (
-    <div
-      key={index}
-      className="my-2 p-3 bg-yellow-500/10 border border-yellow-500/50 rounded-md"
-    >
-      <p className="text-sm text-yellow-600">
-        Unknown message part type: {part.type}
-      </p>
-      <pre className="text-xs mt-1 text-yellow-500 bg-black/20 p-2 rounded overflow-x-auto">
-        {JSON.stringify(part, null, 2)}
-      </pre>
-    </div>
-  );
+  // For any other part types, just return null or a simple fallback
+  return null;
 }
 
 /**
@@ -289,7 +201,7 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
     initConversation();
   }, [pageId, showError]);
 
-  // Use AI SDK's useChat hook
+  // Use AI SDK's useChat hook with custom transport
   const {
     messages: chatMessages,
     sendMessage,
@@ -301,6 +213,9 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: `${import.meta.env.VITE_API_BASE_URL}/chat`,
+      body: {
+        conversationId,
+      },
     }),
   });
 
@@ -337,17 +252,9 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
 
   const handleSendMessage = async (message: PromptInputMessage) => {
     if (message.text?.trim() && conversationId) {
-      await sendMessage(
-        {
-          role: 'user',
-          parts: [{ type: 'text', text: message.text.trim() }],
-        },
-        {
-          body: {
-            conversationId,
-          },
-        }
-      );
+      await sendMessage({
+        text: message.text.trim(),
+      });
     }
   };
 

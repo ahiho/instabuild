@@ -1,5 +1,39 @@
 'use client';
 
+import type { ChatStatus, FileUIPart } from 'ai';
+import {
+  ArrowUp,
+  ImageIcon,
+  Loader2Icon,
+  MicIcon,
+  PaperclipIcon,
+  PlusIcon,
+  SquareIcon,
+  XIcon,
+} from 'lucide-react';
+import { nanoid } from 'nanoid';
+import {
+  type ChangeEvent,
+  type ChangeEventHandler,
+  Children,
+  type ClipboardEventHandler,
+  type ComponentProps,
+  type FormEvent,
+  type FormEventHandler,
+  Fragment,
+  type HTMLAttributes,
+  type KeyboardEventHandler,
+  type PropsWithChildren,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import {
   Command,
@@ -35,48 +69,17 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { cn } from '../../lib/utils';
-import type { ChatStatus, FileUIPart } from 'ai';
-import {
-  ArrowUp,
-  ImageIcon,
-  Loader2Icon,
-  MicIcon,
-  PaperclipIcon,
-  PlusIcon,
-  SquareIcon,
-  XIcon,
-} from 'lucide-react';
-import { nanoid } from 'nanoid';
-import {
-  type ChangeEvent,
-  type ChangeEventHandler,
-  Children,
-  type ClipboardEventHandler,
-  type ComponentProps,
-  type FormEvent,
-  type FormEventHandler,
-  Fragment,
-  type HTMLAttributes,
-  type KeyboardEventHandler,
-  type PropsWithChildren,
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
 import {
   type AttachmentsContext,
-  type PromptInputControllerProps,
-  PromptInputController,
-  ProviderAttachmentsContext,
   LocalAttachmentsContext,
+  PromptInputController,
+  type PromptInputControllerProps,
+  ProviderAttachmentsContext,
 } from './prompt-input-context';
-import { usePromptInputAttachments } from './use-prompt-input';
+import {
+  useOptionalPromptInputController,
+  usePromptInputAttachments,
+} from './use-prompt-input';
 // ============================================================================
 // Provider Context & Types
 // ============================================================================

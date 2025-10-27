@@ -24,9 +24,12 @@ export * from './modification.js';
 
 // Re-export with explicit naming to avoid conflicts
 export type {
+  AISDKMessage,
   ChatMessage,
   ChatMessageRequest,
+  ChatRequest,
   ChatStreamResponse,
+  MessagePart,
 } from './chat.js';
 export type {
   ToolCall as AIToolCall,

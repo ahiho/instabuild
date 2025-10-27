@@ -2,474 +2,961 @@
 
 ## Overview
 
-This design document outlines the implementation of Tool Calling functionality for the InstaBuild AI assistant using the Vercel AI SDK. The solution extends the existing AI model and chat services to support dynamic tool execution, enabling the AI to perform actions like modifying landing page elements, uploading files, and fetching data through natural language interactions.
+This design outlines the implementation of a comprehensive Tool Calling system for the InstaBuild AI assistant, where users interact through natural language to modify their landing pages while only seeing the visual preview. The AI acts as the sole code editor, using tools to translate user requests into actual code changes behind the scenes.
 
-The design leverages the Vercel AI SDK's native tool calling capabilities with streaming support, integrating seamlessly with the existing WebSocket-based chat architecture while maintaining type safety and error handling.
+**User Experience Flow**:
+
+1. User describes desired changes in natural language
+2. AI selects and executes appropriate tools to modify the underlying code
+3. User sees tool execution feedback (tool names and progress) to understand the AI is working
+4. Preview refreshes automatically to show visual results
+5. User continues the conversation to refine further
+
+**Key Vercel AI SDK Features We'll Leverage**:
+
+- **Native Tool Calling**: Built-in `tool()` function with schema validation
+- **Tool Call Repair**: `experimental_repairToolCall` for handling invalid tool calls
+- **Multi-step Execution**: `stopWhen` for complex tool sequences
+- **Streaming Tool Results**: Real-time tool execution feedback with tool visibility
+- **Type Safety**: `TypedToolCall` and `TypedToolResult` for strong typing
+- **Client-side Tools**: `onToolCall` callback for frontend tool execution and preview updates
+
+**Our Extensions**:
+
+- **User-Friendly Tool Feedback**: Show tool names and progress in conversational language
+- **Automatic Preview Refresh**: Seamless visual feedback after code changes
+- **Intelligent Model Selection**: Cost-optimized model selection based on task complexity
+- **Code-to-Visual Translation**: Tools that bridge user intent to code implementation
+- **Rich Tool Categories**: Landing page modification, file upload, content management, and styling tools
+- **Analytics & Monitoring**: Performance tracking and usage analytics
 
 ## Architecture
 
 ### High-Level Architecture
 
-```mermaid
-graph TB
-    A[Frontend Chat UI] -->|WebSocket| B[WebSocket Handler]
-    B --> C[Chat Service]
-    C --> D[AI Model Service]
-    D --> E[Tool Registry]
-    D --> F[Vercel AI SDK]
-    E --> G[Landing Page Tools]
-    E --> H[File Upload Tools]
-    E --> I[Data Fetch Tools]
-    G --> J[Landing Page Editor]
-    H --> K[File Upload Service]
-    I --> L[External APIs]
-
-    F -->|Tool Calls| E
-    E -->|Results| F
-    F -->|Streaming Response| D
-    D -->|Response + Tool Results| C
-    C -->|WebSocket Events| B
-    B -->|Real-time Updates| A
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                             │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────────────────────┐   │
+│  │   Chat Panel    │  │      Preview Panel              │   │
+│  │                 │  │                                 │   │
+│  │ • Natural Lang  │  │ • Live Landing Page Preview     │   │
+│  │ • Tool Feedback │  │ • Auto-refresh on Changes      │   │
+│  │ • Progress UI   │  │ • Visual Result Display        │   │
+│  └─────────────────┘  └─────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Backend API                           │
+├─────────────────────────────────────────────────────────────┤
+│  Chat Route (/api/v1/chat)                                │
+│  ├── Natural Language → Tool Selection                     │
+│  ├── AI Model Service (AI SDK)                            │
+│  ├── Tool Registry & Execution                            │
+│  └── Preview Refresh Triggers                             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                Code Modification Tools                     │
+├─────────────────────────────────────────────────────────────┤
+│  HTML/CSS Tools      │  Component Generation Tools        │
+│  Asset Upload Tools  │  Styling & Layout Tools            │
+│  Content Tools       │  File Management Tools             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Landing Page Code                         │
+├─────────────────────────────────────────────────────────────┤
+│  HTML Files          │  CSS Stylesheets                   │
+│  JavaScript Files    │  Asset Files                       │
+│  Component Files     │  Configuration Files               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Component Interaction Flow
+### Component Architecture
 
-1. **User Input**: User sends message through WebSocket
-2. **Message Processing**: Chat Service processes message and determines if tools are needed
-3. **AI Invocation**: AI Model Service calls Vercel AI SDK with available tools
-4. **Tool Execution**: SDK identifies required tools and executes them via Tool Registry
-5. **Result Integration**: Tool results are integrated into AI response
-6. **Streaming Response**: Complete response with tool results streams back to frontend
+```
+Backend Services:
+├── ModelSelectionService
+│   ├── TaskComplexityAnalyzer
+│   ├── ModelTierSelector
+│   └── CostOptimizer
+├── ToolRegistry
+│   ├── ToolManager
+│   ├── SafetyConstraintSystem
+│   ├── ExecutionEngine
+│   └── AnalyticsCollector
+├── AIModelService
+│   ├── AI SDK Integration
+│   ├── Streaming Handler
+│   └── Tool Call Processor
+└── ChatPersistenceService
+    ├── Message Storage
+    ├── Tool Execution Logs
+    └── Analytics Data
+
+Tool Categories:
+├── FileSystemTools
+│   ├── ReadFileTools
+│   ├── WriteFileTools
+│   ├── CreateFileTools
+│   └── DeleteFileTools
+├── LandingPageTools
+│   ├── ElementModificationTools
+│   ├── ContentUpdateTools
+│   └── StyleChangeTools
+├── UploadTools
+│   ├── FileUploadTools
+│   ├── ImageProcessingTools
+│   └── AssetOptimizationTools
+└── UtilityTools
+    ├── TextProcessingTools
+    ├── DataFetchingTools
+    └── CodeFormattingTools
+```
 
 ## Components and Interfaces
 
-### Tool Registry
+### 1. Model Selection Service
 
-The Tool Registry serves as the central hub for managing all available tools, providing registration, validation, and execution capabilities.
+**Purpose**: Intelligently select between weak and strong AI models based on task complexity to optimize costs.
+
+**Key Components**:
+
+- `TaskComplexityAnalyzer`: Analyzes user messages and determines complexity
+- `ModelTierSelector`: Selects appropriate model tier (weak/strong)
+- `CostOptimizer`: Tracks usage and provides cost optimization recommendations
+
+**Interface**:
 
 ```typescript
-interface ToolDefinition<T = any> {
-  name: string;
-  description: string;
-  inputSchema: z.ZodSchema<T>;
-  execute: (input: T, context: ToolExecutionContext) => Promise<any> | any;
-  permissions?: string[];
-  timeout?: number;
-  rateLimitKey?: string;
+interface ModelSelectionService {
+  selectModel(message: string, context: ChatContext): Promise<ModelConfig>;
+  analyzeComplexity(message: string): TaskComplexity;
+  trackUsage(modelUsed: string, cost: number): void;
+  getOptimizationRecommendations(): OptimizationReport;
 }
 
-interface ToolExecutionContext {
-  userId: string;
-  conversationId: string;
-  toolCallId: string;
-  pageId?: string;
-  selectedElementId?: string;
+interface TaskComplexity {
+  level: 'simple' | 'moderate' | 'complex';
+  factors: ComplexityFactor[];
+  requiresToolCalling: boolean;
+  estimatedTokens: number;
 }
+```
+
+### 2. Tool Registry System
+
+**Purpose**: Centralized system for registering and managing AI SDK tools with security and analytics extensions.
+
+**Key Components**:
+
+- `ToolManager`: Handles AI SDK tool registration and discovery
+- `SafetyConstraintSystem`: Provides user confirmation for destructive actions
+- `AnalyticsCollector`: Tracks performance and usage metrics
+- `ToolWrapper`: Wraps AI SDK tools with additional functionality
+
+**Interface**:
+
+```typescript
+import { tool, TypedToolCall, TypedToolResult } from 'ai';
+import { z } from 'zod';
 
 interface ToolRegistry {
-  registerTool<T>(definition: ToolDefinition<T>): void;
-  getTools(): Record<string, VercelAITool>;
-  executeTool(
-    name: string,
-    input: any,
-    context: ToolExecutionContext
-  ): Promise<any>;
-  validatePermissions(toolName: string, userId: string): boolean;
+  registerTool(toolDef: EnhancedToolDefinition): void;
+  getAvailableTools(context: ExecutionContext): Record<string, ReturnType<typeof tool>>;
+  checkSafetyConstraints(toolName: string, parameters: any): SafetyConstraint;
+  getAnalytics(timeRange: TimeRange): ToolAnalytics;
+  wrapTool<T extends z.ZodSchema>(
+    aiTool: ReturnType<typeof tool<T>>,
+    metadata: ToolMetadata
+  ): ReturnType<typeof tool<T>>;
+}
+
+interface EnhancedToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: z.ZodSchema;
+  execute: (input: any, context: { toolCallId: string }) => Promise<any>;
+  safetyLevel: 'safe' | 'potentially_destructive';
+  category: ToolCategory;
+  metadata: ToolMetadata;
+}
+
+// Leverage AI SDK's native tool creation
+const createRegistryTool = (definition: EnhancedToolDefinition) => {
+  return tool({
+    description: definition.description,
+    inputSchema: definition.inputSchema,
+    execute: async (input, { toolCallId }) => {
+      // Add our security, analytics, and logging here
+      return await definition.execute(input, { toolCallId });
+    }
+  });
+};
+  ): Promise<ToolResult>;
+  validatePermissions(toolName: string, context: ExecutionContext): boolean;
+  getAnalytics(timeRange: TimeRange): ToolAnalytics;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  schema: JSONSchema;
+  execute: ToolExecutor;
+  permissions: PermissionRequirement[];
+  category: ToolCategory;
+  metadata: ToolMetadata;
 }
 ```
 
-### Enhanced AI Model Service
+### 3. Code Management Tools
 
-The AI Model Service is extended to support tool calling while maintaining backward compatibility with existing streaming functionality.
+**Purpose**: Provide comprehensive code file management capabilities that work behind the scenes to implement user requests.
+
+**Tool Categories**:
+
+- **ReadCodeTools**: Read HTML, CSS, JS files to understand current page structure
+- **WriteCodeTools**: Modify existing code files to implement user changes
+- **CreateCodeTools**: Generate new components, sections, or files as needed
+- **DeleteCodeTools**: Remove code elements when users want to delete page sections
+
+**Interface**:
 
 ```typescript
-interface AIStreamOptionsWithTools extends AIStreamOptions {
-  tools?: Record<string, VercelAITool>;
-  toolChoice?:
-    | 'auto'
-    | 'required'
-    | { type: 'function'; function: { name: string } };
-  maxSteps?: number;
-  onToolCall?: (toolCall: ToolCall) => void;
-  onToolResult?: (toolResult: ToolResult) => void;
+interface CodeManagementTools {
+  readPageStructure(pageId: string): Promise<PageStructure>;
+  modifyElement(
+    selector: string,
+    changes: ElementChanges,
+    userDescription: string
+  ): Promise<ModificationResult>;
+  createComponent(
+    type: ComponentType,
+    properties: ComponentProperties,
+    userDescription: string
+  ): Promise<ComponentResult>;
+  removeElement(
+    selector: string,
+    userDescription: string
+  ): Promise<RemovalResult>;
+  updateStyles(
+    target: string,
+    styleChanges: StyleChanges,
+    userDescription: string
+  ): Promise<StyleResult>;
 }
 
-interface ToolCall {
-  toolCallId: string;
-  toolName: string;
-  input: any;
+interface PageStructure {
+  html: string;
+  css: string;
+  javascript: string;
+  components: ComponentInfo[];
+  assets: AssetInfo[];
 }
 
-interface ToolResult {
-  toolCallId: string;
-  toolName: string;
-  output: any;
-  error?: string;
-}
-
-class AIModelService {
-  async *streamChatResponseWithTools(
-    options: AIStreamOptionsWithTools
-  ): AsyncGenerator<StreamChunk> {
-    // Implementation details in tasks
-  }
-
-  async executeToolCall(
-    toolCall: ToolCall,
-    context: ToolExecutionContext
-  ): Promise<ToolResult> {
-    // Implementation details in tasks
-  }
+interface ModificationResult {
+  success: boolean;
+  changedFiles: string[];
+  userFriendlyDescription: string;
+  previewRefreshNeeded: boolean;
 }
 ```
 
-### WebSocket Message Protocol Extensions
-
-The existing WebSocket protocol is extended to support tool execution events while maintaining compatibility with current message types.
+**AI SDK Tool Implementations**:
 
 ```typescript
-// Existing types remain unchanged
-interface UserMessage {
-  type: 'userMessage';
-  conversationId: string;
-  content: string;
-}
+import { tool } from 'ai';
+import { z } from 'zod';
 
-interface AIResponseChunk {
-  type: 'aiResponseChunk';
-  conversationId: string;
-  content: string;
-  isLastChunk: boolean;
-}
+const updatePageContentTool = tool({
+  description: 'Update text content on the landing page based on user request',
+  inputSchema: z.object({
+    target: z
+      .string()
+      .describe('What element to update (e.g., "main heading", "hero text")'),
+    newContent: z.string().describe('The new text content'),
+    userRequest: z.string().describe('Original user request for context'),
+  }),
+  execute: async ({ target, newContent, userRequest }, { toolCallId }) => {
+    // Log tool execution with user-friendly name
+    await analyticsCollector.logToolExecution(toolCallId, 'Content Update', {
+      target,
+      userRequest,
+    });
 
-// New tool-related message types
-interface ToolExecutionStart {
-  type: 'toolExecutionStart';
-  conversationId: string;
-  toolCallId: string;
-  toolName: string;
-  input: any;
-}
+    // Find and update the appropriate HTML elements
+    const result = await pageEditor.updateContent(target, newContent);
 
-interface ToolExecutionProgress {
-  type: 'toolExecutionProgress';
-  conversationId: string;
-  toolCallId: string;
-  status: string;
-  progress?: number;
-}
+    // Trigger preview refresh
+    await previewService.refreshPreview(result.pageId);
 
-interface ToolExecutionComplete {
-  type: 'toolExecutionComplete';
-  conversationId: string;
-  toolCallId: string;
-  output: any;
-  error?: string;
-}
+    return {
+      success: true,
+      toolName: 'Content Update Tool',
+      userFeedback: `Updated ${target} to "${newContent}"`,
+      elementsChanged: result.changedElements,
+      previewRefreshNeeded: true,
+    };
+  },
+});
 
-type WSMessage =
-  | UserMessage
-  | AIResponseChunk
-  | ErrorMessage
-  | ToolExecutionStart
-  | ToolExecutionProgress
-  | ToolExecutionComplete;
-```
-
-### Landing Page Tools
-
-Specific tools for landing page manipulation, leveraging the existing Landing Page Editor component.
-
-```typescript
-interface ElementModificationInput {
-  elementId: string;
-  modifications: {
-    style?: Record<string, string>;
-    content?: string;
-    attributes?: Record<string, string>;
-  };
-}
-
-interface ElementCreationInput {
-  parentId: string;
-  elementType: string;
-  properties: Record<string, any>;
-  position?: 'before' | 'after' | 'inside';
-}
-
-// Tool definitions
-const modifyElementTool = tool({
+const addPageElementTool = tool({
   description:
-    'Modify styling, content, or attributes of a landing page element',
+    'Add a new element to the landing page (form, button, section, etc.)',
   inputSchema: z.object({
-    elementId: z.string(),
-    modifications: z.object({
-      style: z.record(z.string()).optional(),
-      content: z.string().optional(),
-      attributes: z.record(z.string()).optional(),
+    elementType: z.enum(['form', 'button', 'section', 'image', 'navigation']),
+    placement: z
+      .string()
+      .describe('Where to place it (e.g., "below the hero", "in the footer")'),
+    properties: z.object({
+      text: z.string().optional(),
+      style: z.string().optional(),
+      functionality: z.string().optional(),
     }),
+    userRequest: z.string().describe('Original user request'),
   }),
-  execute: async (input, context) => {
-    // Implementation delegates to Landing Page Editor
+  execute: async (
+    { elementType, placement, properties, userRequest },
+    { toolCallId }
+  ) => {
+    await analyticsCollector.logToolExecution(toolCallId, 'Add Element', {
+      elementType,
+      placement,
+      userRequest,
+    });
+
+    // Generate and insert the new element
+    const result = await pageEditor.addElement(
+      elementType,
+      placement,
+      properties
+    );
+
+    // Trigger preview refresh
+    await previewService.refreshPreview(result.pageId);
+
+    return {
+      success: true,
+      toolName: 'Element Addition Tool',
+      userFeedback: `Added a ${elementType} ${placement}`,
+      codeChanges: result.filesModified,
+      previewRefreshNeeded: true,
+    };
+  },
+});
+
+const uploadAndPlaceAssetTool = tool({
+  description:
+    'Upload a file and automatically place it in the appropriate location on the page',
+  inputSchema: z.object({
+    fileData: z.string().describe('Base64 encoded file data'),
+    fileName: z.string().describe('Original filename'),
+    userIntent: z.string().describe('What the user wants to do with this file'),
+    placement: z
+      .string()
+      .optional()
+      .describe('Specific placement if mentioned'),
+  }),
+  execute: async (
+    { fileData, fileName, userIntent, placement },
+    { toolCallId }
+  ) => {
+    await analyticsCollector.logToolExecution(toolCallId, 'Asset Upload', {
+      fileName,
+      userIntent,
+    });
+
+    // Upload and optimize the file
+    const uploadResult = await assetService.uploadFile(fileData, fileName);
+
+    // Automatically place it based on user intent
+    const placementResult = await pageEditor.integrateAsset(
+      uploadResult.url,
+      userIntent,
+      placement
+    );
+
+    // Trigger preview refresh
+    await previewService.refreshPreview(placementResult.pageId);
+
+    return {
+      success: true,
+      toolName: 'Asset Upload Tool',
+      userFeedback: `Uploaded ${fileName} and ${placementResult.description}`,
+      assetUrl: uploadResult.url,
+      previewRefreshNeeded: true,
+    };
   },
 });
 ```
 
-### File Upload Tools
+### 4. Visual Element Tools
 
-Tools for handling file uploads and asset management, integrating with the existing File Upload Service.
+**Purpose**: Translate user's visual requests into specific code changes that modify landing page appearance.
+
+**Tool Categories**:
+
+- **ContentUpdateTools**: Change text, headings, and written content
+- **LayoutModificationTools**: Adjust positioning, spacing, and structure
+- **StyleApplicationTools**: Apply colors, fonts, and visual styling
+- **ComponentAdditionTools**: Add new sections, forms, buttons, etc.
+
+**Interface**:
 
 ```typescript
-interface FileUploadInput {
-  fileType: 'image' | 'video' | 'document';
-  fileName: string;
-  maxSize?: number;
-  allowedFormats?: string[];
+interface VisualElementTools {
+  updateTextContent(
+    target: string,
+    newContent: string,
+    userRequest: string
+  ): Promise<ContentUpdateResult>;
+
+  modifyLayout(
+    section: string,
+    layoutChanges: LayoutChanges,
+    userRequest: string
+  ): Promise<LayoutResult>;
+
+  applyVisualStyles(
+    target: string,
+    styleDescription: string,
+    userRequest: string
+  ): Promise<StyleApplicationResult>;
+
+  addPageElement(
+    elementType: 'form' | 'button' | 'section' | 'image' | 'navigation',
+    placement: string,
+    properties: ElementProperties,
+    userRequest: string
+  ): Promise<ElementAdditionResult>;
 }
 
-const uploadFileTool = tool({
-  description: 'Upload and process files for use in landing pages',
-  inputSchema: z.object({
-    fileType: z.enum(['image', 'video', 'document']),
-    fileName: z.string(),
-    maxSize: z.number().optional(),
-    allowedFormats: z.array(z.string()).optional(),
-  }),
-  execute: async (input, context) => {
-    // Implementation delegates to File Upload Service
-  },
-});
+interface ContentUpdateResult {
+  success: boolean;
+  elementsChanged: string[];
+  userFeedback: string; // "Updated the main heading to 'Welcome to My Site'"
+  previewRefreshNeeded: boolean;
+}
+
+interface LayoutResult {
+  success: boolean;
+  layoutChanges: string[];
+  userFeedback: string; // "Made the header section wider and centered the content"
+  previewRefreshNeeded: boolean;
+}
+```
+
+### 5. Asset Management Tools
+
+**Purpose**: Handle file uploads and automatically integrate them into the landing page based on user intent.
+
+**Tool Categories**:
+
+- **FileUploadTools**: Upload and validate files with automatic placement
+- **ImageProcessingTools**: Process, optimize, and place images appropriately
+- **AssetIntegrationTools**: Automatically update code to use uploaded assets
+
+**Interface**:
+
+```typescript
+interface AssetManagementTools {
+  uploadAndPlaceAsset(
+    file: FileUpload,
+    userIntent: string, // "add this as my logo", "use this as background image"
+    placement?: PlacementHint
+  ): Promise<AssetPlacementResult>;
+
+  replaceExistingAsset(
+    currentAssetSelector: string,
+    newFile: FileUpload,
+    userRequest: string
+  ): Promise<AssetReplacementResult>;
+
+  optimizeAndIntegrateImage(
+    imageFile: FileUpload,
+    intendedUse: 'logo' | 'background' | 'content' | 'icon',
+    userRequest: string
+  ): Promise<ImageIntegrationResult>;
+}
+
+interface AssetPlacementResult {
+  success: boolean;
+  assetUrl: string;
+  placementLocation: string;
+  codeChanges: string[];
+  userFeedback: string; // "Added your logo to the header and made it the right size"
+  previewRefreshNeeded: boolean;
+}
+
+interface ImageIntegrationResult {
+  success: boolean;
+  optimizedUrl: string;
+  variants: ImageVariant[];
+  integrationDetails: string;
+  userFeedback: string; // "Optimized your image and added it as the hero background"
+  previewRefreshNeeded: boolean;
+}
 ```
 
 ## Data Models
 
-### Tool Execution Tracking
+### Tool Execution Data Model
 
 ```typescript
-interface ToolExecution {
+interface ToolCall {
   id: string;
-  conversationId: string;
-  toolCallId: string;
   toolName: string;
-  input: any;
-  output?: any;
-  error?: string;
-  status: 'pending' | 'executing' | 'completed' | 'failed' | 'timeout';
-  startTime: Date;
-  endTime?: Date;
-  userId: string;
+  parameters: Record<string, any>;
+  context: ExecutionContext;
+  timestamp: Date;
+  status: ToolCallStatus;
 }
 
-// Database schema extension
-model ToolExecution {
-  id            String   @id @default(cuid())
-  conversationId String
-  toolCallId    String   @unique
-  toolName      String
-  input         Json
-  output        Json?
-  error         String?
-  status        String
-  startTime     DateTime @default(now())
-  endTime       DateTime?
-  userId        String
+interface ToolResult {
+  toolCallId: string;
+  success: boolean;
+  data?: any;
+  error?: ToolError;
+  executionTime: number;
+  metadata: ResultMetadata;
+}
 
-  conversation  Conversation @relation(fields: [conversationId], references: [id])
-
-  @@map("tool_executions")
+interface ExecutionContext {
+  userId: string;
+  conversationId: string;
+  permissions: Permission[];
+  environment: 'development' | 'production';
+  rateLimits: RateLimit[];
 }
 ```
 
-### Enhanced Chat Message Model
+### Analytics Data Model
 
 ```typescript
-// Extension to existing ChatMessage model
-interface ChatMessageWithTools extends ChatMessage {
-  toolCalls?: ToolCall[];
-  toolResults?: ToolResult[];
+interface ToolAnalytics {
+  toolName: string;
+  executionCount: number;
+  successRate: number;
+  averageExecutionTime: number;
+  errorPatterns: ErrorPattern[];
+  usagePatterns: UsagePattern[];
+  costMetrics: CostMetrics;
 }
 
-// Database schema extension
-model ChatMessage {
-  // ... existing fields
-  toolCalls   Json?  // Array of tool calls
-  toolResults Json?  // Array of tool results
+interface ModelUsageAnalytics {
+  modelName: string;
+  requestCount: number;
+  totalTokens: number;
+  totalCost: number;
+  averageComplexity: number;
+  successRate: number;
 }
+```
+
+### Database Schema Extensions
+
+```sql
+-- Tool execution tracking
+CREATE TABLE tool_executions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID REFERENCES conversations(id),
+  message_id UUID REFERENCES chat_messages(id),
+  tool_name VARCHAR NOT NULL,
+  tool_call_id VARCHAR NOT NULL,
+  parameters JSONB,
+  result JSONB,
+  success BOOLEAN NOT NULL,
+  execution_time_ms INTEGER,
+  error_message TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Model usage tracking
+CREATE TABLE model_usage (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID REFERENCES conversations(id),
+  model_name VARCHAR NOT NULL,
+  model_tier VARCHAR NOT NULL, -- 'weak' or 'strong'
+  complexity_level VARCHAR NOT NULL,
+  token_count INTEGER,
+  estimated_cost DECIMAL(10,6),
+  execution_time_ms INTEGER,
+  success BOOLEAN NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tool analytics aggregation
+CREATE TABLE tool_analytics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tool_name VARCHAR NOT NULL,
+  date DATE NOT NULL,
+  execution_count INTEGER DEFAULT 0,
+  success_count INTEGER DEFAULT 0,
+  total_execution_time_ms BIGINT DEFAULT 0,
+  error_count INTEGER DEFAULT 0,
+  unique_users INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(tool_name, date)
+);
+
+-- Safety constraints tracking
+CREATE TABLE safety_confirmations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID REFERENCES conversations(id),
+  tool_name VARCHAR NOT NULL,
+  action_type VARCHAR NOT NULL, -- 'delete_section', 'clear_content', etc.
+  user_confirmed BOOLEAN NOT NULL,
+  warning_shown TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## AI SDK Integration Strategy
+
+### Leveraging Built-in AI SDK Features
+
+**Tool Call Repair**: Use AI SDK's `experimental_repairToolCall` for handling invalid tool calls:
+
+```typescript
+const result = await generateText({
+  model: selectedModel,
+  tools: registryTools,
+  prompt: userMessage,
+  experimental_repairToolCall: async ({
+    toolCall,
+    tools,
+    error,
+    inputSchema,
+  }) => {
+    // Log the error for analytics
+    await analyticsCollector.logToolError(toolCall, error);
+
+    // Use AI SDK's built-in repair strategies
+    if (NoSuchToolError.isInstance(error)) {
+      return null; // Don't attempt to fix invalid tool names
+    }
+
+    // Generate corrected parameters using stronger model
+    const { object: repairedArgs } = await generateObject({
+      model: strongModel,
+      schema: inputSchema(toolCall),
+      prompt: `Fix the tool call parameters: ${JSON.stringify(toolCall.input)}`,
+    });
+
+    return { ...toolCall, input: JSON.stringify(repairedArgs) };
+  },
+});
+```
+
+**Multi-step Tool Execution**: Use `stopWhen` for complex tool sequences:
+
+```typescript
+const { text, steps } = await generateText({
+  model: selectedModel,
+  tools: registryTools,
+  stopWhen: stepCountIs(10), // Allow up to 10 tool execution steps
+  prompt: userMessage,
+});
+
+// Extract all tool calls for analytics
+const allToolCalls = steps.flatMap(step => step.toolCalls);
+await analyticsCollector.logToolSequence(allToolCalls);
+```
+
+**Client-side Tool Execution with User Feedback**: Use `onToolCall` for frontend tools:
+
+```typescript
+const { messages, addToolResult } = useChat({
+  sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+  onToolCall: async ({ toolCall }) => {
+    // Show user which tool is being used
+    setToolExecutionStatus({
+      toolName: getToolDisplayName(toolCall.toolName),
+      status: 'executing',
+      description: getToolDescription(toolCall),
+    });
+
+    try {
+      const result = await executeClientTool(toolCall);
+
+      // Show completion feedback
+      setToolExecutionStatus({
+        toolName: getToolDisplayName(toolCall.toolName),
+        status: 'completed',
+        description: result.userFeedback,
+      });
+
+      // Refresh preview if needed
+      if (result.previewRefreshNeeded) {
+        await refreshPreview();
+      }
+
+      addToolResult({
+        tool: toolCall.toolName,
+        toolCallId: toolCall.toolCallId,
+        output: result,
+      });
+    } catch (error) {
+      setToolExecutionStatus({
+        toolName: getToolDisplayName(toolCall.toolName),
+        status: 'error',
+        description: `Couldn't complete the change: ${error.message}`,
+      });
+
+      addToolResult({
+        tool: toolCall.toolName,
+        toolCallId: toolCall.toolCallId,
+        state: 'output-error',
+        errorText: error.message,
+      });
+    }
+  },
+});
+
+// Helper functions for user-friendly tool names
+const getToolDisplayName = (toolName: string): string => {
+  const displayNames = {
+    updatePageContentTool: 'Content Editor',
+    addPageElementTool: 'Element Creator',
+    uploadAndPlaceAssetTool: 'Asset Manager',
+    applyStyleChangesTool: 'Style Designer',
+  };
+  return displayNames[toolName] || toolName;
+};
+
+const getToolDescription = (toolCall: any): string => {
+  // Generate user-friendly descriptions based on tool parameters
+  switch (toolCall.toolName) {
+    case 'updatePageContentTool':
+      return `Updating ${toolCall.args.target}...`;
+    case 'addPageElementTool':
+      return `Adding ${toolCall.args.elementType} to your page...`;
+    case 'uploadAndPlaceAssetTool':
+      return `Uploading and placing ${toolCall.args.fileName}...`;
+    default:
+      return 'Working on your request...';
+  }
+};
 ```
 
 ## Error Handling
 
-### Tool Execution Error Types
+### Tool Execution Error Handling
+
+**Error Categories**:
+
+1. **Parameter Validation Errors**: Invalid or missing parameters
+2. **Permission Errors**: Insufficient permissions for tool execution
+3. **Resource Errors**: File not found, network issues, etc.
+4. **Execution Errors**: Tool-specific runtime errors
+5. **Timeout Errors**: Tool execution exceeded time limits
+
+**Error Recovery Strategies**:
 
 ```typescript
-enum ToolErrorType {
-  VALIDATION_ERROR = 'validation_error',
-  PERMISSION_DENIED = 'permission_denied',
-  EXECUTION_ERROR = 'execution_error',
-  TIMEOUT_ERROR = 'timeout_error',
-  RATE_LIMIT_ERROR = 'rate_limit_error',
-  UNKNOWN_TOOL = 'unknown_tool',
+interface ErrorRecoveryStrategy {
+  canRecover(error: ToolError): boolean;
+  recover(toolCall: ToolCall, error: ToolError): Promise<ToolResult>;
+  suggestAlternatives(toolCall: ToolCall): Alternative[];
 }
 
-interface ToolError {
-  type: ToolErrorType;
-  message: string;
-  details?: any;
-  retryable: boolean;
-}
-```
-
-### Error Recovery Strategies
-
-1. **Tool Call Repair**: Use Vercel AI SDK's `experimental_repairToolCall` for invalid parameters
-2. **Graceful Degradation**: Fall back to text-only responses when tools fail
-3. **User Feedback**: Provide clear error messages and suggested alternatives
-4. **Retry Logic**: Implement exponential backoff for retryable errors
-5. **Circuit Breaker**: Temporarily disable problematic tools
-
-### Error Handling Implementation
-
-```typescript
-class ToolExecutionError extends Error {
-  constructor(
-    public toolName: string,
-    public toolCallId: string,
-    public errorType: ToolErrorType,
-    message: string,
-    public details?: any
-  ) {
-    super(message);
-  }
-}
-
-async function executeToolWithErrorHandling(
-  toolCall: ToolCall,
-  context: ToolExecutionContext
-): Promise<ToolResult> {
-  try {
-    const result = await toolRegistry.executeTool(
-      toolCall.toolName,
-      toolCall.input,
-      context
+class ParameterRepairStrategy implements ErrorRecoveryStrategy {
+  async recover(toolCall: ToolCall, error: ToolError): Promise<ToolResult> {
+    // Attempt to repair invalid parameters using AI
+    const repairedParams = await this.repairParameters(
+      toolCall.parameters,
+      error
     );
-
-    return {
-      toolCallId: toolCall.toolCallId,
-      toolName: toolCall.toolName,
-      output: result,
-    };
-  } catch (error) {
-    if (error instanceof ToolExecutionError) {
-      return {
-        toolCallId: toolCall.toolCallId,
-        toolName: toolCall.toolName,
-        output: null,
-        error: error.message,
-      };
-    }
-
-    // Handle unexpected errors
-    logger.error('Unexpected tool execution error', { error, toolCall });
-    return {
-      toolCallId: toolCall.toolCallId,
-      toolName: toolCall.toolName,
-      output: null,
-      error: 'An unexpected error occurred during tool execution',
-    };
+    return await this.retryExecution(toolCall, repairedParams);
   }
 }
 ```
+
+### Model Selection Error Handling
+
+**Fallback Strategies**:
+
+1. **Complexity Misjudgment**: Retry with stronger model if weak model fails
+2. **Model Unavailability**: Fall back to alternative model in same tier
+3. **Rate Limiting**: Queue requests or suggest retry timing
+4. **Cost Limits**: Notify user and suggest optimization
 
 ## Testing Strategy
 
-### Unit Testing
+### Unit Tests
 
-1. **Tool Registry Tests**
-   - Tool registration and validation
-   - Permission checking
-   - Rate limiting
-   - Error handling
+**Tool Registry Tests**:
 
-2. **AI Model Service Tests**
-   - Tool call identification and execution
-   - Streaming with tool results
-   - Error recovery mechanisms
-   - Multi-step tool execution
+- Tool registration and validation
+- Permission checking and enforcement
+- Error handling and recovery
+- Analytics collection and reporting
 
-3. **Individual Tool Tests**
-   - Input validation
-   - Execution logic
-   - Error scenarios
-   - Performance benchmarks
+**Model Selection Tests**:
 
-### Integration Testing
+- Complexity analysis accuracy
+- Model tier selection logic
+- Cost optimization algorithms
+- Fallback strategy effectiveness
 
-1. **End-to-End Chat Flow**
-   - User message → Tool execution → AI response
-   - WebSocket message flow
-   - Database persistence
+**Tool Implementation Tests**:
 
-2. **Tool Interaction Tests**
-   - Multiple tool calls in sequence
-   - Parallel tool execution
-   - Tool result integration
+- File system operations
+- Landing page modifications
+- Upload processing
+- Utility functions
 
-3. **Error Scenario Testing**
-   - Invalid tool parameters
-   - Permission denied scenarios
-   - Timeout handling
-   - Network failures
+### Integration Tests
 
-### Performance Testing
+**End-to-End Tool Execution**:
 
-1. **Tool Execution Performance**
-   - Individual tool execution times
-   - Concurrent tool execution
-   - Memory usage during tool calls
+- Complete tool call flow from chat to result
+- Multi-step tool execution sequences
+- Error recovery and fallback scenarios
+- Real-time streaming and UI updates
 
-2. **Streaming Performance**
-   - Latency with tool calls
-   - Throughput under load
-   - WebSocket connection stability
+**Model Selection Integration**:
 
-### Security Testing
+- Task complexity analysis with real messages
+- Model switching based on complexity
+- Cost tracking and optimization
+- Performance impact measurement
 
-1. **Permission Validation**
-   - Unauthorized tool access attempts
-   - Privilege escalation scenarios
-   - Cross-user data access
+### Performance Tests
 
-2. **Input Sanitization**
-   - Malicious input handling
-   - SQL injection attempts
-   - XSS prevention
+**Tool Execution Performance**:
 
-## Implementation Considerations
+- Execution time benchmarks for each tool category
+- Concurrent tool execution handling
+- Resource usage monitoring
+- Scalability testing
 
-### Performance Optimizations
+**Model Selection Performance**:
 
-1. **Tool Caching**: Cache tool results for identical inputs within a time window
-2. **Lazy Loading**: Load tool definitions only when needed
-3. **Connection Pooling**: Reuse database connections for tool executions
-4. **Streaming Optimization**: Minimize latency between tool completion and response streaming
+- Complexity analysis speed
+- Model switching overhead
+- Cost optimization effectiveness
+- Memory usage patterns
 
-### Security Measures
+## Security Considerations
 
-1. **Input Validation**: Strict schema validation for all tool inputs
-2. **Rate Limiting**: Per-user and per-tool rate limits
-3. **Audit Logging**: Comprehensive logging of all tool executions
-4. **Sandboxing**: Isolate tool execution environments where possible
+### Safety Constraint System
 
-### Scalability Considerations
+**User Confirmation for Destructive Actions**:
 
-1. **Horizontal Scaling**: Design tools to be stateless for easy scaling
-2. **Load Balancing**: Distribute tool execution across multiple instances
-3. **Queue Management**: Use message queues for long-running tool operations
-4. **Resource Limits**: Implement memory and CPU limits for tool execution
+```typescript
+interface SafetyConstraint {
+  actionType: 'destructive' | 'safe';
+  confirmationRequired: boolean;
+  warningMessage?: string;
+  affectedElements?: string[];
+}
 
-### Monitoring and Observability
+interface DestructiveAction {
+  type: 'delete_section' | 'clear_content' | 'replace_all' | 'remove_styling';
+  description: string;
+  affectedAreas: string[];
+  reversible: boolean;
+}
+```
 
-1. **Metrics Collection**: Track tool execution times, success rates, and error rates
-2. **Distributed Tracing**: Trace requests across tool executions
-3. **Health Checks**: Monitor tool availability and performance
-4. **Alerting**: Set up alerts for tool failures and performance degradation
+**Safety Measures**:
+
+1. **Input Sanitization**: Validate all tool parameters
+2. **Path Traversal Protection**: Prevent access to unauthorized files
+3. **Rate Limiting**: Prevent abuse of expensive operations
+4. **Audit Logging**: Track all tool executions for debugging and monitoring
+5. **Smart Confirmation**: Only prompt for genuinely destructive actions, not routine edits
+
+### Data Protection
+
+**Sensitive Data Handling**:
+
+- Encrypt tool execution logs containing sensitive data
+- Implement data retention policies for analytics
+- Ensure GDPR compliance for user data
+- Secure API key and token management
+
+## Performance Considerations
+
+### Tool Execution Optimization
+
+**Caching Strategies**:
+
+- Cache frequently accessed file contents
+- Cache processed images and optimized assets
+- Cache tool execution results for identical parameters
+- Implement intelligent cache invalidation
+
+**Resource Management**:
+
+- Implement tool execution timeouts
+- Limit concurrent tool executions per user
+- Monitor memory usage during file operations
+- Optimize database queries for analytics
+
+### Model Selection Optimization
+
+**Complexity Analysis Optimization**:
+
+- Cache complexity analysis results for similar messages
+- Use lightweight models for complexity analysis
+- Implement fast-path for obviously simple/complex tasks
+- Optimize token counting and estimation
+
+**Cost Optimization**:
+
+- Implement smart batching for multiple tool calls
+- Use model-specific optimization strategies
+- Track and alert on cost thresholds
+- Provide cost-aware tool recommendations
+
+## Monitoring and Analytics
+
+### Real-time Monitoring
+
+**Key Metrics**:
+
+- Tool execution success rates
+- Average execution times
+- Error rates by tool category
+- Model selection accuracy
+- Cost per conversation
+- User satisfaction scores
+
+**Alerting System**:
+
+- High error rates for specific tools
+- Unusual cost spikes
+- Performance degradation
+- Security violations
+- Resource exhaustion
+
+### Analytics Dashboard
+
+**Tool Usage Analytics**:
+
+- Most/least used tools
+- Tool performance trends
+- Error pattern analysis
+- User adoption metrics
+
+**Model Selection Analytics**:
+
+- Model tier distribution
+- Complexity analysis accuracy
+- Cost optimization effectiveness
+- Performance impact metrics
+
+**Business Intelligence**:
+
+- Feature usage patterns
+- User engagement metrics
+- Cost optimization opportunities
+- Product improvement insights

@@ -7,7 +7,9 @@ import { chatRoutes } from './routes/chat.js';
 import { conversationRoutes } from './routes/conversation.js';
 import { pagesRoutes } from './routes/pages.js';
 import { websocketRoutes } from './routes/websocket.js';
+import { registerLandingPageTools } from './tools/landing-page-tools.js';
 import { registerTextTools } from './tools/text-tools.js';
+// import { registerVisualElementTools } from './tools/visual-element-tools.js';
 
 const fastify = Fastify({
   logger: true,
@@ -57,6 +59,8 @@ fastify.get('/api/v1/health', async () => {
 fastify.addHook('onReady', async () => {
   await initializeStorage();
   registerTextTools();
+  registerLandingPageTools();
+  // registerVisualElementTools();
 });
 
 // Graceful shutdown

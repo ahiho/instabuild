@@ -72,6 +72,7 @@ model Conversation {
   // Relationships
   messages       ChatMessage[]
   toolExecutions ToolExecution[]
+  modelUsage     ModelUsage[]
 
   @@map("conversations")
 }
@@ -133,5 +134,62 @@ model ToolExecution {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   chatMessage  ChatMessage? @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
 
+  @@index([toolName])
+  @@index([status])
+  @@index([startTime])
+  @@index([userId])
   @@map("tool_executions")
+}
+
+model ToolAnalytics {
+  id                    String   @id @default(cuid())
+  toolName              String   @db.VarChar(100)
+  date                  DateTime @db.Date
+  executionCount        Int      @default(0)
+  successCount          Int      @default(0)
+  totalExecutionTimeMs  BigInt   @default(0)
+  errorCount            Int      @default(0)
+  uniqueUsers           Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([toolName, date])
+  @@map("tool_analytics")
+}
+
+model ToolSafetyConstraint {
+  id               String   @id @default(cuid())
+  toolName         String?  @db.VarChar(100)
+  constraintType   String   @db.VarChar(50)
+  resourcePattern  String?  @db.VarChar(500)
+  constraintConfig Json?
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([toolName])
+  @@index([constraintType])
+  @@index([enabled])
+  @@map("tool_safety_constraints")
+}
+
+model ModelUsage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  modelName       String   @db.VarChar(100)
+  modelTier       String   @db.VarChar(20)
+  complexityLevel String   @db.VarChar(20)
+  tokenCount      Int?
+  estimatedCost   Decimal? @db.Decimal(10,6)
+  executionTimeMs Int?
+  success         Boolean
+  createdAt       DateTime @default(now())
+
+  // Relationships
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([modelName])
+  @@index([createdAt])
+  @@map("model_usage")
 }

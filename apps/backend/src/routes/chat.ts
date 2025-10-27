@@ -1,44 +1,18 @@
-import type {
-  AISDKMessage,
-  ChatRequest,
-  MessagePart,
-  ModelSelectionContext,
-} from '@instabuild/shared/types';
-import { streamText } from 'ai';
+import type { ModelSelectionContext } from '@instabuild/shared/types';
+import { convertToCoreMessages, streamText } from 'ai';
 import { FastifyInstance } from 'fastify';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../server.js';
 import { modelSelector } from '../services/model-selector.js';
-
-/**
- * Extract text content from message parts array
- */
-function extractTextFromParts(parts: MessagePart[]): string {
-  return parts
-    .filter(part => part.type === 'text' && part.text)
-    .map(part => part.text)
-    .join('');
-}
-
-/**
- * Convert AI SDK messages to core messages for AI processing
- */
-function convertAISDKToCoreMessages(messages: AISDKMessage[]) {
-  return messages.map(message => ({
-    role: message.role,
-    content: extractTextFromParts(message.parts),
-  }));
-}
+import { toolRegistry } from '../services/toolRegistry.js';
 
 export async function chatRoutes(fastify: FastifyInstance) {
   /**
    * AI SDK compatible chat endpoint
    * @route POST /api/v1/chat
    */
-  fastify.post<{
-    Body: ChatRequest;
-  }>('/api/v1/chat', async (request, reply) => {
-    const { conversationId, messages } = request.body as ChatRequest;
+  fastify.post('/api/v1/chat', async (request, reply) => {
+    const { messages, conversationId } = request.body as any;
 
     // Validate conversation exists
     const conversation = await prisma.conversation.findUnique({
@@ -56,11 +30,11 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     // Get the latest user message for context
     const latestUserMessage = messages
-      .filter((m: AISDKMessage) => m.role === 'user')
+      .filter((m: any) => m.role === 'user')
       .slice(-1)[0];
 
-    // Extract text from parts array (AI SDK format)
-    const messageContent = extractTextFromParts(latestUserMessage?.parts || []);
+    // Extract text content from the message
+    const messageContent = latestUserMessage?.content || '';
 
     // Select appropriate model based on task complexity
     const context: ModelSelectionContext = {
@@ -86,7 +60,6 @@ export async function chatRoutes(fastify: FastifyInstance) {
           senderType: 'User',
           role: 'user',
           content: messageContent,
-          parts: latestUserMessage.parts,
           metadata: {
             messageId: latestUserMessage.id,
           },
@@ -94,24 +67,40 @@ export async function chatRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Get available tools from registry (disabled for now due to schema conversion issues)
-    // const availableTools = toolRegistry.getTools();
+    // Get available tools from registry
+    const availableTools = toolRegistry.getTools();
 
-    // Stream response from AI with selected model
+    // Debug: Log messages before conversion
+    logger.info('Messages before conversion', {
+      messages,
+      messageCount: messages?.length,
+    });
+
+    // Convert UI messages to core messages format
+    const coreMessages = convertToCoreMessages(messages);
+
     const result = streamText({
       model,
-      messages: convertAISDKToCoreMessages(messages),
-      // tools: availableTools, // Disabled until proper schema conversion is implemented
+      messages: coreMessages,
+      tools: availableTools,
       system: `You are an AI assistant that helps users edit landing pages through natural language commands.
 
-When modifying elements:
-- Use CSS properties for styling
-- Be specific about changes
-- Maintain responsive design principles
+You have access to these tools:
+- update_content: Change text content of elements
+- update_style: Modify CSS styles and visual appearance
+- add_element: Add new elements like buttons, headings, sections
+- text_transform: Transform text (uppercase, lowercase, titlecase)
+- word_count: Analyze text statistics
+
+When users ask to modify their landing page:
+1. Use the appropriate tools to make the actual changes
+2. Be specific about element IDs when possible
+3. Provide user-friendly feedback about what was changed
+4. Maintain responsive design principles
 
 Model Selection: ${selection.reasoning}
 
-Respond with helpful suggestions and acknowledge the changes you would make.`,
+Always use tools to make actual changes rather than just describing what you would do.`,
       async onFinish({ text }) {
         // Save assistant message to database
         await prisma.chatMessage.create({
@@ -121,7 +110,6 @@ Respond with helpful suggestions and acknowledge the changes you would make.`,
             senderType: 'AI',
             role: 'assistant',
             content: text || '',
-            parts: [{ type: 'text', text: text || '' }],
             metadata: {
               modelSelection: selection.selectedModel,
             },
@@ -141,8 +129,6 @@ Respond with helpful suggestions and acknowledge the changes you would make.`,
       },
     });
 
-    return result.toUIMessageStreamResponse({
-      originalMessages: messages,
-    });
+    return result.toUIMessageStreamResponse();
   });
 }
