@@ -28,9 +28,7 @@ export function PreviewPanel({
     'preview://landing-page'
   );
   const [iframeKey, setIframeKey] = useState<number>(0);
-  const [navigationHistory, setNavigationHistory] = useState<string[]>([
-    'preview://landing-page',
-  ]);
+  const [navigationHistory] = useState<string[]>(['preview://landing-page']);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   useEffect(() => {

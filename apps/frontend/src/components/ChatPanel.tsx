@@ -28,9 +28,9 @@ import {
   PromptInputProvider,
   PromptInputSubmit,
   PromptInputTextarea,
-  usePromptInputAttachments,
   type PromptInputMessage,
 } from './ai-elements/prompt-input';
+import { usePromptInputAttachments } from './ai-elements/use-prompt-input';
 import { Response } from './ai-elements/response';
 
 interface ChatPanelProps {
@@ -49,7 +49,7 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
   // Handle tool parts (tool-* types) - simplified approach
   if (part.type.startsWith('tool-')) {
     const toolName = part.type.replace('tool-', '');
-    const partAny = part as any; // Simplified type handling
+    const partData = part as Record<string, unknown>; // Type assertion for tool data
 
     return (
       <div
@@ -60,38 +60,38 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
           <span className="text-sm font-medium text-blue-600">
             🔧 {toolName}
           </span>
-          {partAny.state && (
+          {partData.state && (
             <span className="text-xs px-2 py-1 bg-blue-500/20 rounded-full text-blue-600">
-              {partAny.state}
+              {String(partData.state)}
             </span>
           )}
         </div>
-        {partAny.input && (
+        {partData.input && (
           <div className="mb-2">
             <h5 className="text-xs font-medium text-muted-foreground mb-1">
               Input:
             </h5>
             <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-              {JSON.stringify(partAny.input, null, 2)}
+              {JSON.stringify(partData.input, null, 2)}
             </pre>
           </div>
         )}
-        {partAny.output && (
+        {partData.output && (
           <div>
             <h5 className="text-xs font-medium text-muted-foreground mb-1">
               Output:
             </h5>
             <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-              {typeof partAny.output === 'string'
-                ? partAny.output
-                : JSON.stringify(partAny.output, null, 2)}
+              {typeof partData.output === 'string'
+                ? partData.output
+                : JSON.stringify(partData.output, null, 2)}
             </pre>
           </div>
         )}
-        {partAny.errorText && (
+        {partData.errorText && (
           <div className="text-red-400">
             <h5 className="text-xs font-medium mb-1">Error:</h5>
-            <p className="text-xs">{partAny.errorText}</p>
+            <p className="text-xs">{String(partData.errorText)}</p>
           </div>
         )}
       </div>
@@ -100,7 +100,7 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
 
   // Handle dynamic tool parts
   if (part.type === 'dynamic-tool') {
-    const partAny = part as any;
+    const partData = part as Record<string, unknown>;
     return (
       <div
         key={index}
@@ -108,24 +108,24 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
       >
         <div className="flex items-center gap-2 mb-2">
           <span className="text-sm font-medium text-green-600">
-            🔧 {partAny.toolName || 'Dynamic Tool'}
+            🔧 {String(partData.toolName) || 'Dynamic Tool'}
           </span>
-          {partAny.state && (
+          {partData.state && (
             <span className="text-xs px-2 py-1 bg-green-500/20 rounded-full text-green-600">
-              {partAny.state}
+              {String(partData.state)}
             </span>
           )}
         </div>
-        {partAny.input && (
+        {partData.input && (
           <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-            {JSON.stringify(partAny.input, null, 2)}
+            {JSON.stringify(partData.input, null, 2)}
           </pre>
         )}
-        {partAny.output && (
+        {partData.output && (
           <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-            {typeof partAny.output === 'string'
-              ? partAny.output
-              : JSON.stringify(partAny.output, null, 2)}
+            {typeof partData.output === 'string'
+              ? partData.output
+              : JSON.stringify(partData.output, null, 2)}
           </pre>
         )}
       </div>
@@ -135,7 +135,7 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
   // Handle data parts (data-* types)
   if (part.type.startsWith('data-')) {
     const dataType = part.type.replace('data-', '');
-    const partAny = part as any;
+    const partData = part as Record<string, unknown>;
 
     return (
       <div
@@ -145,11 +145,11 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
         <h4 className="text-sm font-medium text-purple-600 mb-2">
           📊 {dataType} Data
         </h4>
-        {partAny.data && (
+        {partData.data && (
           <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
-            {typeof partAny.data === 'string'
-              ? partAny.data
-              : JSON.stringify(partAny.data, null, 2)}
+            {typeof partData.data === 'string'
+              ? partData.data
+              : JSON.stringify(partData.data, null, 2)}
           </pre>
         )}
       </div>
@@ -158,14 +158,14 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
 
   // Handle file parts
   if (part.type === 'file') {
-    const partAny = part as any;
+    const partData = part as Record<string, unknown>;
     return (
       <div
         key={index}
         className="my-2 p-3 bg-orange-500/10 border border-orange-500/50 rounded-md"
       >
         <p className="text-sm text-orange-600">
-          📎 File: {partAny.name || 'Unknown file'}
+          📎 File: {String(partData.name) || 'Unknown file'}
         </p>
       </div>
     );
@@ -173,7 +173,7 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
 
   // Handle reasoning parts
   if (part.type === 'reasoning') {
-    const partAny = part as any;
+    const partData = part as Record<string, unknown>;
     return (
       <div
         key={index}
@@ -182,7 +182,7 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
         <h4 className="text-sm font-medium text-purple-600 mb-2">
           🧠 Reasoning
         </h4>
-        {partAny.text && <Response>{partAny.text}</Response>}
+        {partData.text && <Response>{String(partData.text)}</Response>}
       </div>
     );
   }

@@ -23,8 +23,6 @@ export type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 
 export const CodeBlock = ({
   code,
-  language,
-  showLineNumbers = false,
   className,
   children,
   ...props

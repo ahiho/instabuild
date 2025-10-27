@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { fastify as fastifyApp } from '../server.js';
-import { prisma } from '../server.js';
+import { fastify as fastifyApp, prisma } from '../server.js';
 // @ts-ignore - WebSocket types
 import WebSocket from 'ws';
 
