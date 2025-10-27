@@ -1,5 +1,5 @@
 {
-  "kiroAgent.configureMCP": "Disabled",
+  "kiroAgent.configureMCP": "Enabled",
   "typescript.preferences.includePackageJsonAutoImports": "on",
   "typescript.suggest.autoImports": true,
   "typescript.updateImportsOnFileMove.enabled": "always",
@@ -11,7 +11,7 @@
   },
   "eslint.workingDirectories": [
     "apps/backend",
-    "apps/frontend", 
+    "apps/frontend",
     "packages/shared"
   ],
   "files.exclude": {
