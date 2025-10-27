@@ -15,8 +15,7 @@ class AIService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl =
-      import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:3000/api';
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL;
   }
 
   async makeRequest(request: AIRequest): Promise<AIResponse> {

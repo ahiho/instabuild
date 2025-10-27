@@ -70,7 +70,8 @@ model Conversation {
   lastUpdateTime DateTime @updatedAt
 
   // Relationships
-  messages ChatMessage[]
+  messages       ChatMessage[]
+  toolExecutions ToolExecution[]
 
   @@map("conversations")
 }
@@ -82,14 +83,17 @@ model ChatMessage {
   senderType     String   @db.VarChar(20) // User, AI, System
   role           String   @db.VarChar(20) // user, assistant, system (deprecated, use senderType)
   content        String   @db.Text
+  parts          Json?    // AI SDK message parts array
   toolCalls      Json?    // JSON array of tool calls
-  metadata       Json?    // Additional metadata
+  toolResults    Json?    // JSON array of tool results
+  metadata       Json?    // Additional metadata including AI SDK format
   createdAt      DateTime @default(now())
 
   // Relationships
   conversation         Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   landingPage          LandingPage?  @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
   modificationCommands ModificationCommand[]
+  toolExecutions       ToolExecution[]
 
   @@map("chat_messages")
 }
@@ -109,4 +113,25 @@ model ModificationCommand {
   resultVersion LandingPageVersion? @relation(fields: [resultVersionId], references: [id])
 
   @@map("modification_commands")
+}
+
+model ToolExecution {
+  id             String   @id @default(cuid())
+  conversationId String
+  chatMessageId  String?  // Optional: link to the chat message that triggered this
+  toolCallId     String   @unique
+  toolName       String   @db.VarChar(100)
+  input          Json     // Tool input parameters
+  output         Json?    // Tool execution result
+  error          String?  @db.Text
+  status         String   @db.VarChar(20) // pending, executing, completed, failed, timeout
+  startTime      DateTime @default(now())
+  endTime        DateTime?
+  userId         String   @db.VarChar(100)
+
+  // Relationships
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  chatMessage  ChatMessage? @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+
+  @@map("tool_executions")
 }

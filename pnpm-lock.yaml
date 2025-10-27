@@ -304,6 +304,10 @@ importers:
         version: 0.5.0(vitest@1.6.1(@types/node@20.19.23)(jsdom@27.0.1(postcss@8.5.6)))
 
   packages/shared:
+    dependencies:
+      zod:
+        specifier: ^4.1.12
+        version: 4.1.12
     devDependencies:
       typescript:
         specifier: ^5.0.0

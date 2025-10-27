@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { Button } from "../ui/button";
-import { cn } from "../../lib/utils";
-import { CheckIcon, CopyIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
-import { createContext, useContext, useState } from "react";
+import { Button } from '../ui/button';
+import { cn } from '../../lib/utils';
+import { CheckIcon, CopyIcon } from 'lucide-react';
+import type { ComponentProps, HTMLAttributes, ReactNode } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 type CodeBlockContextType = {
   code: string;
 };
 
 const CodeBlockContext = createContext<CodeBlockContextType>({
-  code: "",
+  code: '',
 });
 
 export type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
@@ -32,7 +32,7 @@ export const CodeBlock = ({
   <CodeBlockContext.Provider value={{ code }}>
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-md border bg-muted/50 text-foreground",
+        'relative w-full overflow-hidden rounded-md border bg-muted/50 text-foreground',
         className
       )}
       {...props}
@@ -69,8 +69,8 @@ export const CodeBlockCopyButton = ({
   const { code } = useContext(CodeBlockContext);
 
   const copyToClipboard = async () => {
-    if (typeof window === "undefined" || !navigator.clipboard.writeText) {
-      onError?.(new Error("Clipboard API not available"));
+    if (typeof window === 'undefined' || !navigator.clipboard.writeText) {
+      onError?.(new Error('Clipboard API not available'));
       return;
     }
 
@@ -88,7 +88,7 @@ export const CodeBlockCopyButton = ({
 
   return (
     <Button
-      className={cn("shrink-0", className)}
+      className={cn('shrink-0', className)}
       onClick={copyToClipboard}
       size="icon"
       variant="ghost"

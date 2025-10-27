@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { LandingPageVersion } from '@instabuild/shared';
-import { ArrowLeft, ArrowRight, RefreshCw, PanelLeftClose, PanelLeft } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw,
+  PanelLeftClose,
+  PanelLeft,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VersionSelector } from './editor/VersionSelector';
 
@@ -18,9 +24,13 @@ export function PreviewPanel({
   isChatVisible = true,
 }: PreviewPanelProps) {
   const [previewContent, setPreviewContent] = useState<string>('');
-  const [previewUrl, setPreviewUrl] = useState<string>('preview://landing-page');
+  const [previewUrl, setPreviewUrl] = useState<string>(
+    'preview://landing-page'
+  );
   const [iframeKey, setIframeKey] = useState<number>(0);
-  const [navigationHistory, setNavigationHistory] = useState<string[]>(['preview://landing-page']);
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([
+    'preview://landing-page',
+  ]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   useEffect(() => {
@@ -163,7 +173,7 @@ export function PreviewPanel({
             <input
               type="text"
               value={previewUrl}
-              onChange={(e) => setPreviewUrl(e.target.value)}
+              onChange={e => setPreviewUrl(e.target.value)}
               className="w-full bg-gray-800/50 border border-gray-700 text-gray-300 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gray-600"
               readOnly
             />
@@ -192,7 +202,9 @@ export function PreviewPanel({
             <div className="text-center">
               <div className="text-4xl mb-4">📄</div>
               <p className="text-gray-400">No preview available</p>
-              <p className="text-sm text-gray-500">Create a page to see the preview</p>
+              <p className="text-sm text-gray-500">
+                Create a page to see the preview
+              </p>
             </div>
           </div>
         )}

@@ -36,13 +36,16 @@ export function VersionSelector({
   // In the future, this will be populated from API
   const versions = [
     { number: 1, label: 'v1 - Initial' },
-    { number: currentVersionNumber, label: `v${currentVersionNumber} - Current` },
+    {
+      number: currentVersionNumber,
+      label: `v${currentVersionNumber} - Current`,
+    },
   ];
 
   return (
     <Select
       value={currentVersionNumber.toString()}
-      onValueChange={(value) => {
+      onValueChange={value => {
         const versionNumber = parseInt(value, 10);
         onVersionChange?.(versionNumber);
       }}
@@ -51,7 +54,7 @@ export function VersionSelector({
         <SelectValue placeholder="Select version" />
       </SelectTrigger>
       <SelectContent className="bg-gray-900 border-gray-800 text-white">
-        {versions.map((version) => (
+        {versions.map(version => (
           <SelectItem
             key={version.number}
             value={version.number.toString()}

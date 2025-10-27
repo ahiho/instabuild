@@ -17,17 +17,18 @@ This feature refactors the existing chat functionality to utilize WebSockets for
 **Testing**: Vitest (indicated by `vitest.config.ts` in `apps/backend` and `apps/frontend`)
 **Target Platform**: Web application (browser-based frontend, Node.js backend)
 **Project Type**: Web application (frontend/backend monorepo structure)
-**Performance Goals**: 
+**Performance Goals**:
+
 - 99% of user messages receive a first AI response chunk within 1 second.
 - Average end-to-end latency for a complete AI response under 3 seconds.
 - Support 100 concurrent active users with no more than 5% message loss or connection drops.
 - All user-generated chat messages persisted within 500ms.
-**Constraints**: Adherence to existing monorepo structure and coding standards.
-**Scale/Scope**: Initial target of 100 concurrent users.
+  **Constraints**: Adherence to existing monorepo structure and coding standards.
+  **Scale/Scope**: Initial target of 100 concurrent users.
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 - **Core Principles**: The feature aligns with the principles of modularity (WebSocket implementation as a distinct module), test-first development (requiring new tests for real-time communication), and integration testing (for WebSocket and AI integration).
 - **Gate Evaluation**: No immediate violations of core principles are identified. The plan will ensure adherence to test-first development and proper integration testing.
@@ -71,5 +72,5 @@ frontend/
 > **Fill ONLY if Constitution Check has violations that must be justified**
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| N/A | N/A | N/A |
+| --------- | ---------- | ------------------------------------ |
+| N/A       | N/A        | N/A                                  |

@@ -111,7 +111,7 @@ describe('WebSocket Chat', () => {
     });
 
     // Wait a bit for message to be processed
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Check if message was saved
     const messages = await prisma.chatMessage.findMany({
@@ -212,7 +212,7 @@ describe('WebSocket Chat', () => {
     });
 
     // Wait for processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const updatedConversation = await prisma.conversation.findUnique({
       where: { id: conversationId },

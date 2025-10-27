@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [x] 1. Set up core tool calling infrastructure
+- [ ] 1. Set up core tool calling infrastructure
   - Create the Tool Registry system with registration, validation, and execution capabilities
   - Implement base interfaces and types for tool definitions and execution context
   - Add database schema extensions for tool execution tracking

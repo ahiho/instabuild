@@ -1,46 +1,216 @@
-import { useState, useEffect } from 'react';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import {
-  Sparkles,
   Copy,
-  ThumbsUp,
-  ThumbsDown,
-  Paperclip,
   Loader2,
+  Paperclip,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useToast } from '../hooks/useToast';
+import {
+  getConversationMessages,
+  getOrCreateConversation,
+} from '../services/conversation';
+import { Action, Actions } from './ai-elements/actions';
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
 } from './ai-elements/conversation';
-import { Message, MessageContent, MessageAvatar } from './ai-elements/message';
+import { Message, MessageAvatar, MessageContent } from './ai-elements/message';
 import {
   PromptInput,
   PromptInputBody,
-  PromptInputTextarea,
   PromptInputButton,
-  PromptInputSubmit,
   PromptInputProvider,
+  PromptInputSubmit,
+  PromptInputTextarea,
   usePromptInputAttachments,
   type PromptInputMessage,
 } from './ai-elements/prompt-input';
 import { Response } from './ai-elements/response';
-import { Actions, Action } from './ai-elements/actions';
-import { useToast } from '../hooks/useToast';
-import { getOrCreateConversation, getConversationMessages } from '../services/conversation';
 
 interface ChatPanelProps {
   pageId: string;
 }
 
 /**
- * ChatPanel - Professional AI chat interface using WebSocket
+ * Renders different types of message parts from AI SDK
+ */
+function renderMessagePart(part: UIMessage['parts'][0], index: number) {
+  // Handle text parts
+  if (part.type === 'text') {
+    return <Response key={index}>{part.text}</Response>;
+  }
+
+  // Handle tool parts (tool-* types) - simplified approach
+  if (part.type.startsWith('tool-')) {
+    const toolName = part.type.replace('tool-', '');
+    const partAny = part as any; // Simplified type handling
+
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-blue-500/10 border border-blue-500/50 rounded-md"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-medium text-blue-600">
+            🔧 {toolName}
+          </span>
+          {partAny.state && (
+            <span className="text-xs px-2 py-1 bg-blue-500/20 rounded-full text-blue-600">
+              {partAny.state}
+            </span>
+          )}
+        </div>
+        {partAny.input && (
+          <div className="mb-2">
+            <h5 className="text-xs font-medium text-muted-foreground mb-1">
+              Input:
+            </h5>
+            <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+              {JSON.stringify(partAny.input, null, 2)}
+            </pre>
+          </div>
+        )}
+        {partAny.output && (
+          <div>
+            <h5 className="text-xs font-medium text-muted-foreground mb-1">
+              Output:
+            </h5>
+            <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+              {typeof partAny.output === 'string'
+                ? partAny.output
+                : JSON.stringify(partAny.output, null, 2)}
+            </pre>
+          </div>
+        )}
+        {partAny.errorText && (
+          <div className="text-red-400">
+            <h5 className="text-xs font-medium mb-1">Error:</h5>
+            <p className="text-xs">{partAny.errorText}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Handle dynamic tool parts
+  if (part.type === 'dynamic-tool') {
+    const partAny = part as any;
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-green-500/10 border border-green-500/50 rounded-md"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-medium text-green-600">
+            🔧 {partAny.toolName || 'Dynamic Tool'}
+          </span>
+          {partAny.state && (
+            <span className="text-xs px-2 py-1 bg-green-500/20 rounded-full text-green-600">
+              {partAny.state}
+            </span>
+          )}
+        </div>
+        {partAny.input && (
+          <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+            {JSON.stringify(partAny.input, null, 2)}
+          </pre>
+        )}
+        {partAny.output && (
+          <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+            {typeof partAny.output === 'string'
+              ? partAny.output
+              : JSON.stringify(partAny.output, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  // Handle data parts (data-* types)
+  if (part.type.startsWith('data-')) {
+    const dataType = part.type.replace('data-', '');
+    const partAny = part as any;
+
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-purple-500/10 border border-purple-500/50 rounded-md"
+      >
+        <h4 className="text-sm font-medium text-purple-600 mb-2">
+          📊 {dataType} Data
+        </h4>
+        {partAny.data && (
+          <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+            {typeof partAny.data === 'string'
+              ? partAny.data
+              : JSON.stringify(partAny.data, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  // Handle file parts
+  if (part.type === 'file') {
+    const partAny = part as any;
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-orange-500/10 border border-orange-500/50 rounded-md"
+      >
+        <p className="text-sm text-orange-600">
+          📎 File: {partAny.name || 'Unknown file'}
+        </p>
+      </div>
+    );
+  }
+
+  // Handle reasoning parts
+  if (part.type === 'reasoning') {
+    const partAny = part as any;
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-purple-500/10 border border-purple-500/50 rounded-md"
+      >
+        <h4 className="text-sm font-medium text-purple-600 mb-2">
+          🧠 Reasoning
+        </h4>
+        {partAny.text && <Response>{partAny.text}</Response>}
+      </div>
+    );
+  }
+
+  // Fallback for unknown part types
+  console.warn('Unknown message part type:', part);
+  return (
+    <div
+      key={index}
+      className="my-2 p-3 bg-yellow-500/10 border border-yellow-500/50 rounded-md"
+    >
+      <p className="text-sm text-yellow-600">
+        Unknown message part type: {part.type}
+      </p>
+      <pre className="text-xs mt-1 text-yellow-500 bg-black/20 p-2 rounded overflow-x-auto">
+        {JSON.stringify(part, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+/**
+ * ChatPanel - Professional AI chat interface using AI SDK
  *
  * Features:
- * - Real-time WebSocket communication
+ * - AI SDK integration with useChat hook
  * - Streaming AI responses
- * - Auto-reconnection
+ * - Message persistence and conversation management
  * - Message actions (copy, like, dislike)
  * - Professional UI with AI Elements components
  * - Dark theme styling
@@ -145,7 +315,12 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
       displayedMessages: messages.length,
       conversationId,
     });
-  }, [initialMessages.length, chatMessages.length, messages.length, conversationId]);
+  }, [
+    initialMessages.length,
+    chatMessages.length,
+    messages.length,
+    conversationId,
+  ]);
 
   // Handle errors from the chat
   useEffect(() => {
@@ -191,7 +366,6 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
   return (
     <PromptInputProvider>
       <div className="flex flex-col h-full">
-
         {/* Conversation Area */}
         <Conversation className="flex-1">
           <ConversationContent className="min-h-full flex flex-col">
@@ -208,10 +382,10 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
 
             {/* Messages */}
             {messages.map(message => {
-              // Extract text from message parts
+              // Extract text content for copy functionality
               const textContent = message.parts
-                .filter((part) => part.type === 'text')
-                .map((part) => (part.type === 'text' ? part.text : ''))
+                .filter(part => part.type === 'text')
+                .map(part => (part.type === 'text' ? part.text : ''))
                 .join('');
 
               return (
@@ -225,10 +399,15 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
                     name={message.role === 'user' ? 'You' : 'AI'}
                   />
                   <MessageContent variant="flat">
-                    <Response>{textContent}</Response>
+                    {/* Render all message parts */}
+                    <div className="space-y-2">
+                      {message.parts.map((part, index) =>
+                        renderMessagePart(part, index)
+                      )}
+                    </div>
 
-                    {/* Message Actions (only for assistant messages) */}
-                    {message.role === 'assistant' && (
+                    {/* Message Actions (only for assistant messages with text content) */}
+                    {message.role === 'assistant' && textContent && (
                       <Actions className="mt-2">
                         <Action
                           tooltip="Copy message"
@@ -252,18 +431,19 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
             {/* Streaming Indicator - Bouncing Dots (only if no content streaming yet) */}
             {(() => {
               // Check if we're streaming and if the last message has content
-              const isStreaming = status === 'submitted' || status === 'streaming';
+              const isStreaming =
+                status === 'submitted' || status === 'streaming';
               const lastMessage = messages[messages.length - 1];
-              const hasAssistantContent = lastMessage?.role === 'assistant' &&
-                lastMessage.parts?.some((part) => part.type === 'text' && part.text.trim());
+              const hasAssistantContent =
+                lastMessage?.role === 'assistant' &&
+                lastMessage.parts?.some(
+                  part => part.type === 'text' && part.text.trim()
+                );
 
               // Only show bouncing dots if streaming but no assistant content yet
               return isStreaming && !hasAssistantContent ? (
                 <Message from="assistant">
-                  <MessageAvatar
-                    src="/avatar-ai.png"
-                    name="AI"
-                  />
+                  <MessageAvatar src="/avatar-ai.png" name="AI" />
                   <MessageContent variant="flat">
                     <div className="py-2">
                       <BouncingDots />
@@ -298,7 +478,9 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
             <PromptInputBody>
               <div className="bg-white/5 rounded-lg p-3">
                 <PromptInputTextarea
-                  placeholder={conversationId ? 'Ask me anything...' : 'Initializing...'}
+                  placeholder={
+                    conversationId ? 'Ask me anything...' : 'Initializing...'
+                  }
                   className="bg-transparent border-0 text-white placeholder-gray-500 p-0 min-h-[40px] mb-2"
                   disabled={!conversationId || status !== 'ready'}
                 />

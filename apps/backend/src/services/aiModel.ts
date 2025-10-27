@@ -29,7 +29,7 @@ export class AIModelService {
     try {
       // Get the last user message for model selection
       const lastUserMessage =
-        messages.filter((m) => m.role === 'user').slice(-1)[0]?.content || '';
+        messages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
 
       // Build context for model selection
       const selectionContext: ModelSelectionContext = {
@@ -54,10 +54,7 @@ export class AIModelService {
       // Stream response from AI
       const result = await streamText({
         model,
-        messages: [
-          { role: 'system', content: systemMessage },
-          ...messages,
-        ],
+        messages: [{ role: 'system', content: systemMessage }, ...messages],
       });
 
       // Yield chunks as they arrive

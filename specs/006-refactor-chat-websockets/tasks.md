@@ -12,15 +12,15 @@ This feature will be delivered incrementally, prioritizing the core real-time ch
 
 ## Phase 1: Setup
 
-- [X] T001 Install `@fastify/websocket` and `@types/ws` in `apps/backend/package.json`
-- [X] T002 Configure Fastify to register the `@fastify/websocket` plugin in `apps/backend/src/server.ts`
+- [x] T001 Install `@fastify/websocket` and `@types/ws` in `apps/backend/package.json`
+- [x] T002 Configure Fastify to register the `@fastify/websocket` plugin in `apps/backend/src/server.ts`
 
 ## Phase 2: Foundational
 
-- [X] T003 Define `ChatMessage` and `Conversation` Prisma models in `apps/backend/prisma/schema.prisma`
-- [X] T004 Implement a service for persisting `ChatMessage` and `Conversation` data in `apps/backend/src/services/chatPersistence.ts`
-- [X] T005 Ensure AI model selection and invocation services are accessible within the backend `apps/backend/src/services/aiModel.ts`
-- [X] T006 Implement secure management and access of AI provider credentials (e.g., environment variables) in `apps/backend/src/config/env.ts`
+- [x] T003 Define `ChatMessage` and `Conversation` Prisma models in `apps/backend/prisma/schema.prisma`
+- [x] T004 Implement a service for persisting `ChatMessage` and `Conversation` data in `apps/backend/src/services/chatPersistence.ts`
+- [x] T005 Ensure AI model selection and invocation services are accessible within the backend `apps/backend/src/services/aiModel.ts`
+- [x] T006 Implement secure management and access of AI provider credentials (e.g., environment variables) in `apps/backend/src/config/env.ts`
 
 ## Phase 3: User Story 1 - Real-time Chat Communication [US1]
 
@@ -30,25 +30,25 @@ This feature will be delivered incrementally, prioritizing the core real-time ch
 
 ### Backend Implementation
 
-- [X] T007 [P] [US1] Create WebSocket endpoint `/api/v1/chat/ws` in `apps/backend/src/routes/websocket.ts`
-- [X] T008 [US1] Implement WebSocket handler to receive `UserMessage` from client in `apps/backend/src/routes/websocket.ts`
-- [X] T009 [US1] Integrate AI model invocation with user input within the WebSocket handler in `apps/backend/src/routes/websocket.ts`
-- [X] T010 [US1] Stream `AIResponseChunk` back to the client over the WebSocket connection in `apps/backend/src/routes/websocket.ts`
-- [X] T011 [US1] Save `UserMessage` to the database using `chatPersistence.ts` in `apps/backend/src/routes/websocket.ts`
+- [x] T007 [P] [US1] Create WebSocket endpoint `/api/v1/chat/ws` in `apps/backend/src/routes/websocket.ts`
+- [x] T008 [US1] Implement WebSocket handler to receive `UserMessage` from client in `apps/backend/src/routes/websocket.ts`
+- [x] T009 [US1] Integrate AI model invocation with user input within the WebSocket handler in `apps/backend/src/routes/websocket.ts`
+- [x] T010 [US1] Stream `AIResponseChunk` back to the client over the WebSocket connection in `apps/backend/src/routes/websocket.ts`
+- [x] T011 [US1] Save `UserMessage` to the database using `chatPersistence.ts` in `apps/backend/src/routes/websocket.ts`
 
 ### Frontend Implementation
 
-- [X] T012 [P] [US1] Update `useChat` hook to establish WebSocket connection to `/api/v1/chat/ws` in `apps/frontend/src/hooks/useChat.ts`
-- [X] T013 [US1] Implement sending user messages over WebSocket in `apps/frontend/src/hooks/useChat.ts`
-- [X] T014 [US1] Implement handling and displaying streaming `AIResponseChunk` from WebSocket in `apps/frontend/src/hooks/useChat.ts`
+- [x] T012 [P] [US1] Update `useChat` hook to establish WebSocket connection to `/api/v1/chat/ws` in `apps/frontend/src/hooks/useChat.ts`
+- [x] T013 [US1] Implement sending user messages over WebSocket in `apps/frontend/src/hooks/useChat.ts`
+- [x] T014 [US1] Implement handling and displaying streaming `AIResponseChunk` from WebSocket in `apps/frontend/src/hooks/useChat.ts`
 
 ## Phase 4: Polish & Cross-Cutting Concerns
 
-- [X] T015 Implement robust error handling for WebSocket connections (backend and frontend) in `apps/backend/src/routes/websocket.ts` and `apps/frontend/src/hooks/useChat.ts`
-- [X] T016 Implement WebSocket reconnection logic for improved user experience in `apps/frontend/src/hooks/useChat.ts`
-- [X] T017 Add comprehensive logging for chat events and WebSocket activity in `apps/backend/src/lib/logger.ts`
-- [X] T018 Write unit and integration tests for backend WebSocket logic in `apps/backend/src/__tests__/websocket.test.ts`
-- [X] T019 Write integration tests for frontend WebSocket integration in `apps/frontend/src/__tests__/useChat.test.ts`
+- [x] T015 Implement robust error handling for WebSocket connections (backend and frontend) in `apps/backend/src/routes/websocket.ts` and `apps/frontend/src/hooks/useChat.ts`
+- [x] T016 Implement WebSocket reconnection logic for improved user experience in `apps/frontend/src/hooks/useChat.ts`
+- [x] T017 Add comprehensive logging for chat events and WebSocket activity in `apps/backend/src/lib/logger.ts`
+- [x] T018 Write unit and integration tests for backend WebSocket logic in `apps/backend/src/__tests__/websocket.test.ts`
+- [x] T019 Write integration tests for frontend WebSocket integration in `apps/frontend/src/__tests__/useChat.test.ts`
 
 ## Dependency Graph (User Story Completion Order)
 

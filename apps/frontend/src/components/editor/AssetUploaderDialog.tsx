@@ -123,7 +123,9 @@ export function AssetUploaderDialog({
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="bg-black/95 border-gray-800 text-white">
           <DialogHeader>
-            <DialogTitle className="text-white">Upload {fileType.charAt(0).toUpperCase() + fileType.slice(1)}s</DialogTitle>
+            <DialogTitle className="text-white">
+              Upload {fileType.charAt(0).toUpperCase() + fileType.slice(1)}s
+            </DialogTitle>
           </DialogHeader>
           <div className="mt-4">
             <input

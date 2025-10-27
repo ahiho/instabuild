@@ -36,38 +36,48 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * WebSocket endpoint for real-time chat
    * @route ws://host/api/v1/chat/ws
    */
-  fastify.get('/api/v1/chat/ws', { websocket: true }, (socket: any, _req: any) => {
-    logger.info('WebSocket connection established');
+  fastify.get(
+    '/api/v1/chat/ws',
+    { websocket: true },
+    (socket: any, _req: any) => {
+      logger.info('WebSocket connection established');
 
-    // Handle incoming messages from client
-    socket.on('message', async (data: Buffer) => {
-      try {
-        // Parse incoming message
-        const messageText = data.toString();
-        const message: WSMessage = JSON.parse(messageText);
+      // Handle incoming messages from client
+      socket.on('message', async (data: Buffer) => {
+        try {
+          // Parse incoming message
+          const messageText = data.toString();
+          const message: WSMessage = JSON.parse(messageText);
 
-        // Handle user message
-        if (message.type === 'userMessage') {
-          await handleUserMessage(socket, message);
-        } else {
-          logger.warn('Unknown message type received', { type: message.type });
+          // Handle user message
+          if (message.type === 'userMessage') {
+            await handleUserMessage(socket, message);
+          } else {
+            logger.warn('Unknown message type received', {
+              type: message.type,
+            });
+          }
+        } catch (error) {
+          logger.error('Error processing WebSocket message', { error });
+          sendErrorMessage(
+            socket,
+            'Failed to process message',
+            'PROCESSING_ERROR'
+          );
         }
-      } catch (error) {
-        logger.error('Error processing WebSocket message', { error });
-        sendErrorMessage(socket, 'Failed to process message', 'PROCESSING_ERROR');
-      }
-    });
+      });
 
-    // Handle connection close
-    socket.on('close', () => {
-      logger.info('WebSocket connection closed');
-    });
+      // Handle connection close
+      socket.on('close', () => {
+        logger.info('WebSocket connection closed');
+      });
 
-    // Handle errors
-    socket.on('error', (error: Error) => {
-      logger.error('WebSocket error', { error });
-    });
-  });
+      // Handle errors
+      socket.on('error', (error: Error) => {
+        logger.error('WebSocket error', { error });
+      });
+    }
+  );
 }
 
 /**
@@ -93,9 +103,8 @@ async function handleUserMessage(
     }
 
     // Verify conversation exists
-    const conversationExists = await chatPersistenceService.conversationExists(
-      conversationId
-    );
+    const conversationExists =
+      await chatPersistenceService.conversationExists(conversationId);
     if (!conversationExists) {
       sendErrorMessage(
         socket,
@@ -121,7 +130,7 @@ async function handleUserMessage(
     );
 
     // Prepare messages for AI
-    const messages = history.map((msg) => ({
+    const messages = history.map(msg => ({
       role: msg.role as 'user' | 'assistant' | 'system',
       content: msg.content,
     }));
@@ -148,7 +157,7 @@ async function handleUserMessage(
         socket.send(JSON.stringify(responseChunk));
         logger.debug('Sent chunk to client', {
           chunkNumber: chunkCount,
-          chunkLength: chunk.length
+          chunkLength: chunk.length,
         });
       }
 

@@ -1,12 +1,13 @@
-import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import { PrismaClient } from '@prisma/client';
+import Fastify from 'fastify';
 import { initializeStorage } from './lib/storage.js';
 import { errorHandler } from './middleware/error.js';
-import { pagesRoutes } from './routes/pages.js';
 import { chatRoutes } from './routes/chat.js';
-import { websocketRoutes } from './routes/websocket.js';
 import { conversationRoutes } from './routes/conversation.js';
+import { pagesRoutes } from './routes/pages.js';
+import { websocketRoutes } from './routes/websocket.js';
+import { registerTextTools } from './tools/text-tools.js';
 
 const fastify = Fastify({
   logger: true,
@@ -52,9 +53,10 @@ fastify.get('/api/v1/health', async () => {
   };
 });
 
-// Initialize storage on startup
+// Initialize storage and tools on startup
 fastify.addHook('onReady', async () => {
   await initializeStorage();
+  registerTextTools();
 });
 
 // Graceful shutdown

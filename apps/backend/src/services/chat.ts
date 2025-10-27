@@ -15,9 +15,13 @@ export class ChatService {
       orderBy: { lastUpdateTime: 'desc' },
     });
 
-    const conversationId = conversation?.id || (await prisma.conversation.create({
-      data: { landingPageId: pageId },
-    })).id;
+    const conversationId =
+      conversation?.id ||
+      (
+        await prisma.conversation.create({
+          data: { landingPageId: pageId },
+        })
+      ).id;
 
     // Save user message
     await prisma.chatMessage.create({
@@ -85,9 +89,13 @@ export class ChatService {
       orderBy: { lastUpdateTime: 'desc' },
     });
 
-    const conversationId = conversation?.id || (await prisma.conversation.create({
-      data: { landingPageId: pageId },
-    })).id;
+    const conversationId =
+      conversation?.id ||
+      (
+        await prisma.conversation.create({
+          data: { landingPageId: pageId },
+        })
+      ).id;
 
     return prisma.chatMessage.create({
       data: {

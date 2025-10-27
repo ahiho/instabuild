@@ -56,9 +56,8 @@ export async function conversationRoutes(fastify: FastifyInstance) {
     const { conversationId } = request.params;
 
     try {
-      const conversation = await chatPersistenceService.getConversation(
-        conversationId
-      );
+      const conversation =
+        await chatPersistenceService.getConversation(conversationId);
 
       if (!conversation) {
         reply.status(404).send({ error: 'Conversation not found' });

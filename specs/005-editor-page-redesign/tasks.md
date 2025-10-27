@@ -28,10 +28,10 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 **Purpose**: Install required shadcn/ui components and create types
 
-- [X] T001 Install shadcn/ui resizable, dialog, and sheet components using `npx shadcn@latest add resizable dialog sheet` in apps/frontend
-- [X] T002 [P] Create TypeScript types file at apps/frontend/src/types/editor.ts with EditorLayoutProps, VersionHistorySheetProps, AssetUploaderDialogProps, and THEME_CONFIG
-- [X] T003 Verify shadcn/ui components installed correctly (check apps/frontend/src/components/ui/resizable.tsx, dialog.tsx, sheet.tsx)
-- [X] T004 Run type-check to ensure TypeScript configuration is correct: `pnpm run type-check:frontend`
+- [x] T001 Install shadcn/ui resizable, dialog, and sheet components using `npx shadcn@latest add resizable dialog sheet` in apps/frontend
+- [x] T002 [P] Create TypeScript types file at apps/frontend/src/types/editor.ts with EditorLayoutProps, VersionHistorySheetProps, AssetUploaderDialogProps, and THEME_CONFIG
+- [x] T003 Verify shadcn/ui components installed correctly (check apps/frontend/src/components/ui/resizable.tsx, dialog.tsx, sheet.tsx)
+- [x] T004 Run type-check to ensure TypeScript configuration is correct: `pnpm run type-check:frontend`
 
 ---
 
@@ -41,11 +41,11 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T005 Create EditorLayout component at apps/frontend/src/components/layout/EditorLayout.tsx with ResizablePanelGroup, ResizablePanel, and ResizableHandle
-- [X] T006 Implement responsive layout detection in EditorLayout (useEffect hook to detect window width <768px and switch between horizontal/vertical direction)
-- [X] T007 Add dark theme styling to EditorLayout (bg-[#0a0e27], purple-500/50 hover on resize handle, border-gray-800)
-- [X] T008 Configure panel constraints in EditorLayout (chat minSize: 20%, defaultSize: 30%; preview minSize: 30%, defaultSize: 70%)
-- [X] T009 Hide ResizableHandle on mobile viewports (<768px) in EditorLayout
+- [x] T005 Create EditorLayout component at apps/frontend/src/components/layout/EditorLayout.tsx with ResizablePanelGroup, ResizablePanel, and ResizableHandle
+- [x] T006 Implement responsive layout detection in EditorLayout (useEffect hook to detect window width <768px and switch between horizontal/vertical direction)
+- [x] T007 Add dark theme styling to EditorLayout (bg-[#0a0e27], purple-500/50 hover on resize handle, border-gray-800)
+- [x] T008 Configure panel constraints in EditorLayout (chat minSize: 20%, defaultSize: 30%; preview minSize: 30%, defaultSize: 70%)
+- [x] T009 Hide ResizableHandle on mobile viewports (<768px) in EditorLayout
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -59,18 +59,18 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 ### Implementation for User Story 1
 
-- [X] T010 [US1] Update EditorPage.tsx to replace old layout imports with EditorLayout import (remove ThreeColumnLayout, CollapsibleSidebar, ResizablePreview imports)
-- [X] T011 [US1] Modify EditorPage.tsx render method to use EditorLayout component with chatPanel and previewPanel props
-- [X] T012 [US1] Wrap ChatPanel in Card component with dark theme styling (bg-black/40, backdrop-blur-sm, border-gray-800) in EditorPage.tsx
-- [X] T013 [US1] Wrap PreviewPanel in Card component with dark theme styling (bg-black/40, backdrop-blur-sm, border-gray-800) in EditorPage.tsx
-- [X] T014 [US1] Add panel headers to chat and preview Cards (text-white, border-b border-gray-800, px-4 py-2) in EditorPage.tsx
-- [X] T015 [US1] Update loading state in EditorPage.tsx with dark theme styling (text-white on bg-[#0a0e27])
-- [X] T016 [US1] Update error state in EditorPage.tsx with dark theme styling (text-red-400 on bg-[#0a0e27])
-- [X] T017 [US1] Remove obsolete layout component files: apps/frontend/src/components/layout/ThreeColumnLayout.tsx
-- [X] T018 [US1] Remove obsolete layout component files: apps/frontend/src/components/layout/CollapsibleSidebar.tsx
-- [X] T019 [US1] Remove obsolete layout component files: apps/frontend/src/components/layout/ResizablePreview.tsx
-- [X] T020 [US1] Update apps/frontend/src/components/layout/index.ts to export EditorLayout and remove old layout exports
-- [X] T021 [US1] Manual test: Verify 2-column layout displays correctly on desktop with chat left (30%) and preview right (70%)
+- [x] T010 [US1] Update EditorPage.tsx to replace old layout imports with EditorLayout import (remove ThreeColumnLayout, CollapsibleSidebar, ResizablePreview imports)
+- [x] T011 [US1] Modify EditorPage.tsx render method to use EditorLayout component with chatPanel and previewPanel props
+- [x] T012 [US1] Wrap ChatPanel in Card component with dark theme styling (bg-black/40, backdrop-blur-sm, border-gray-800) in EditorPage.tsx
+- [x] T013 [US1] Wrap PreviewPanel in Card component with dark theme styling (bg-black/40, backdrop-blur-sm, border-gray-800) in EditorPage.tsx
+- [x] T014 [US1] Add panel headers to chat and preview Cards (text-white, border-b border-gray-800, px-4 py-2) in EditorPage.tsx
+- [x] T015 [US1] Update loading state in EditorPage.tsx with dark theme styling (text-white on bg-[#0a0e27])
+- [x] T016 [US1] Update error state in EditorPage.tsx with dark theme styling (text-red-400 on bg-[#0a0e27])
+- [x] T017 [US1] Remove obsolete layout component files: apps/frontend/src/components/layout/ThreeColumnLayout.tsx
+- [x] T018 [US1] Remove obsolete layout component files: apps/frontend/src/components/layout/CollapsibleSidebar.tsx
+- [x] T019 [US1] Remove obsolete layout component files: apps/frontend/src/components/layout/ResizablePreview.tsx
+- [x] T020 [US1] Update apps/frontend/src/components/layout/index.ts to export EditorLayout and remove old layout exports
+- [x] T021 [US1] Manual test: Verify 2-column layout displays correctly on desktop with chat left (30%) and preview right (70%)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional - users can see both panels simultaneously on desktop
 
@@ -84,11 +84,11 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 ### Implementation for User Story 2
 
-- [X] T022 [US2] Verify ResizableHandle is visible and discoverable in EditorLayout (w-2, bg-gray-800 styling applied)
-- [X] T023 [US2] Add hover state to ResizableHandle in EditorLayout (hover:bg-purple-500/50 transition-colors)
-- [X] T024 [US2] Test panel resizing enforces minimum width constraints (chat 20%, preview 30%)
-- [X] T025 [US2] Verify resize state does not persist across page refreshes (panels reset to default 30/70 split)
-- [X] T026 [US2] Manual test: Drag resize handle and verify smooth 60fps resizing with no jank or layout shift
+- [x] T022 [US2] Verify ResizableHandle is visible and discoverable in EditorLayout (w-2, bg-gray-800 styling applied)
+- [x] T023 [US2] Add hover state to ResizableHandle in EditorLayout (hover:bg-purple-500/50 transition-colors)
+- [x] T024 [US2] Test panel resizing enforces minimum width constraints (chat 20%, preview 30%)
+- [x] T025 [US2] Verify resize state does not persist across page refreshes (panels reset to default 30/70 split)
+- [x] T026 [US2] Manual test: Drag resize handle and verify smooth 60fps resizing with no jank or layout shift
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently - users can resize panels smoothly
 
@@ -102,16 +102,16 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 ### Implementation for User Story 3
 
-- [X] T027 [P] [US3] Create VersionHistorySheet component at apps/frontend/src/components/editor/VersionHistorySheet.tsx
-- [X] T028 [US3] Import Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger from @/components/ui/sheet in VersionHistorySheet
-- [X] T029 [US3] Implement Sheet trigger as History icon button (lucide-react) with ghost variant and icon size in VersionHistorySheet
-- [X] T030 [US3] Configure SheetContent to slide from right with 400px width in VersionHistorySheet
-- [X] T031 [US3] Apply dark theme styling to SheetContent (bg-black/95, border-gray-800, text-white) in VersionHistorySheet
-- [X] T032 [US3] Add SheetHeader with "Version History" title (text-white) in VersionHistorySheet
-- [X] T033 [US3] Display current version number (currentVersionNumber prop) in VersionHistorySheet
-- [X] T034 [US3] Add placeholder text for version list ("Version history will be displayed here...") in VersionHistorySheet
-- [X] T035 [US3] Add VersionHistorySheet to chat panel header in EditorPage.tsx (pass pageId and currentVersionNumber props)
-- [X] T036 [US3] Manual test: Click version history icon and verify Sheet opens from right with current version number displayed
+- [x] T027 [P] [US3] Create VersionHistorySheet component at apps/frontend/src/components/editor/VersionHistorySheet.tsx
+- [x] T028 [US3] Import Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger from @/components/ui/sheet in VersionHistorySheet
+- [x] T029 [US3] Implement Sheet trigger as History icon button (lucide-react) with ghost variant and icon size in VersionHistorySheet
+- [x] T030 [US3] Configure SheetContent to slide from right with 400px width in VersionHistorySheet
+- [x] T031 [US3] Apply dark theme styling to SheetContent (bg-black/95, border-gray-800, text-white) in VersionHistorySheet
+- [x] T032 [US3] Add SheetHeader with "Version History" title (text-white) in VersionHistorySheet
+- [x] T033 [US3] Display current version number (currentVersionNumber prop) in VersionHistorySheet
+- [x] T034 [US3] Add placeholder text for version list ("Version history will be displayed here...") in VersionHistorySheet
+- [x] T035 [US3] Add VersionHistorySheet to chat panel header in EditorPage.tsx (pass pageId and currentVersionNumber props)
+- [x] T036 [US3] Manual test: Click version history icon and verify Sheet opens from right with current version number displayed
 
 **Checkpoint**: User Story 3 complete - version history is accessible via icon button without cluttering main editor view
 
@@ -125,17 +125,17 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 ### Implementation for User Story 4
 
-- [X] T037 [P] [US4] Create AssetUploaderDialog component at apps/frontend/src/components/editor/AssetUploaderDialog.tsx
-- [X] T038 [US4] Import Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger from @/components/ui/dialog in AssetUploaderDialog
-- [X] T039 [US4] Implement Dialog trigger as Upload icon button (lucide-react) with ghost variant and icon size in AssetUploaderDialog
-- [X] T040 [US4] Apply dark theme styling to DialogContent (bg-black/95, border-gray-800, text-white) in AssetUploaderDialog
-- [X] T041 [US4] Add DialogHeader with "Upload Assets" title (text-white) in AssetUploaderDialog
-- [X] T042 [US4] Create file input with accept="image/\*" multiple attributes in AssetUploaderDialog
-- [X] T043 [US4] Style file input with dark theme (file:bg-purple-600 file:text-white hover:file:bg-purple-700) in AssetUploaderDialog
-- [X] T044 [US4] Add helper text below file input ("Upload images (PNG, JPG, SVG, WebP). Max 5MB per file.") in AssetUploaderDialog
-- [X] T045 [US4] Implement handleFileSelect function to log selected files (TODO: actual upload implementation) in AssetUploaderDialog
-- [X] T046 [US4] Add AssetUploaderDialog to chat panel header in EditorPage.tsx (pass pageId prop)
-- [X] T047 [US4] Manual test: Click asset uploader icon and verify Dialog opens with file input, files can be selected, Dialog can be closed
+- [x] T037 [P] [US4] Create AssetUploaderDialog component at apps/frontend/src/components/editor/AssetUploaderDialog.tsx
+- [x] T038 [US4] Import Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger from @/components/ui/dialog in AssetUploaderDialog
+- [x] T039 [US4] Implement Dialog trigger as Upload icon button (lucide-react) with ghost variant and icon size in AssetUploaderDialog
+- [x] T040 [US4] Apply dark theme styling to DialogContent (bg-black/95, border-gray-800, text-white) in AssetUploaderDialog
+- [x] T041 [US4] Add DialogHeader with "Upload Assets" title (text-white) in AssetUploaderDialog
+- [x] T042 [US4] Create file input with accept="image/\*" multiple attributes in AssetUploaderDialog
+- [x] T043 [US4] Style file input with dark theme (file:bg-purple-600 file:text-white hover:file:bg-purple-700) in AssetUploaderDialog
+- [x] T044 [US4] Add helper text below file input ("Upload images (PNG, JPG, SVG, WebP). Max 5MB per file.") in AssetUploaderDialog
+- [x] T045 [US4] Implement handleFileSelect function to log selected files (TODO: actual upload implementation) in AssetUploaderDialog
+- [x] T046 [US4] Add AssetUploaderDialog to chat panel header in EditorPage.tsx (pass pageId prop)
+- [x] T047 [US4] Manual test: Click asset uploader icon and verify Dialog opens with file input, files can be selected, Dialog can be closed
 
 **Checkpoint**: User Story 4 complete - asset uploader is accessible on-demand without permanent screen space
 
@@ -149,13 +149,13 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 
 ### Implementation for User Story 5
 
-- [X] T048 [US5] Verify EditorLayout switches to vertical direction when isMobile is true (already implemented in T006)
-- [X] T049 [US5] Verify ResizableHandle is hidden on mobile viewports (already implemented in T009)
-- [X] T050 [US5] Test vertical stacking behavior by resizing browser window to <768px width
-- [X] T051 [US5] Verify chat panel appears on top, preview panel appears below in vertical layout
-- [X] T052 [US5] Test scrolling functionality on mobile - verify both panels are accessible
-- [X] T053 [US5] Test chat interaction on mobile (typing message, sending) works without layout issues
-- [X] T054 [US5] Manual test: Open editor on actual mobile device or use browser dev tools mobile emulation to verify vertical layout and functionality
+- [x] T048 [US5] Verify EditorLayout switches to vertical direction when isMobile is true (already implemented in T006)
+- [x] T049 [US5] Verify ResizableHandle is hidden on mobile viewports (already implemented in T009)
+- [x] T050 [US5] Test vertical stacking behavior by resizing browser window to <768px width
+- [x] T051 [US5] Verify chat panel appears on top, preview panel appears below in vertical layout
+- [x] T052 [US5] Test scrolling functionality on mobile - verify both panels are accessible
+- [x] T053 [US5] Test chat interaction on mobile (typing message, sending) works without layout issues
+- [x] T054 [US5] Manual test: Open editor on actual mobile device or use browser dev tools mobile emulation to verify vertical layout and functionality
 
 **Checkpoint**: All user stories complete - editor is fully functional on desktop and mobile viewports
 
@@ -169,15 +169,15 @@ description: 'Task list for EditorPage UI/UX Overhaul implementation'
 - [ ] T056 [P] Create unit test for VersionHistorySheet component at apps/frontend/tests/unit/components/editor/VersionHistorySheet.test.tsx (verify Sheet opens, displays version)
 - [ ] T057 [P] Create unit test for AssetUploaderDialog component at apps/frontend/tests/unit/components/editor/AssetUploaderDialog.test.tsx (verify Dialog opens, file input works)
 - [ ] T058 Run full type-check across frontend: `pnpm run type-check:frontend`
-- [X] T059 Run build to verify no build errors: `pnpm run build:frontend`
+- [x] T059 Run build to verify no build errors: `pnpm run build:frontend`
 - [ ] T060 Run unit tests: `pnpm test` (from apps/frontend)
-- [X] T061 Manual accessibility check: Verify color contrast ratios meet WCAG AA (white on #0a0e27: 17.8:1, purple-300 on #0a0e27: 10.5:1)
-- [X] T062 Manual performance check: Verify panel resizing is smooth at 60fps with no jank
+- [x] T061 Manual accessibility check: Verify color contrast ratios meet WCAG AA (white on #0a0e27: 17.8:1, purple-300 on #0a0e27: 10.5:1)
+- [x] T062 Manual performance check: Verify panel resizing is smooth at 60fps with no jank
 - [ ] T063 Cross-browser testing: Verify editor works on Chrome, Firefox, Safari, Edge
-- [X] T064 Code cleanup: Remove any console.log statements, unused imports, or commented code
-- [X] T065 Update components/editor/index.ts to export VersionHistorySheet and AssetUploaderDialog (if index file exists)
-- [X] T066 Verify all tasks in quickstart.md are functional and accurate
-- [X] T067 Final validation: Complete all manual tests from User Stories 1-5
+- [x] T064 Code cleanup: Remove any console.log statements, unused imports, or commented code
+- [x] T065 Update components/editor/index.ts to export VersionHistorySheet and AssetUploaderDialog (if index file exists)
+- [x] T066 Verify all tasks in quickstart.md are functional and accurate
+- [x] T067 Final validation: Complete all manual tests from User Stories 1-5
 
 ---
 

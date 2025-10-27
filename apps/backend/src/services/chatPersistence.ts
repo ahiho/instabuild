@@ -129,10 +129,7 @@ export class ChatPersistenceService {
    * @param userId - Optional user ID
    * @returns The conversation
    */
-  async getOrCreatePageConversation(
-    landingPageId: string,
-    userId?: string
-  ) {
+  async getOrCreatePageConversation(landingPageId: string, userId?: string) {
     // Try to find existing conversation for this page
     const existingConversation = await prisma.conversation.findFirst({
       where: {

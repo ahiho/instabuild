@@ -187,7 +187,9 @@ export function Hero() {
           <div className="relative bg-black/40 backdrop-blur-sm rounded-xl shadow-2xl border border-purple-500/20 transition-all duration-300 focus-within:border-purple-500 focus-within:shadow-[-_0px_0px_30px_5px_rgba(168,_85,_247,_0.2)] focus-within:scale-[102%]">
             <textarea
               className="w-full h-24 p-4 bg-transparent text-white placeholder-gray-400 rounded-xl focus:outline-none resize-none"
-              placeholder={displayedText + (userInput === '' && !isFocused ? '|' : '')}
+              placeholder={
+                displayedText + (userInput === '' && !isFocused ? '|' : '')
+              }
               value={userInput}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}

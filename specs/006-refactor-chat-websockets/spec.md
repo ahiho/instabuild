@@ -3,9 +3,9 @@
 **Feature Branch**: `001-refactor-chat-websockets`
 **Created**: Friday, October 24, 2025
 **Status**: Draft
-**Input**: User description: "Refactor the chat feature to use WebSockets for real-time communication, as the current HTTP streaming implementation is broken and incomplete. Functional & Technical Requirements: 1. **Backend Refactor (WebSocket Server):** * Integrate a WebSocket library (e.g., `fastify-websocket`) into the Fastify server. * Create a new WebSocket endpoint: `/api/v1/chat/ws`. * Move the core AI response logic (currently in `apps/backend/src/services/chat.ts`) into the new WebSocket connection handler. * The handler must listen for incoming messages from the client's WebSocket. 2. **Fix AI Service Connection (Critical):** * Inside the new WebSocket handler, ensure the AI model is called correctly. * The system **must** be configured to load the AI provider's API key from an environment variable (e.g., `OPENAI_API_KEY`). * Verify that the `modelSelector.getModel()` service is correctly configured and returns a valid, working model instance. 3. **Backend Streaming (WebSocket):** * When the AI call is successful, the backend must stream the response (text chunks) back to the client over the **same WebSocket connection**. * Messages from the user **must still be saved to the database** as they are received. 4. **Frontend Refactor (WebSocket Client):** * Update the frontend's `useChat` hook (from the Vercel AI SDK) to connect to the new `/api/v1/chat/ws` endpoint instead of the old HTTP endpoint."
+**Input**: User description: "Refactor the chat feature to use WebSockets for real-time communication, as the current HTTP streaming implementation is broken and incomplete. Functional & Technical Requirements: 1. **Backend Refactor (WebSocket Server):** _ Integrate a WebSocket library (e.g., `fastify-websocket`) into the Fastify server. _ Create a new WebSocket endpoint: `/api/v1/chat/ws`. _ Move the core AI response logic (currently in `apps/backend/src/services/chat.ts`) into the new WebSocket connection handler. _ The handler must listen for incoming messages from the client's WebSocket. 2. **Fix AI Service Connection (Critical):** _ Inside the new WebSocket handler, ensure the AI model is called correctly. _ The system **must** be configured to load the AI provider's API key from an environment variable (e.g., `OPENAI_API_KEY`). _ Verify that the `modelSelector.getModel()` service is correctly configured and returns a valid, working model instance. 3. **Backend Streaming (WebSocket):** _ When the AI call is successful, the backend must stream the response (text chunks) back to the client over the **same WebSocket connection**. _ Messages from the user **must still be saved to the database** as they are received. 4. **Frontend Refactor (WebSocket Client):** _ Update the frontend's `useChat` hook (from the Vercel AI SDK) to connect to the new `/api/v1/chat/ws` endpoint instead of the old HTTP endpoint."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Real-time Chat Communication (Priority: P1)
 
@@ -29,7 +29,7 @@ Users can engage in real-time conversations with the AI, sending messages and re
 - What if the AI service becomes temporarily unavailable or returns an error during a conversation?
 - How does the system ensure message order and integrity over the real-time communication channel?
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -44,7 +44,7 @@ Users can engage in real-time conversations with the AI, sending messages and re
 - **FR-009**: All user messages MUST be persistently stored in the database upon receipt.
 - **FR-010**: The frontend chat interface MUST connect to the new real-time communication endpoint for chat interactions.
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Chat Message**: Represents a single message in the chat conversation, including user input and AI responses.
   - Key Attributes: `id`, `conversationId`, `senderType` (User/AI), `content`, `timestamp`.
@@ -64,7 +64,7 @@ Users can engage in real-time conversations with the AI, sending messages and re
   - Environment variables for API keys are securely managed and accessible.
   - The existing database schema can accommodate new chat message and conversation data without significant refactoring.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

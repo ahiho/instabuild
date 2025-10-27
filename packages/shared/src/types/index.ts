@@ -15,15 +15,14 @@ export interface HealthStatus {
 export * from './common.js';
 
 // Export AI Landing Page Editor types
-export * from './landing-page.js';
-export * from './modification.js';
+export * from './ai-models.js';
 export * from './asset.js';
 export * from './element.js';
 export * from './errors.js';
-export * from './ai-models.js';
+export * from './landing-page.js';
+export * from './modification.js';
 
 // Re-export with explicit naming to avoid conflicts
-export type { LandingPageVersion as PageVersion } from './version.js';
 export type {
   ChatMessage,
   ChatMessageRequest,
@@ -31,6 +30,10 @@ export type {
 } from './chat.js';
 export type {
   ToolCall as AIToolCall,
-  RequestAssetTool,
   ModifyElementTool,
+  RequestAssetTool,
 } from './tool-call.js';
+export type { LandingPageVersion as PageVersion } from './version.js';
+
+// Export tool registry types
+export * from './tool-registry.js';

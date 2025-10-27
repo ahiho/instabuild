@@ -56,7 +56,8 @@ export function VersionHistorySheet({
           </div>
           {/* TODO: Render version list */}
           <p className="text-gray-500 text-sm mt-4">
-            Version history will be displayed here once the backend API is available.
+            Version history will be displayed here once the backend API is
+            available.
           </p>
         </div>
       </SheetContent>
