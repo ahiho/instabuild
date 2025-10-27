@@ -2,6 +2,8 @@
  * Conversation service for managing chat conversations
  */
 
+import type { UIMessage } from 'ai';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 export interface Conversation {
@@ -44,5 +46,64 @@ export async function getOrCreateConversation(pageId: string): Promise<string> {
   } catch (error) {
     console.error('Error creating conversation:', error);
     throw error;
+  }
+}
+
+/**
+ * Convert database message format to UIMessage format
+ */
+interface DatabaseMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: string;
+}
+
+function convertToUIMessages(dbMessages: DatabaseMessage[]): UIMessage[] {
+  return dbMessages.map((msg) => ({
+    id: msg.id,
+    role: msg.role,
+    parts: [
+      {
+        type: 'text' as const,
+        text: msg.content,
+      },
+    ],
+  }));
+}
+
+/**
+ * Fetch chat messages for a conversation
+ */
+export async function getConversationMessages(conversationId: string): Promise<UIMessage[]> {
+  try {
+    console.log('[Conversation Service] Fetching messages for conversationId:', conversationId);
+
+    const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      // If endpoint doesn't exist yet, return empty array (graceful fallback)
+      if (response.status === 404) {
+        console.log('[Conversation Service] Messages endpoint not found, starting fresh');
+        return [];
+      }
+      throw new Error(`Failed to fetch messages: ${response.status}`);
+    }
+
+    const dbMessages: DatabaseMessage[] = await response.json();
+    console.log('[Conversation Service] Raw DB messages:', dbMessages);
+    const uiMessages = convertToUIMessages(dbMessages);
+    console.log('[Conversation Service] Converted UI messages:', uiMessages);
+    console.log('[Conversation Service] Fetched and converted messages:', uiMessages.length);
+    return uiMessages;
+  } catch (error) {
+    console.error('[Conversation Service] Error fetching messages:', error);
+    // Return empty array on error - don't block chat
+    return [];
   }
 }
