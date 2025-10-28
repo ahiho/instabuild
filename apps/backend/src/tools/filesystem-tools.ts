@@ -21,6 +21,25 @@ interface FileEntry {
 }
 
 /**
+ * Phase 3: Check if sandbox context is available
+ * Ensures all file operations execute within isolated containers
+ */
+function validateSandboxContext(context: ToolExecutionContext) {
+  if (!context.sandboxId) {
+    return {
+      success: false,
+      userFeedback:
+        'This operation requires a sandbox environment. Please try again.',
+      previewRefreshNeeded: false,
+      technicalDetails: {
+        error: 'Missing sandbox context - sandboxId is required',
+      },
+    };
+  }
+  return null;
+}
+
+/**
  * Check if a filename matches any of the ignore patterns
  */
 function shouldIgnore(filename: string, patterns?: string[]): boolean {
@@ -80,6 +99,12 @@ const listDirectoryTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Phase 3: Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const { path: dirPath, ignore, respectGitIgnore = true } = input;
 
       logger.info('Directory listing requested', {
@@ -87,6 +112,7 @@ const listDirectoryTool: EnhancedToolDefinition = {
         ignore,
         respectGitIgnore,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate path is absolute
@@ -357,6 +383,12 @@ const readFileTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Phase 3: Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const { absolute_path: filePath, offset, limit } = input;
 
       logger.info('File read requested', {
@@ -364,6 +396,7 @@ const readFileTool: EnhancedToolDefinition = {
         offset,
         limit,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate path is absolute
@@ -676,12 +709,19 @@ const writeFileTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Phase 3: Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const { file_path: filePath, content } = input;
 
       logger.info('File write requested', {
         path: filePath,
         contentLength: content.length,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate path is absolute
@@ -932,6 +972,12 @@ const replaceTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Phase 3: Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const {
         file_path: filePath,
         old_string: oldString,
@@ -945,6 +991,7 @@ const replaceTool: EnhancedToolDefinition = {
         newStringLength: newString.length,
         expectedReplacements,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate path is absolute
@@ -1363,6 +1410,12 @@ const searchFileContentTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Phase 3: Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const { pattern, path: searchPath, include } = input;
 
       logger.info('File content search requested', {
@@ -1370,6 +1423,7 @@ const searchFileContentTool: EnhancedToolDefinition = {
         searchPath,
         include,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate regex pattern
@@ -1389,8 +1443,21 @@ const searchFileContentTool: EnhancedToolDefinition = {
         };
       }
 
+      // Phase 3: Require explicit path - no process.cwd() fallback in sandbox
+      if (!searchPath) {
+        return {
+          success: false,
+          userFeedback:
+            'Search path is required. Please provide an absolute path to search within.',
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: 'Search path is required in sandbox environment',
+          },
+        };
+      }
+
       // Determine search directory
-      const searchDir = searchPath || process.cwd();
+      const searchDir = searchPath;
 
       // Validate search directory
       if (searchPath && !path.isAbsolute(searchPath)) {
@@ -1792,6 +1859,12 @@ const globTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Phase 3: Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const {
         pattern,
         path: searchPath,
@@ -1805,6 +1878,7 @@ const globTool: EnhancedToolDefinition = {
         caseSensitive,
         respectGitIgnore,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate pattern
@@ -1819,8 +1893,21 @@ const globTool: EnhancedToolDefinition = {
         };
       }
 
+      // Phase 3: Require explicit path - no process.cwd() fallback in sandbox
+      if (!searchPath) {
+        return {
+          success: false,
+          userFeedback:
+            'Search path is required. Please provide an absolute path to search within.',
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: 'Search path is required in sandbox environment',
+          },
+        };
+      }
+
       // Determine search directory
-      const searchDir = searchPath || process.cwd();
+      const searchDir = searchPath;
 
       // Validate search directory
       if (searchPath && !path.isAbsolute(searchPath)) {
