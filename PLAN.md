@@ -433,14 +433,14 @@ const SANDBOX_ERROR = {
 - [x] Fix: Implement proper cleanup with idle timeout (not immediate)
 
 ### Phase 3: Filesystem Tools (Add sandbox validation)
-- [ ] Update `list_directory` tool - check sandboxId exists
-- [ ] Update `read_file` tool - check sandboxId exists
-- [ ] Update `write_file` tool - check sandboxId exists
-- [ ] Update `replace` tool - check sandboxId exists
-- [ ] Update `search_file_content` tool - check sandboxId exists, remove `process.cwd()` fallback
-- [ ] Update `glob` tool - check sandboxId exists, remove `process.cwd()` fallback
-- [ ] Test each tool individually
-- [ ] Commit: "feat(tools): enforce sandbox isolation in filesystem tools"
+- [x] Create validateSandboxContext() helper function
+- [x] Update `list_directory` tool - check sandboxId exists
+- [x] Update `read_file` tool - check sandboxId exists
+- [x] Update `write_file` tool - check sandboxId exists
+- [x] Update `replace` tool - check sandboxId exists
+- [x] Update `search_file_content` tool - check sandboxId exists, remove `process.cwd()` fallback
+- [x] Update `glob` tool - check sandboxId exists, remove `process.cwd()` fallback
+- [x] Commit: "feat(tools): enforce sandbox isolation in filesystem tools"
 
 ### Phase 4: Testing
 - [ ] Create tool sandbox tests
@@ -494,19 +494,17 @@ const SANDBOX_ERROR = {
 | 2 | Update chat route (provision sandboxes) | ✅ DONE | CRITICAL | 1 hour |
 | 2 | Create SandboxCleanupService (4h timeout) | ✅ DONE | CRITICAL | 1 hour |
 | 2 | Commit Phase 2 changes | ✅ DONE | CRITICAL | 5 min |
-| 3 | Update list_directory tool | Pending | CRITICAL | 45 min |
-| 3 | Update read_file tool | Pending | CRITICAL | 45 min |
-| 3 | Update write_file tool | Pending | CRITICAL | 45 min |
-| 3 | Update replace tool | Pending | CRITICAL | 45 min |
-| 3 | Update search_file_content tool | Pending | CRITICAL | 1 hour |
-| 3 | Update glob tool | Pending | CRITICAL | 1 hour |
+| 3 | Create validateSandboxContext() helper | ✅ DONE | CRITICAL | 15 min |
+| 3 | Update all 6 filesystem tools | ✅ DONE | CRITICAL | 1 hour |
+| 3 | Remove process.cwd() fallbacks | ✅ DONE | CRITICAL | 15 min |
+| 3 | Commit Phase 3 changes | ✅ DONE | CRITICAL | 5 min |
 | 4 | Tool sandbox tests | Pending | HIGH | 1.5 hours |
 | 4 | E2E integration test | Pending | HIGH | 1 hour |
 | 5 | Error handling & documentation | Pending | HIGH | 1 hour |
 
-**Progress**: Phase 1 & 2 Complete! ✅
-**Elapsed Time**: ~2.5 hours
-**Remaining**: ~6 hours (Phase 3-5)
+**Progress**: Phase 1, 2 & 3 Complete! ✅
+**Elapsed Time**: ~4 hours
+**Remaining**: ~3.5 hours (Phase 4-5)
 
 ---
 
