@@ -196,6 +196,7 @@ export class AgenticAIService {
     conversationId: string;
     userId: string;
     landingPageId?: string;
+    sandboxId?: string; // Docker container ID for sandbox isolation
     maxSteps?: number;
     taskComplexity?: TaskComplexity;
     customStopConditions?: any[];
@@ -213,6 +214,7 @@ export class AgenticAIService {
       conversationId,
       userId,
       landingPageId,
+      sandboxId,
       maxSteps,
       taskComplexity,
       customStopConditions,
@@ -316,6 +318,7 @@ export class AgenticAIService {
       userId,
       conversationId,
       toolCallId: 'pending', // Will be set by AI SDK
+      sandboxId, // Docker container ID - presence indicates sandboxed execution
     };
 
     // Get available tools with proper context injection

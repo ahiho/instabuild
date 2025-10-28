@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { logger } from '../lib/logger.js';
+import { generateSandboxPreviewUrl } from '../lib/preview-url.js';
 import { prisma } from '../server.js';
 import { agenticAIService } from '../services/agenticAIService.js';
+import { sandboxManager } from '../services/sandboxManager.js';
 
 export async function chatRoutes(fastify: FastifyInstance) {
   /**
@@ -30,8 +32,77 @@ export async function chatRoutes(fastify: FastifyInstance) {
           landingPageId: null, // Will be set when a landing page is created
           startTime: new Date(),
           lastUpdateTime: new Date(),
+          sandboxStatus: 'pending', // Phase 2: Sandbox provisioning
         },
       });
+
+      // Phase 2: Provision sandbox for this conversation
+      try {
+        const sandboxRequest = {
+          userId: conversation.userId || 'system',
+          projectId: conversation.id,
+        };
+
+        const sandboxResponse = await sandboxManager.createSandbox(sandboxRequest);
+
+        if (sandboxResponse && sandboxResponse.status === 'ready') {
+          // Generate preview URL
+          const previewUrl = generateSandboxPreviewUrl(conversation.id);
+
+          // Update conversation with sandbox info
+          conversation = await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              sandboxId: sandboxResponse.containerId,
+              sandboxStatus: 'ready',
+              sandboxCreatedAt: new Date(),
+              sandboxPublicUrl: previewUrl,
+            },
+          });
+
+          logger.info('Sandbox provisioned successfully', {
+            conversationId: conversation.id,
+            sandboxId: sandboxResponse.containerId,
+            previewUrl,
+          });
+        } else {
+          logger.warn('Sandbox provisioning returned non-ready status', {
+            conversationId: conversation.id,
+            status: sandboxResponse?.status,
+            error: sandboxResponse?.error,
+          });
+
+          // Update conversation to mark sandbox as failed
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              sandboxStatus: 'failed',
+            },
+          });
+
+          return reply.code(500).send({
+            error: 'Failed to provision sandbox environment',
+            details: sandboxResponse?.error,
+          });
+        }
+      } catch (error) {
+        logger.error('Error provisioning sandbox', {
+          conversationId: conversation.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        // Update conversation to mark sandbox as failed
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            sandboxStatus: 'failed',
+          },
+        });
+
+        return reply.code(500).send({
+          error: 'Failed to create execution environment',
+        });
+      }
     }
 
     // Validate messages array is not empty (AI SDK requirement)
@@ -76,6 +147,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
       conversationId: conversation.id,
       userId: 'system', // TODO: Get from authentication context
       landingPageId: conversation.landingPageId,
+      sandboxId: conversation.sandboxId, // Phase 2: Pass sandbox context
       maxSteps: maxSteps || 10,
       onStepFinish: async stepResult => {
         // Log step completion for monitoring
@@ -107,40 +179,60 @@ export async function chatRoutes(fastify: FastifyInstance) {
     // Set up onFinish callback to save assistant message
     const originalOnFinish = result.onFinish;
     result.onFinish = async finalResult => {
-      // Call original onFinish if it exists
-      if (originalOnFinish) {
-        await originalOnFinish(finalResult);
-      }
+      try {
+        // Call original onFinish if it exists
+        if (originalOnFinish) {
+          await originalOnFinish(finalResult);
+        }
 
-      // Save assistant message to database
-      await prisma.chatMessage.create({
-        data: {
-          conversationId: conversation.id,
-          landingPageId: conversation.landingPageId,
-          senderType: 'AI',
-          role: 'assistant',
-          content: finalResult.text || '',
-          metadata: {
-            totalSteps: finalResult.steps?.length || 0,
-            finishReason: finalResult.finishReason,
-            totalUsage: finalResult.usage,
-            toolCallsCount:
-              finalResult.steps?.flatMap(s => s.toolCalls || []).length || 0,
+        // Save assistant message to database
+        await prisma.chatMessage.create({
+          data: {
+            conversationId: conversation.id,
+            landingPageId: conversation.landingPageId,
+            senderType: 'AI',
+            role: 'assistant',
+            content: finalResult.text || '',
+            metadata: {
+              totalSteps: finalResult.steps?.length || 0,
+              finishReason: finalResult.finishReason,
+              totalUsage: finalResult.usage,
+              toolCallsCount:
+                finalResult.steps?.flatMap(s => s.toolCalls || []).length || 0,
+            },
           },
-        },
-      });
+        });
 
-      // Update conversation timestamp
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { lastUpdateTime: new Date() },
-      });
+        // Update conversation timestamp
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { lastUpdateTime: new Date() },
+        });
 
-      logger.info('Agentic chat response completed', {
-        conversationId: conversation.id,
-        responseLength: finalResult.text?.length || 0,
-        totalSteps: finalResult.steps?.length || 0,
-      });
+        logger.info('Agentic chat response completed', {
+          conversationId: conversation.id,
+          responseLength: finalResult.text?.length || 0,
+          totalSteps: finalResult.steps?.length || 0,
+        });
+      } finally {
+        // Phase 2: Cleanup sandbox when chat is complete
+        if (conversation.sandboxId) {
+          try {
+            await sandboxManager.destroySandbox(conversation.sandboxId);
+            logger.info('Sandbox destroyed on chat completion', {
+              conversationId: conversation.id,
+              sandboxId: conversation.sandboxId,
+            });
+          } catch (error) {
+            logger.error('Error destroying sandbox', {
+              conversationId: conversation.id,
+              sandboxId: conversation.sandboxId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            // Log but don't throw - cleanup is non-critical
+          }
+        }
+      }
     };
 
     return result.toUIMessageStreamResponse({
