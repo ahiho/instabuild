@@ -32,6 +32,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
           landingPageId: null, // Will be set when a landing page is created
           startTime: new Date(),
           lastUpdateTime: new Date(),
+          lastAccessedAt: new Date(), // Phase 2: Initialize for cleanup tracking
           sandboxStatus: 'pending', // Phase 2: Sandbox provisioning
         },
       });
@@ -215,21 +216,18 @@ export async function chatRoutes(fastify: FastifyInstance) {
           totalSteps: finalResult.steps?.length || 0,
         });
       } finally {
-        // Phase 2: Cleanup sandbox when chat is complete
+        // Phase 2: Update last accessed time for idle timeout tracking (4 hours)
         if (conversation.sandboxId) {
           try {
-            await sandboxManager.destroySandbox(conversation.sandboxId);
-            logger.info('Sandbox destroyed on chat completion', {
-              conversationId: conversation.id,
-              sandboxId: conversation.sandboxId,
+            await prisma.conversation.update({
+              where: { id: conversation.id },
+              data: { lastAccessedAt: new Date() },
             });
           } catch (error) {
-            logger.error('Error destroying sandbox', {
+            logger.warn('Failed to update lastAccessedAt', {
               conversationId: conversation.id,
-              sandboxId: conversation.sandboxId,
               error: error instanceof Error ? error.message : String(error),
             });
-            // Log but don't throw - cleanup is non-critical
           }
         }
       }

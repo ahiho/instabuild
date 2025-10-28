@@ -72,6 +72,8 @@ model Conversation {
   sandboxId      String?  // Docker container ID for this conversation's sandbox
   sandboxStatus  String?  @db.VarChar(50) // Status: pending, ready, failed, terminated
   sandboxCreatedAt DateTime? // Timestamp when sandbox was provisioned
+  // Phase 2: Sandbox lifecycle - 4 hour idle timeout
+  lastAccessedAt DateTime? // Last time this conversation was used (for idle cleanup)
 
   // Relationships
   messages       ChatMessage[]
@@ -79,6 +81,8 @@ model Conversation {
   modelUsage     ModelUsage[]
 
   @@index([sandboxId])  // Index for fast lookups by sandbox
+  @@index([sandboxStatus])  // Index for cleanup queries
+  @@index([lastAccessedAt])  // Index for idle timeout cleanup
   @@map("conversations")
 }
 

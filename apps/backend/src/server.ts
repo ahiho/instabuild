@@ -8,6 +8,7 @@ import { conversationRoutes } from './routes/conversation.js';
 import { pagesRoutes } from './routes/pages.js';
 import { sandboxRoutes } from './routes/sandbox-simple.js';
 import { websocketRoutes } from './routes/websocket.js';
+import { sandboxCleanupService } from './services/sandboxCleanupService.js';
 import { sandboxManager } from './services/sandboxManager.js';
 import { toolRegistry } from './services/toolRegistry.js';
 import { registerAllTools } from './tools/index.js';
@@ -101,11 +102,16 @@ fastify.addHook('onReady', async () => {
   console.log('🔧 registerAllTools() COMPLETED');
   // registerVisualElementTools();
 
+  // Phase 2: Start sandbox cleanup service (4 hour idle timeout)
+  await sandboxCleanupService.start();
+
   console.log('Sandbox Manager initialized successfully');
 });
 
 // Graceful shutdown
 fastify.addHook('onClose', async () => {
+  // Phase 2: Stop cleanup service on shutdown
+  await sandboxCleanupService.stop();
   await sandboxManager.shutdown();
   await prisma.$disconnect();
 });
