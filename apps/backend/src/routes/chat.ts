@@ -1,26 +1,37 @@
-import type { ModelSelectionContext } from '@instabuild/shared/types';
-import { convertToCoreMessages, streamText } from 'ai';
 import { FastifyInstance } from 'fastify';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../server.js';
-import { modelSelector } from '../services/model-selector.js';
-import { toolRegistry } from '../services/toolRegistry.js';
+import { agenticAIService } from '../services/agenticAIService.js';
 
 export async function chatRoutes(fastify: FastifyInstance) {
   /**
-   * AI SDK compatible chat endpoint
+   * AI SDK compatible chat endpoint with agentic multi-step execution
    * @route POST /api/v1/chat
    */
   fastify.post('/api/v1/chat', async (request, reply) => {
-    const { messages, conversationId } = request.body as any;
+    const { messages, conversationId, maxSteps } = request.body as any;
 
-    // Validate conversation exists
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-    });
+    let conversation;
 
-    if (!conversation) {
-      return reply.code(404).send({ error: 'Conversation not found' });
+    if (conversationId) {
+      // Validate conversation exists if ID is provided
+      conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+      });
+
+      if (!conversation) {
+        return reply.code(404).send({ error: 'Conversation not found' });
+      }
+    } else {
+      // Create a new conversation if none provided
+      conversation = await prisma.conversation.create({
+        data: {
+          userId: 'system', // TODO: Get from authentication context
+          landingPageId: null, // Will be set when a landing page is created
+          startTime: new Date(),
+          lastUpdateTime: new Date(),
+        },
+      });
     }
 
     // Validate messages array is not empty (AI SDK requirement)
@@ -36,26 +47,18 @@ export async function chatRoutes(fastify: FastifyInstance) {
     // Extract text content from the message
     const messageContent = latestUserMessage?.content || '';
 
-    // Select appropriate model based on task complexity
-    const context: ModelSelectionContext = {
-      message: messageContent,
-      previousMessages: messages.length,
-      requiresToolCalling: /upload|file|image|logo|asset/i.test(messageContent),
-    };
-
-    const { model, selection } = modelSelector.getModel(context);
-
-    logger.info('Processing chat request', {
-      conversationId,
+    logger.info('Processing agentic chat request', {
+      conversationId: conversation.id,
       messageCount: messages.length,
-      modelSelection: selection.selectedModel,
+      landingPageId: conversation.landingPageId,
+      maxSteps: maxSteps || 10,
     });
 
     // Save user message to database
     if (latestUserMessage && messageContent) {
       await prisma.chatMessage.create({
         data: {
-          conversationId,
+          conversationId: conversation.id,
           landingPageId: conversation.landingPageId,
           senderType: 'User',
           role: 'user',
@@ -67,68 +70,96 @@ export async function chatRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Get available tools from registry
-    const availableTools = toolRegistry.getTools();
-
-    // Debug: Log messages before conversion
-    logger.info('Messages before conversion', {
+    // Use agentic AI service for multi-step execution
+    const result = await agenticAIService.processAgenticChat({
       messages,
-      messageCount: messages?.length,
-    });
-
-    // Convert UI messages to core messages format
-    const coreMessages = convertToCoreMessages(messages);
-
-    const result = streamText({
-      model,
-      messages: coreMessages,
-      tools: availableTools,
-      system: `You are an AI assistant that helps users edit landing pages through natural language commands.
-
-You have access to these tools:
-- update_content: Change text content of elements
-- update_style: Modify CSS styles and visual appearance
-- add_element: Add new elements like buttons, headings, sections
-- text_transform: Transform text (uppercase, lowercase, titlecase)
-- word_count: Analyze text statistics
-
-When users ask to modify their landing page:
-1. Use the appropriate tools to make the actual changes
-2. Be specific about element IDs when possible
-3. Provide user-friendly feedback about what was changed
-4. Maintain responsive design principles
-
-Model Selection: ${selection.reasoning}
-
-Always use tools to make actual changes rather than just describing what you would do.`,
-      async onFinish({ text }) {
-        // Save assistant message to database
-        await prisma.chatMessage.create({
-          data: {
-            conversationId,
-            landingPageId: conversation.landingPageId,
-            senderType: 'AI',
-            role: 'assistant',
-            content: text || '',
-            metadata: {
-              modelSelection: selection.selectedModel,
-            },
-          },
+      conversationId: conversation.id,
+      userId: 'system', // TODO: Get from authentication context
+      landingPageId: conversation.landingPageId,
+      maxSteps: maxSteps || 10,
+      onStepFinish: async stepResult => {
+        // Log step completion for monitoring
+        logger.info('Agentic step completed', {
+          conversationId: conversation.id,
+          stepType: stepResult.stepType,
+          finishReason: stepResult.finishReason,
+          toolCallsCount: stepResult.toolCalls?.length || 0,
         });
-
-        // Update conversation timestamp
-        await prisma.conversation.update({
-          where: { id: conversationId },
-          data: { lastUpdateTime: new Date() },
+      },
+      onToolCall: async toolCall => {
+        // Log individual tool calls
+        logger.info('Tool executed in agentic flow', {
+          conversationId: conversation.id,
+          toolName: toolCall.toolName,
+          toolCallId: toolCall.toolCallId,
         });
-
-        logger.info('Chat response completed', {
-          conversationId,
-          responseLength: text.length,
+      },
+      onReasoningUpdate: async reasoning => {
+        // Log reasoning updates for transparency
+        logger.info('Reasoning update', {
+          conversationId: conversation.id,
+          reasoningLength: reasoning.length,
         });
+        // In a real implementation, this could be sent via WebSocket to the frontend
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    // Set up onFinish callback to save assistant message
+    const originalOnFinish = result.onFinish;
+    result.onFinish = async finalResult => {
+      // Call original onFinish if it exists
+      if (originalOnFinish) {
+        await originalOnFinish(finalResult);
+      }
+
+      // Save assistant message to database
+      await prisma.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          landingPageId: conversation.landingPageId,
+          senderType: 'AI',
+          role: 'assistant',
+          content: finalResult.text || '',
+          metadata: {
+            totalSteps: finalResult.steps?.length || 0,
+            finishReason: finalResult.finishReason,
+            totalUsage: finalResult.usage,
+            toolCallsCount:
+              finalResult.steps?.flatMap(s => s.toolCalls || []).length || 0,
+          },
+        },
+      });
+
+      // Update conversation timestamp
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastUpdateTime: new Date() },
+      });
+
+      logger.info('Agentic chat response completed', {
+        conversationId: conversation.id,
+        responseLength: finalResult.text?.length || 0,
+        totalSteps: finalResult.steps?.length || 0,
+      });
+    };
+
+    return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+      onError: error => {
+        // Use the agentic service's user-friendly error messages
+        return agenticAIService.createUserFriendlyErrorMessage(error);
+      },
+      messageMetadata: ({ part }) => {
+        // Include usage metadata when generation finishes
+        if (part.type === 'finish') {
+          return {
+            totalUsage: part.totalUsage,
+            conversationId: conversation.id,
+            taskComplexity: 'moderate', // This would be determined by the service
+            timestamp: new Date().toISOString(),
+          };
+        }
+      },
+    });
   });
 }

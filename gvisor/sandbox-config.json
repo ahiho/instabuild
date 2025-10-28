@@ -1,0 +1,26 @@
+{
+  "runtime": "runsc",
+  "runtimeArgs": [
+    "--debug-log=/var/log/runsc-sandbox.log",
+    "--platform=ptrace",
+    "--network=sandbox",
+    "--file-access=exclusive",
+    "--overlay",
+    "--watchdog-action=panic",
+    "--panic-signal=15",
+    "--strace=false",
+    "--log-packets=false"
+  ],
+  "securityOptions": {
+    "enableSeccomp": true,
+    "enableApparmor": true,
+    "readOnlyRootfs": false,
+    "noNewPrivileges": true
+  },
+  "resourceLimits": {
+    "memory": "256Mi",
+    "cpu": "0.25",
+    "pids": 100,
+    "files": 1024
+  }
+}

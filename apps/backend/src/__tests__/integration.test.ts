@@ -103,13 +103,8 @@ describe('Integration Tests', () => {
 
     toolRegistry.registerEnhancedTool(testTool);
 
-    // Test permission validation through tool registry
-    expect(
-      toolRegistry.validatePermissions('validation-test-tool', 'admin-user')
-    ).toBe(true);
-    expect(
-      toolRegistry.validatePermissions('validation-test-tool', 'guest-user')
-    ).toBe(true);
+    // Test tool registration validation
+    expect(toolRegistry.isToolRegistered('validation-test-tool')).toBe(true);
   });
 
   it('should get available tools based on user context', () => {

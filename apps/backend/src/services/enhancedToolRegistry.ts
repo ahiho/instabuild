@@ -36,6 +36,22 @@ export class EnhancedToolRegistry {
   >();
 
   /**
+   * Unregister an enhanced tool from the registry
+   */
+  unregisterEnhancedTool(name: string): boolean {
+    const wasRegistered = this.enhancedTools.has(name);
+    this.enhancedTools.delete(name);
+
+    if (wasRegistered) {
+      logger.info('Enhanced tool unregistered successfully', {
+        toolName: name,
+      });
+    }
+
+    return wasRegistered;
+  }
+
+  /**
    * Register an enhanced tool with user-friendly metadata
    */
   registerEnhancedTool<T>(definition: EnhancedToolDefinition<T>): void {
@@ -66,7 +82,7 @@ export class EnhancedToolRegistry {
   ): ReturnType<typeof tool> {
     return tool({
       description: definition.description,
-      parameters: definition.inputSchema,
+      inputSchema: definition.inputSchema,
       execute: async (input, { toolCallId }) => {
         const context: ToolExecutionContext = {
           userId: 'system', // Will be properly set when we have user context
@@ -150,6 +166,30 @@ export class EnhancedToolRegistry {
         throw error;
       }
 
+      // Validate input against schema first
+      const validationResult = toolDef.inputSchema.safeParse(input);
+      if (!validationResult.success) {
+        const error = new ToolExecutionError(
+          name,
+          context.toolCallId,
+          ToolErrorType.VALIDATION_ERROR,
+          `Invalid input for ${toolDef.displayName}: ${validationResult.error.message}`,
+          validationResult.error.issues
+        );
+
+        progress.status = ToolExecutionStatus.FAILED;
+        progress.message = 'Invalid request parameters';
+        this.notifyProgress(progress);
+
+        analyticsCollector.logToolExecutionError(
+          context.toolCallId,
+          ToolErrorType.VALIDATION_ERROR,
+          error.message,
+          validationResult.error.issues
+        );
+        throw error;
+      }
+
       // Evaluate safety constraints for potentially destructive actions
       const safetyEvaluation = await this.evaluateToolSafety(
         name,
@@ -177,30 +217,6 @@ export class EnhancedToolRegistry {
         progress.status = ToolExecutionStatus.EXECUTING;
         progress.message = `${toolDef.displayName} is processing your changes...`;
         this.notifyProgress(progress);
-      }
-
-      // Validate input against schema
-      const validationResult = toolDef.inputSchema.safeParse(input);
-      if (!validationResult.success) {
-        const error = new ToolExecutionError(
-          name,
-          context.toolCallId,
-          ToolErrorType.VALIDATION_ERROR,
-          `Invalid input for ${toolDef.displayName}: ${validationResult.error.message}`,
-          validationResult.error.issues
-        );
-
-        progress.status = ToolExecutionStatus.FAILED;
-        progress.message = 'Invalid request parameters';
-        this.notifyProgress(progress);
-
-        analyticsCollector.logToolExecutionError(
-          context.toolCallId,
-          ToolErrorType.VALIDATION_ERROR,
-          error.message,
-          validationResult.error.issues
-        );
-        throw error;
       }
 
       // Update progress to mid-execution
@@ -624,7 +640,7 @@ export class EnhancedToolRegistry {
   ): ReturnType<typeof tool> {
     return tool({
       description: definition.description,
-      parameters: definition.inputSchema,
+      inputSchema: definition.inputSchema,
       execute: async (input, { toolCallId }) => {
         const context: ToolExecutionContext = {
           ...baseContext,

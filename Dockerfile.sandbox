@@ -1,0 +1,49 @@
+# Sandbox Docker image for Agentic Landing Page Builder
+# Provides secure, isolated Vite + React TypeScript environment
+FROM node:18-alpine
+
+# Install system dependencies for development
+RUN apk add --no-cache \
+    git \
+    curl \
+    bash \
+    && rm -rf /var/cache/apk/*
+
+# Set up workspace directory structure
+WORKDIR /workspace
+RUN chown -R node:node /workspace
+
+# Copy sandbox template files
+COPY --chown=node:node sandbox-template/ /workspace/
+
+# Switch to non-root user for package installation
+USER node
+
+# Install dependencies
+RUN npm install
+
+# Create additional project structure
+RUN mkdir -p src/components src/assets src/styles
+
+# Set proper permissions for all files
+USER root
+RUN chown -R node:node /workspace && \
+    chmod -R 644 /workspace && \
+    find /workspace -type d -exec chmod 755 {} \; && \
+    chmod +x /workspace/node_modules/.bin/* && \
+    find /workspace/node_modules -name "esbuild" -type f -exec chmod +x {} \; && \
+    find /workspace/node_modules -path "*/bin/esbuild" -type f -exec chmod +x {} \;
+
+# Switch back to non-root user
+USER node
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV HOST=0.0.0.0
+ENV PORT=5173
+
+# Default command to start Vite dev server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

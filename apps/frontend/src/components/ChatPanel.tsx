@@ -87,6 +87,35 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
     );
   }
 
+  // Handle confirmation parts
+  if (part.type === 'confirmation') {
+    const confirmationPart = part as Record<string, unknown>;
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-yellow-500">⚠️</span>
+          <span className="font-medium text-sm text-yellow-400">
+            Confirmation Required
+          </span>
+        </div>
+        <p className="text-sm text-yellow-200 mb-3">
+          {String(confirmationPart.message || 'Please confirm this action')}
+        </p>
+        <div className="flex gap-2">
+          <button className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 rounded">
+            Cancel
+          </button>
+          <button className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 rounded">
+            Confirm
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Handle reasoning parts using the Reasoning component
   if (part.type === 'reasoning') {
     const reasoningPart = part as Record<string, unknown>;
@@ -97,6 +126,39 @@ function renderMessagePart(part: UIMessage['parts'][0], index: number) {
           {String(reasoningPart.text || reasoningPart.reasoning || '')}
         </ReasoningContent>
       </Reasoning>
+    );
+  }
+
+  // Handle progress parts for multi-step execution
+  if (part.type === 'progress') {
+    const progressPart = part as Record<string, unknown>;
+    const currentStep = Number(progressPart.currentStep || 0);
+    const totalSteps = Number(progressPart.totalSteps || 1);
+    const progressPercentage = Math.round((currentStep / totalSteps) * 100);
+
+    return (
+      <div
+        key={index}
+        className="my-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-blue-400">
+            Step {currentStep} of {totalSteps}
+          </span>
+          <span className="text-xs text-blue-300">{progressPercentage}%</span>
+        </div>
+        <div className="w-full bg-blue-900/30 rounded-full h-2 mb-2">
+          <div
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+        <p className="text-sm text-blue-200">
+          {String(
+            progressPart.action || progressPart.description || 'Processing...'
+          )}
+        </p>
+      </div>
     );
   }
 

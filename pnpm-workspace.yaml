@@ -5,6 +5,9 @@ packages:
 onlyBuiltDependencies:
   - '@prisma/client'
   - '@prisma/engines'
+  - cpu-features
   - esbuild
   - prisma
+  - protobufjs
+  - ssh2
   - unrs-resolver

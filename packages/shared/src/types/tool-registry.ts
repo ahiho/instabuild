@@ -60,6 +60,8 @@ export enum ToolCategory {
   UTILITY = 'utility',
   EXTERNAL_API = 'external_api',
   ANALYTICS = 'analytics',
+  VALIDATION = 'validation',
+  ASSET_MANAGEMENT = 'asset_management',
 }
 
 /**

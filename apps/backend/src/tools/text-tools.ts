@@ -1,29 +1,39 @@
+import type {
+  EnhancedToolDefinition,
+  ToolExecutionContext,
+} from '@instabuild/shared/types';
 import { ToolCategory } from '@instabuild/shared/types';
 import { z } from 'zod';
 import { logger } from '../lib/logger.js';
 import { toolRegistry } from '../services/toolRegistry.js';
 
+console.log('🔧 NEW TEXT TOOLS MODULE LOADED');
+
 /**
  * Text transformation tool for basic text operations
  */
-const textTransformTool = {
+const textTransformTool: EnhancedToolDefinition = {
   name: 'text_transform',
   displayName: 'Transform Text',
   description:
     'Transform text by converting to uppercase, lowercase, or title case',
   userDescription: 'change the case of text (uppercase, lowercase, title case)',
   category: ToolCategory.UTILITY,
-  safetyLevel: 'safe' as const, // Text transformation is safe
+  safetyLevel: 'safe',
   inputSchema: z.object({
     text: z.string().describe('The text to transform'),
     operation: z
       .enum(['uppercase', 'lowercase', 'titlecase'])
       .describe('The transformation operation to perform'),
   }),
-  execute: async (input: {
-    text: string;
-    operation: 'uppercase' | 'lowercase' | 'titlecase';
-  }) => {
+
+  async execute(
+    input: {
+      text: string;
+      operation: 'uppercase' | 'lowercase' | 'titlecase';
+    },
+    context: ToolExecutionContext
+  ) {
     try {
       const { text, operation } = input;
 
@@ -62,14 +72,23 @@ const textTransformTool = {
         },
       };
     } catch (error) {
-      logger.error('Error transforming text', { error });
+      logger.error('Error transforming text', {
+        error: error instanceof Error ? error.message : String(error),
+        toolCallId: context.toolCallId,
+      });
+
       return {
         success: false,
         userFeedback: 'Failed to transform text',
         previewRefreshNeeded: false,
+        technicalDetails: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       };
     }
   },
+
+  estimatedDuration: 1000,
   metadata: {
     version: '1.0.0',
     tags: ['text', 'transform', 'utility'],
@@ -86,84 +105,23 @@ const textTransformTool = {
 };
 
 /**
- * Word count tool for analyzing text
- */
-const wordCountTool = {
-  name: 'word_count',
-  displayName: 'Count Words',
-  description: 'Count words, characters, and lines in text',
-  userDescription:
-    'analyze text statistics like word count and character count',
-  category: ToolCategory.UTILITY,
-  safetyLevel: 'safe' as const, // Text analysis is safe
-  inputSchema: z.object({
-    text: z.string().describe('The text to analyze'),
-  }),
-  execute: async (input: { text: string }) => {
-    try {
-      const { text } = input;
-
-      const words = text
-        .trim()
-        .split(/\s+/)
-        .filter((word: string) => word.length > 0);
-      const characters = text.length;
-      const charactersNoSpaces = text.replace(/\s/g, '').length;
-      const lines = text.split('\n').length;
-      const averageWordsPerLine =
-        lines > 0 ? Math.round((words.length / lines) * 100) / 100 : 0;
-
-      const stats = {
-        words: words.length,
-        characters,
-        charactersNoSpaces,
-        lines,
-        averageWordsPerLine,
-      };
-
-      return {
-        success: true,
-        data: stats,
-        userFeedback: `Text analysis complete: ${stats.words} words, ${stats.characters} characters, ${stats.lines} lines`,
-        previewRefreshNeeded: false,
-        technicalDetails: stats,
-      };
-    } catch (error) {
-      logger.error('Error analyzing text', { error });
-      return {
-        success: false,
-        userFeedback: 'Failed to analyze text',
-        previewRefreshNeeded: false,
-      };
-    }
-  },
-  metadata: {
-    version: '1.0.0',
-    tags: ['text', 'analysis', 'utility'],
-    examples: [
-      {
-        description: 'Analyze text statistics',
-        input: {
-          text: 'Hello world! This is a sample text.',
-        },
-      },
-    ],
-  },
-};
-
-/**
  * Register all text tools
  */
 export function registerTextTools() {
+  console.log('🔧 NEW REGISTER TEXT TOOLS CALLED');
   try {
-    toolRegistry.registerTool(textTransformTool);
-    toolRegistry.registerTool(wordCountTool);
+    logger.info('Starting text tools registration...');
+
+    logger.info('Registering text_transform tool...');
+    toolRegistry.registerEnhancedTool(textTransformTool);
+    logger.info('text_transform tool registered successfully');
 
     logger.info('Text tools registered successfully', {
-      toolCount: 2,
-      tools: ['text_transform', 'word_count'],
+      toolCount: 1,
+      tools: ['text_transform'],
     });
   } catch (error) {
+    console.error('🔧 NEW TEXT TOOLS REGISTRATION ERROR:', error);
     logger.error('Failed to register text tools', { error });
     throw error;
   }

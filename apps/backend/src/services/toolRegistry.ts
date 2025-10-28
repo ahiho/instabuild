@@ -44,6 +44,23 @@ export class ToolRegistry implements IToolRegistry {
   private safetyLevels = new Map<string, SafetyLevel>();
 
   /**
+   * Unregister a tool from the registry
+   */
+  unregisterTool(name: string): boolean {
+    const wasRegistered = this.tools.has(name);
+    this.tools.delete(name);
+    this.safetyLevels.delete(name);
+
+    if (wasRegistered) {
+      logger.info('Tool unregistered successfully', {
+        toolName: name,
+      });
+    }
+
+    return wasRegistered;
+  }
+
+  /**
    * Register a new tool with the registry
    */
   registerTool<T>(
@@ -80,6 +97,19 @@ export class ToolRegistry implements IToolRegistry {
       });
       throw error;
     }
+  }
+
+  /**
+   * Unregister an enhanced tool from the registry
+   */
+  unregisterEnhancedTool(name: string): boolean {
+    const wasRegistered = this.tools.has(name);
+    this.unregisterTool(name);
+
+    // Also unregister from enhanced registry
+    enhancedToolRegistry.unregisterEnhancedTool(name);
+
+    return wasRegistered;
   }
 
   /**
@@ -123,11 +153,11 @@ export class ToolRegistry implements IToolRegistry {
     return tool({
       description: definition.description,
       inputSchema: definition.inputSchema,
-      execute: async (input: any) => {
+      execute: async (input: any, context: { toolCallId: string }) => {
         const executionContext: ToolExecutionContext = {
           userId: 'system', // Will be set properly when we have user context
           conversationId: 'unknown',
-          toolCallId: 'generated-id', // This will be provided by the AI SDK
+          toolCallId: context.toolCallId,
         };
 
         return await this.executeTool(definition.name, input, executionContext);
@@ -625,9 +655,9 @@ export class ToolRegistry implements IToolRegistry {
     definition: ToolDefinition,
     baseContext: ToolExecutionContext
   ): any {
-    return {
+    return tool({
       description: definition.description,
-      parameters: definition.inputSchema,
+      inputSchema: definition.inputSchema,
       execute: async (input: any, context: { toolCallId: string }) => {
         const executionContext: ToolExecutionContext = {
           ...baseContext,
@@ -667,7 +697,7 @@ export class ToolRegistry implements IToolRegistry {
           throw error;
         }
       },
-    };
+    });
   }
 
   /**

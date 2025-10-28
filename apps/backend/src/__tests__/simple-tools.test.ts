@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toolRegistry } from '../services/toolRegistry.js';
-import { registerLandingPageTools } from '../tools/landing-page-tools-simple.js';
+import { registerFilesystemTools } from '../tools/filesystem-tools.js';
 import { registerTextTools } from '../tools/text-tools.js';
 
 describe('Simple Tools Test', () => {
@@ -8,7 +8,7 @@ describe('Simple Tools Test', () => {
     // Clear and register tools
     toolRegistry['tools'].clear();
     registerTextTools();
-    registerLandingPageTools();
+    registerFilesystemTools();
 
     // Get tools for AI SDK
     const availableTools = toolRegistry.getTools();
@@ -21,10 +21,13 @@ describe('Simple Tools Test', () => {
     expect(availableTools['text_transform']).toBeDefined();
     expect(availableTools['word_count']).toBeDefined();
 
-    // Check for landing page tools
-    expect(availableTools['update_content']).toBeDefined();
-    expect(availableTools['update_style']).toBeDefined();
-    expect(availableTools['add_element']).toBeDefined();
+    // Check for filesystem tools
+    expect(availableTools['list_directory']).toBeDefined();
+    expect(availableTools['read_file']).toBeDefined();
+    expect(availableTools['write_file']).toBeDefined();
+    expect(availableTools['replace']).toBeDefined();
+    expect(availableTools['search_file_content']).toBeDefined();
+    expect(availableTools['glob']).toBeDefined();
 
     console.log('Available tools:', Object.keys(availableTools));
   });

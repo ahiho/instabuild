@@ -1,0 +1,16 @@
+{
+  "runtimes": {
+    "runsc": {
+      "path": "/usr/local/bin/runsc",
+      "runtimeArgs": [
+        "--debug-log=/tmp/runsc.log",
+        "--debug",
+        "--strace",
+        "--platform=ptrace",
+        "--network=sandbox",
+        "--file-access=exclusive"
+      ]
+    }
+  },
+  "default-runtime": "runc"
+}
