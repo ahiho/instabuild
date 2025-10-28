@@ -68,12 +68,17 @@ model Conversation {
   landingPageId  String?  // Optional: link to landing page if applicable
   startTime      DateTime @default(now())
   lastUpdateTime DateTime @updatedAt
+  // Phase 1: Sandbox isolation tracking
+  sandboxId      String?  // Docker container ID for this conversation's sandbox
+  sandboxStatus  String?  @db.VarChar(50) // Status: pending, ready, failed, terminated
+  sandboxCreatedAt DateTime? // Timestamp when sandbox was provisioned
 
   // Relationships
   messages       ChatMessage[]
   toolExecutions ToolExecution[]
   modelUsage     ModelUsage[]
 
+  @@index([sandboxId])  // Index for fast lookups by sandbox
   @@map("conversations")
 }
 

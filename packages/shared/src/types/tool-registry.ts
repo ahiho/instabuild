@@ -9,6 +9,10 @@ export interface ToolExecutionContext {
   toolCallId: string;
   pageId?: string;
   selectedElementId?: string;
+  // Sandbox isolation field (Phase 1)
+  // Presence of sandboxId indicates execution within a Docker container sandbox
+  // Absence means execution is not sandboxed
+  sandboxId?: string; // Docker container ID for sandbox isolation
 }
 
 /**
