@@ -425,10 +425,12 @@ const SANDBOX_ERROR = {
 - [ ] Commit: "feat(types): add sandbox isolation context and preview URL generation"
 
 ### Phase 2: Sandbox Integration
-- [ ] Update `agenticAIService.ts` to use sandbox context
-- [ ] Update `chat.ts` route to provision sandboxes
-- [ ] Add sandbox cleanup logic
-- [ ] Commit: "feat(sandbox): integrate sandbox provisioning in chat flow"
+- [x] Update `agenticAIService.ts` to use sandbox context
+- [x] Update `chat.ts` route to provision sandboxes
+- [x] Add sandbox lifecycle management (4-hour idle timeout)
+- [x] Create SandboxCleanupService with background job
+- [x] Commit: "feat(sandbox): integrate sandbox provisioning in chat flow"
+- [x] Fix: Implement proper cleanup with idle timeout (not immediate)
 
 ### Phase 3: Filesystem Tools (Add sandbox validation)
 - [ ] Update `list_directory` tool - check sandboxId exists
@@ -485,11 +487,13 @@ const SANDBOX_ERROR = {
 |-------|------|--------|----------|-----------|
 | 1 | Extend ToolExecutionContext with sandboxId | ✅ DONE | CRITICAL | 15 min |
 | 1 | Update Conversation schema with sandbox fields | ✅ DONE | CRITICAL | 15 min |
-| 1 | Create preview-url.ts utility | Pending | CRITICAL | 20 min |
-| 1 | Create Prisma migration | Pending | CRITICAL | 10 min |
-| 1 | Commit Phase 1 changes | Pending | CRITICAL | 5 min |
-| 2 | Update agenticAIService | Pending | CRITICAL | 1.5 hours |
-| 2 | Update chat route | Pending | CRITICAL | 1 hour |
+| 1 | Create preview-url.ts utility | ✅ DONE | CRITICAL | 20 min |
+| 1 | Create Prisma migration | ✅ DONE | CRITICAL | 10 min |
+| 1 | Commit Phase 1 changes | ✅ DONE | CRITICAL | 5 min |
+| 2 | Update agenticAIService | ✅ DONE | CRITICAL | 30 min |
+| 2 | Update chat route (provision sandboxes) | ✅ DONE | CRITICAL | 1 hour |
+| 2 | Create SandboxCleanupService (4h timeout) | ✅ DONE | CRITICAL | 1 hour |
+| 2 | Commit Phase 2 changes | ✅ DONE | CRITICAL | 5 min |
 | 3 | Update list_directory tool | Pending | CRITICAL | 45 min |
 | 3 | Update read_file tool | Pending | CRITICAL | 45 min |
 | 3 | Update write_file tool | Pending | CRITICAL | 45 min |
@@ -500,7 +504,9 @@ const SANDBOX_ERROR = {
 | 4 | E2E integration test | Pending | HIGH | 1 hour |
 | 5 | Error handling & documentation | Pending | HIGH | 1 hour |
 
-**Estimated Total Time**: ~11.5 hours (Phase 1 now includes preview URL generation)
+**Progress**: Phase 1 & 2 Complete! ✅
+**Elapsed Time**: ~2.5 hours
+**Remaining**: ~6 hours (Phase 3-5)
 
 ---
 
