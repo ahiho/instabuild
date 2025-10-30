@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { logger } from '../lib/logger.js';
 import { toolRegistry } from '../services/toolRegistry.js';
+import { containerFilesystem } from './container-filesystem.js';
 
 /**
  * File entry returned by list_directory tool
@@ -21,18 +22,27 @@ interface FileEntry {
 }
 
 /**
- * Phase 3: Check if sandbox context is available
- * Ensures all file operations execute within isolated containers
+ * Phase 3.5: Enforce sandbox context requirement
+ * ALL filesystem tools MUST execute within isolated containers.
+ * NO fallback to host filesystem - this is a critical security requirement.
  */
-function validateSandboxContext(context: ToolExecutionContext) {
+function validateSandboxContext(context: ToolExecutionContext): {
+  success: false;
+  userFeedback: string;
+  previewRefreshNeeded: false;
+  technicalDetails: { error: string };
+} | null {
   if (!context.sandboxId) {
+    logger.warn('Tool execution attempted without sandbox context', {
+      toolCallId: context.toolCallId,
+    });
     return {
       success: false,
       userFeedback:
-        'This operation requires a sandbox environment. Please try again.',
+        'This operation requires a sandbox environment. Sandbox is not available for this conversation.',
       previewRefreshNeeded: false,
       technicalDetails: {
-        error: 'Missing sandbox context - sandboxId is required',
+        error: 'Sandbox context required - sandboxId is missing',
       },
     };
   }
@@ -81,36 +91,28 @@ const listDirectoryTool: EnhancedToolDefinition = {
     ignore: z
       .array(z.string())
       .optional()
-      .describe('List of glob patterns to ignore'),
-    respectGitIgnore: z
-      .boolean()
-      .optional()
-      .describe(
-        'Whether to respect .gitignore patterns when listing files. Defaults to true.'
-      ),
+      .describe('List of glob patterns to ignore (e.g., ["*.log", "node_modules"])'),
   }),
 
   async execute(
     input: {
       path: string;
       ignore?: string[];
-      respectGitIgnore?: boolean;
     },
     context: ToolExecutionContext
   ) {
     try {
-      // Phase 3: Validate sandbox context
+      // Phase 3.5: Validate sandbox context - REQUIRED for container execution
       const sandboxError = validateSandboxContext(context);
       if (sandboxError) {
         return sandboxError;
       }
 
-      const { path: dirPath, ignore, respectGitIgnore = true } = input;
+      const { path: dirPath, ignore } = input;
 
       logger.info('Directory listing requested', {
         path: dirPath,
         ignore,
-        respectGitIgnore,
         toolCallId: context.toolCallId,
         sandboxId: context.sandboxId,
       });
@@ -128,23 +130,27 @@ const listDirectoryTool: EnhancedToolDefinition = {
         };
       }
 
-      // Check if directory exists and is accessible
-      let stats;
-      try {
-        stats = await fs.stat(dirPath);
-      } catch (error) {
-        return {
-          success: false,
-          userFeedback: `Directory not found or inaccessible: ${dirPath}`,
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'Directory not found or inaccessible',
-            path: dirPath,
-          },
-        };
-      }
-
-      if (!stats.isDirectory()) {
+      // Phase 3.5: Check if directory exists INSIDE CONTAINER
+      const isDir = await containerFilesystem.isDirectory(
+        context.sandboxId!,
+        dirPath
+      );
+      if (!isDir) {
+        const exists = await containerFilesystem.exists(
+          context.sandboxId!,
+          dirPath
+        );
+        if (!exists) {
+          return {
+            success: false,
+            userFeedback: `Directory not found or inaccessible: ${dirPath}`,
+            previewRefreshNeeded: false,
+            technicalDetails: {
+              error: 'Directory not found or inaccessible',
+              path: dirPath,
+            },
+          };
+        }
         return {
           success: false,
           userFeedback: `Path is not a directory: ${dirPath}`,
@@ -156,10 +162,13 @@ const listDirectoryTool: EnhancedToolDefinition = {
         };
       }
 
-      // Read directory contents
-      const files = await fs.readdir(dirPath);
+      // Phase 3.5: Read directory contents from container
+      const containerEntries = await containerFilesystem.listDirectory(
+        context.sandboxId!,
+        dirPath
+      );
 
-      if (files.length === 0) {
+      if (containerEntries.length === 0) {
         return {
           success: true,
           data: { entries: [], count: 0 },
@@ -172,34 +181,24 @@ const listDirectoryTool: EnhancedToolDefinition = {
         };
       }
 
-      // Process each file/directory entry
+      // Process entries and apply ignore patterns
       const entries: FileEntry[] = [];
       let ignoredCount = 0;
 
-      for (const file of files) {
-        const fullPath = path.join(dirPath, file);
-
+      for (const entry of containerEntries) {
         // Check if file should be ignored
-        if (shouldIgnore(file, ignore)) {
+        if (shouldIgnore(entry.name, ignore)) {
           ignoredCount++;
           continue;
         }
 
-        try {
-          const fileStats = await fs.stat(fullPath);
-          const isDir = fileStats.isDirectory();
-
-          entries.push({
-            name: file,
-            path: fullPath,
-            isDirectory: isDir,
-            size: isDir ? 0 : fileStats.size,
-            modifiedTime: fileStats.mtime,
-          });
-        } catch (error) {
-          // Log error but don't fail the whole listing
-          logger.debug(`Error accessing ${fullPath}`, { error });
-        }
+        entries.push({
+          name: entry.name,
+          path: entry.path,
+          isDirectory: entry.isDirectory,
+          size: entry.size,
+          modifiedTime: entry.modifiedTime,
+        });
       }
 
       // Sort entries (directories first, then alphabetically)
@@ -245,6 +244,7 @@ const listDirectoryTool: EnhancedToolDefinition = {
       logger.error('Error listing directory', {
         error: error instanceof Error ? error.message : String(error),
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       return {
@@ -437,23 +437,28 @@ const readFileTool: EnhancedToolDefinition = {
         };
       }
 
-      // Check if file exists and is accessible
-      let stats;
-      try {
-        stats = await fs.stat(filePath);
-      } catch (error) {
-        return {
-          success: false,
-          userFeedback: `File not found or inaccessible: ${filePath}`,
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'File not found or inaccessible',
-            path: filePath,
-          },
-        };
-      }
+      // Phase 3.5: Check if file exists INSIDE CONTAINER
+      const isFile = !await containerFilesystem.isDirectory(
+        context.sandboxId!,
+        filePath
+      );
 
-      if (stats.isDirectory()) {
+      if (!isFile) {
+        const exists = await containerFilesystem.exists(
+          context.sandboxId!,
+          filePath
+        );
+        if (!exists) {
+          return {
+            success: false,
+            userFeedback: `File not found or inaccessible: ${filePath}`,
+            previewRefreshNeeded: false,
+            technicalDetails: {
+              error: 'File not found or inaccessible',
+              path: filePath,
+            },
+          };
+        }
         return {
           success: false,
           userFeedback: `Path is a directory, not a file: ${filePath}`,
@@ -465,15 +470,22 @@ const readFileTool: EnhancedToolDefinition = {
         };
       }
 
-      const fileSize = stats.size;
+      const fileSize = await containerFilesystem.getFileSize(
+        context.sandboxId!,
+        filePath
+      );
       const mimeType = getSpecificMimeType(filePath);
       const isBinary = isBinaryFile(filePath);
 
       // Handle binary files (images, PDFs, etc.)
       if (isBinary) {
         try {
-          const buffer = await fs.readFile(filePath);
-          const base64Content = buffer.toString('base64');
+          // Phase 3.5: Read binary file from container
+          const base64Content = await containerFilesystem.readFile(
+            context.sandboxId!,
+            filePath,
+            'base64'
+          );
 
           return {
             success: true,
@@ -509,7 +521,12 @@ const readFileTool: EnhancedToolDefinition = {
 
       // Handle text files
       try {
-        const content = await fs.readFile(filePath, 'utf8');
+        // Phase 3.5: Read text file from container
+        const content = await containerFilesystem.readFile(
+          context.sandboxId!,
+          filePath,
+          'utf8'
+        );
         const lines = content.split('\n');
         const totalLines = lines.length;
 
@@ -737,52 +754,57 @@ const writeFileTool: EnhancedToolDefinition = {
         };
       }
 
-      // Check if target is a directory
+      // Phase 3.5: Check if target is a directory INSIDE CONTAINER
       let isNewFile = false;
       let originalContent = '';
 
-      try {
-        const stats = await fs.stat(filePath);
-        if (stats.isDirectory()) {
-          return {
-            success: false,
-            userFeedback: `Path is a directory, not a file: ${filePath}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'Path is a directory',
-              path: filePath,
-            },
-          };
-        }
+      const isDir = await containerFilesystem.isDirectory(
+        context.sandboxId!,
+        filePath
+      );
 
+      if (isDir) {
+        return {
+          success: false,
+          userFeedback: `Path is a directory, not a file: ${filePath}`,
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: 'Path is a directory',
+            path: filePath,
+          },
+        };
+      }
+
+      // File exists check
+      const fileExists = await containerFilesystem.exists(
+        context.sandboxId!,
+        filePath
+      );
+
+      if (fileExists) {
         // File exists, read current content for diff
         try {
-          originalContent = await fs.readFile(filePath, 'utf8');
+          originalContent = await containerFilesystem.readFile(
+            context.sandboxId!,
+            filePath,
+            'utf8'
+          );
         } catch (readError) {
           // File exists but can't read it (binary file or permission issue)
           originalContent = '[Binary or unreadable content]';
         }
-      } catch (error: any) {
-        if (error.code === 'ENOENT') {
-          // File doesn't exist, this will be a new file
-          isNewFile = true;
-        } else {
-          return {
-            success: false,
-            userFeedback: `Error accessing file path: ${error.message}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: error.message,
-              path: filePath,
-            },
-          };
-        }
+      } else {
+        // File doesn't exist, this will be a new file
+        isNewFile = true;
       }
 
-      // Create directory if it doesn't exist
+      // Phase 3.5: Create directory if it doesn't exist INSIDE CONTAINER
       const dirName = path.dirname(filePath);
       try {
-        await fs.mkdir(dirName, { recursive: true });
+        await containerFilesystem.mkdir(
+          context.sandboxId!,
+          dirName
+        );
       } catch (error) {
         return {
           success: false,
@@ -795,9 +817,13 @@ const writeFileTool: EnhancedToolDefinition = {
         };
       }
 
-      // Write the file
+      // Phase 3.5: Write the file INSIDE CONTAINER
       try {
-        await fs.writeFile(filePath, content, 'utf8');
+        await containerFilesystem.writeFile(
+          context.sandboxId!,
+          filePath,
+          content
+        );
       } catch (error) {
         return {
           success: false,
@@ -1011,25 +1037,32 @@ const replaceTool: EnhancedToolDefinition = {
       let fileExists = false;
       let isNewFile = false;
 
-      // Try to read the current file content
+      // Phase 3.5: Try to read the current file content INSIDE CONTAINER
       try {
-        currentContent = await fs.readFile(filePath, 'utf8');
-        // Normalize line endings to LF for consistent processing
-        currentContent = currentContent.replace(/\r\n/g, '\n');
-        fileExists = true;
-      } catch (error: any) {
-        if (error.code !== 'ENOENT') {
-          return {
-            success: false,
-            userFeedback: `Error reading file: ${error.message}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: error.message,
-              path: filePath,
-            },
-          };
+        fileExists = await containerFilesystem.exists(
+          context.sandboxId!,
+          filePath
+        );
+
+        if (fileExists) {
+          currentContent = await containerFilesystem.readFile(
+            context.sandboxId!,
+            filePath,
+            'utf8'
+          );
+          // Normalize line endings to LF for consistent processing
+          currentContent = currentContent.replace(/\r\n/g, '\n');
         }
-        fileExists = false;
+      } catch (error: any) {
+        return {
+          success: false,
+          userFeedback: `Error reading file: ${error.message}`,
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: error.message,
+            path: filePath,
+          },
+        };
       }
 
       // Handle new file creation
@@ -1142,10 +1175,13 @@ const replaceTool: EnhancedToolDefinition = {
         };
       }
 
-      // Create directory if needed
+      // Phase 3.5: Create directory if needed INSIDE CONTAINER
       const dirName = path.dirname(filePath);
       try {
-        await fs.mkdir(dirName, { recursive: true });
+        await containerFilesystem.mkdir(
+          context.sandboxId!,
+          dirName
+        );
       } catch (error) {
         return {
           success: false,
@@ -1158,9 +1194,13 @@ const replaceTool: EnhancedToolDefinition = {
         };
       }
 
-      // Write the modified content
+      // Phase 3.5: Write the modified content INSIDE CONTAINER
       try {
-        await fs.writeFile(filePath, newContent, 'utf8');
+        await containerFilesystem.writeFile(
+          context.sandboxId!,
+          filePath,
+          newContent
+        );
       } catch (error) {
         return {
           success: false,
@@ -1385,19 +1425,19 @@ const searchFileContentTool: EnhancedToolDefinition = {
     pattern: z
       .string()
       .describe(
-        "The regular expression (regex) pattern to search for within file contents (e.g., 'function\\\\s+myFunction', 'import\\\\s+\\\\{.*\\\\}\\\\s+from\\\\s+.*')."
+        "The regular expression (regex) pattern to search for within file contents (e.g., 'function\\\\s+myFunction', 'import\\\\s+\\\\{.*\\\\}\\\\s+from\\\\s+.*'). Use literal text for simple word searches (e.g., 'background' to find the word 'background')."
       ),
     path: z
       .string()
       .optional()
       .describe(
-        'Optional: The absolute path to the directory to search within. If omitted, searches the current working directory.'
+        'IMPORTANT: The absolute path to the directory to search within (e.g., /workspace/src, /workspace/apps/frontend). If omitted, defaults to /workspace (the sandbox root). Do NOT use relative paths like "src/" or "./src" - always provide absolute paths starting with /workspace. To search the entire project, omit this parameter.'
       ),
     include: z
       .string()
       .optional()
       .describe(
-        "Optional: A glob pattern to filter which files are searched (e.g., '*.js', '*.{ts,tsx}', 'src/**'). If omitted, searches all files (respecting potential global ignores)."
+        "Optional: A glob pattern to filter which files are searched (e.g., '*.js', '*.{ts,tsx}', '*.css', 'src/**/*.tsx'). If omitted, searches all text files in the directory (respecting common ignores like node_modules, .git, dist)."
       ),
   }),
 
@@ -1443,68 +1483,78 @@ const searchFileContentTool: EnhancedToolDefinition = {
         };
       }
 
-      // Phase 3: Require explicit path - no process.cwd() fallback in sandbox
-      if (!searchPath) {
-        return {
-          success: false,
-          userFeedback:
-            'Search path is required. Please provide an absolute path to search within.',
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'Search path is required in sandbox environment',
-          },
-        };
-      }
-
-      // Determine search directory
-      const searchDir = searchPath;
+      // Phase 3.5: Default to /workspace if no path provided (sandbox root)
+      const searchDir = searchPath || '/workspace';
 
       // Validate search directory
-      if (searchPath && !path.isAbsolute(searchPath)) {
+      if (!path.isAbsolute(searchDir)) {
         return {
           success: false,
-          userFeedback: `Search path must be absolute: ${searchPath}`,
+          userFeedback: `Search path must be absolute: ${searchDir}`,
           previewRefreshNeeded: false,
           technicalDetails: {
             error: 'Path must be absolute',
-            providedPath: searchPath,
+            providedPath: searchDir,
           },
         };
       }
 
-      // Check if search directory exists
-      try {
-        const stats = await fs.stat(searchDir);
-        if (!stats.isDirectory()) {
+      // Phase 3.5: Check if search directory exists INSIDE CONTAINER
+      const isDir = await containerFilesystem.isDirectory(
+        context.sandboxId!,
+        searchDir
+      );
+
+      if (!isDir) {
+        const exists = await containerFilesystem.exists(
+          context.sandboxId!,
+          searchDir
+        );
+        if (!exists) {
           return {
             success: false,
-            userFeedback: `Search path is not a directory: ${searchDir}`,
+            userFeedback: `Search directory not found: ${searchDir}`,
             previewRefreshNeeded: false,
             technicalDetails: {
-              error: 'Path is not a directory',
+              error: 'Directory not found',
               path: searchDir,
             },
           };
         }
-      } catch (error) {
         return {
           success: false,
-          userFeedback: `Search directory not found: ${searchDir}`,
+          userFeedback: `Search path is not a directory: ${searchDir}`,
           previewRefreshNeeded: false,
           technicalDetails: {
-            error: 'Directory not found',
+            error: 'Path is not a directory',
             path: searchDir,
           },
         };
       }
 
-      // Find all files to search
-      const filesToSearch = await findFilesRecursively(searchDir, include);
+      // Phase 3.5: Search for pattern in files INSIDE CONTAINER using containerFilesystem
+      let allMatches: SearchMatch[] = [];
 
-      if (filesToSearch.length === 0) {
+      try {
+        // Use containerFilesystem.searchPattern() for container-based search
+        const containerMatches = await containerFilesystem.searchPattern(
+          context.sandboxId!,
+          pattern,
+          searchDir,
+          include
+        );
+
+        // Convert container search results to SearchMatch format
+        allMatches = containerMatches.map(match => ({
+          filePath: match.filePath,
+          lineNumber: match.lineNumber,
+          line: match.line,
+        }));
+      } catch (error) {
+        // If search fails (e.g., pattern not found), return empty results
         const message = include
-          ? `No files found matching pattern "${include}" in ${searchDir}`
-          : `No files found in ${searchDir}`;
+          ? `No matches found for pattern "${pattern}" in ${searchDir} (filter: "${include}")`
+          : `No matches found for pattern "${pattern}" in ${searchDir}`;
 
         return {
           success: true,
@@ -1513,19 +1563,12 @@ const searchFileContentTool: EnhancedToolDefinition = {
           previewRefreshNeeded: false,
           technicalDetails: {
             searchDir,
+            pattern,
             include,
             fileCount: 0,
             matchCount: 0,
           },
         };
-      }
-
-      // Search for pattern in all files
-      const allMatches: SearchMatch[] = [];
-
-      for (const filePath of filesToSearch) {
-        const matches = await searchInFile(filePath, pattern);
-        allMatches.push(...matches);
       }
 
       if (allMatches.length === 0) {
@@ -1537,14 +1580,14 @@ const searchFileContentTool: EnhancedToolDefinition = {
 
         return {
           success: true,
-          data: { matches: [], fileCount: filesToSearch.length, matchCount: 0 },
+          data: { matches: [], fileCount: 0, matchCount: 0 },
           userFeedback: message,
           previewRefreshNeeded: false,
           technicalDetails: {
             searchDir,
             pattern,
             include,
-            fileCount: filesToSearch.length,
+            fileCount: 0,
             matchCount: 0,
           },
         };
@@ -1593,7 +1636,7 @@ const searchFileContentTool: EnhancedToolDefinition = {
         data: {
           matches: allMatches,
           matchesByFile,
-          fileCount: filesToSearch.length,
+          fileCount,
           matchCount,
           formattedResults: formattedResults.trim(),
         },
@@ -1603,7 +1646,6 @@ const searchFileContentTool: EnhancedToolDefinition = {
           searchDir,
           pattern,
           include,
-          filesSearched: filesToSearch.length,
           filesWithMatches: fileCount,
           totalMatches: matchCount,
           formattedResults: formattedResults.trim(),
@@ -1632,18 +1674,33 @@ const searchFileContentTool: EnhancedToolDefinition = {
     tags: ['filesystem', 'search', 'grep', 'content'],
     examples: [
       {
-        description: 'Search for function definitions',
+        description: 'Search for a simple word pattern across entire project',
+        input: {
+          pattern: 'background',
+          include: '*.css',
+        },
+      },
+      {
+        description: 'Search for regex pattern in specific directory',
         input: {
           pattern: 'function\\s+\\w+',
-          path: '/home/user/project/src',
+          path: '/workspace/src',
           include: '*.js',
         },
       },
       {
-        description: 'Search for import statements',
+        description: 'Search for import statements across all TypeScript files',
         input: {
           pattern: 'import.*from',
-          include: '*.{ts,tsx,js,jsx}',
+          path: '/workspace/apps/frontend',
+          include: '*.{ts,tsx}',
+        },
+      },
+      {
+        description: 'Search for CSS class names in entire project',
+        input: {
+          pattern: 'className',
+          include: '*.{tsx,jsx}',
         },
       },
     ],
@@ -1827,25 +1884,25 @@ const globTool: EnhancedToolDefinition = {
     pattern: z
       .string()
       .describe(
-        "The glob pattern to match against (e.g., '**/*.py', 'docs/*.md')."
+        "The glob pattern to match against (e.g., '**/*.ts', '**/*.md', 'src/**/*.tsx'). Use * to match any characters, ** to match across directories, and ? to match single characters."
       ),
     path: z
       .string()
       .optional()
       .describe(
-        'Optional: The absolute path to the directory to search within. If omitted, searches the root directory.'
+        'IMPORTANT: The absolute path to the directory to search within (e.g., /workspace/src, /workspace/apps/frontend). If omitted, defaults to /workspace (the sandbox root). Do NOT use relative paths - always provide absolute paths starting with /workspace.'
       ),
     caseSensitive: z
       .boolean()
       .optional()
       .describe(
-        'Optional: Whether the search should be case-sensitive. Defaults to false.'
+        'Optional: Whether the search should be case-sensitive. Defaults to false (case-insensitive).'
       ),
     respectGitIgnore: z
       .boolean()
       .optional()
       .describe(
-        'Optional: Whether to respect .gitignore patterns when finding files. Only available in git repositories. Defaults to true.'
+        'Optional: Whether to respect .gitignore patterns when finding files. Defaults to true (ignores node_modules, .git, dist, build, .next).'
       ),
   }),
 
@@ -1859,27 +1916,13 @@ const globTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
-      // Phase 3: Validate sandbox context
+      // Phase 3.5: Validate sandbox context - REQUIRED for isolation
       const sandboxError = validateSandboxContext(context);
       if (sandboxError) {
         return sandboxError;
       }
 
-      const {
-        pattern,
-        path: searchPath,
-        caseSensitive = false,
-        respectGitIgnore = true,
-      } = input;
-
-      logger.info('Glob file search requested', {
-        pattern,
-        searchPath,
-        caseSensitive,
-        respectGitIgnore,
-        toolCallId: context.toolCallId,
-        sandboxId: context.sandboxId,
-      });
+      const { pattern, path: searchPath } = input;
 
       // Validate pattern
       if (!pattern || pattern.trim() === '') {
@@ -1893,67 +1936,27 @@ const globTool: EnhancedToolDefinition = {
         };
       }
 
-      // Phase 3: Require explicit path - no process.cwd() fallback in sandbox
-      if (!searchPath) {
+      // Phase 3.5: Default to /workspace if no path provided (sandbox root)
+      const searchDir = searchPath || '/workspace';
+
+      // Validate search directory is absolute
+      if (!path.isAbsolute(searchDir)) {
         return {
           success: false,
-          userFeedback:
-            'Search path is required. Please provide an absolute path to search within.',
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'Search path is required in sandbox environment',
-          },
-        };
-      }
-
-      // Determine search directory
-      const searchDir = searchPath;
-
-      // Validate search directory
-      if (searchPath && !path.isAbsolute(searchPath)) {
-        return {
-          success: false,
-          userFeedback: `Search path must be absolute: ${searchPath}`,
+          userFeedback: `Search path must be absolute: ${searchDir}`,
           previewRefreshNeeded: false,
           technicalDetails: {
             error: 'Path must be absolute',
-            providedPath: searchPath,
+            providedPath: searchDir,
           },
         };
       }
 
-      // Check if search directory exists
-      try {
-        const stats = await fs.stat(searchDir);
-        if (!stats.isDirectory()) {
-          return {
-            success: false,
-            userFeedback: `Search path is not a directory: ${searchDir}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'Path is not a directory',
-              path: searchDir,
-            },
-          };
-        }
-      } catch (error) {
-        return {
-          success: false,
-          userFeedback: `Search directory does not exist: ${searchDir}`,
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'Directory not found',
-            path: searchDir,
-          },
-        };
-      }
-
-      // Find files matching the glob pattern
-      const matchingFiles = await findFilesWithGlob(
+      // Phase 3.5: Find files matching glob pattern INSIDE CONTAINER
+      const matchingFiles = await containerFilesystem.findGlob(
+        context.sandboxId!,
         searchDir,
-        pattern,
-        caseSensitive,
-        respectGitIgnore
+        pattern
       );
 
       if (matchingFiles.length === 0) {
@@ -1967,27 +1970,22 @@ const globTool: EnhancedToolDefinition = {
           technicalDetails: {
             searchDir,
             pattern,
-            caseSensitive,
-            respectGitIgnore,
             fileCount: 0,
           },
         };
       }
 
-      // Sort files by modification time (newest first)
-      const sortedFilePaths = sortFilesByTime(matchingFiles);
+      const fileCount = matchingFiles.length;
+      const fileListDescription = matchingFiles.join('\n');
 
-      const fileCount = sortedFilePaths.length;
-      const fileListDescription = sortedFilePaths.join('\n');
-
-      const resultMessage = `Found ${fileCount} file(s) matching "${pattern}" within ${searchDir}, sorted by modification time (newest first):\n${fileListDescription}`;
+      const resultMessage = `Found ${fileCount} file(s) matching "${pattern}" within ${searchDir}:\n${fileListDescription}`;
 
       const userMessage = `Found ${fileCount} matching file(s)`;
 
       return {
         success: true,
         data: {
-          files: sortedFilePaths,
+          files: matchingFiles,
           count: fileCount,
           formattedList: fileListDescription,
         },
@@ -1996,8 +1994,6 @@ const globTool: EnhancedToolDefinition = {
         technicalDetails: {
           searchDir,
           pattern,
-          caseSensitive,
-          respectGitIgnore,
           fileCount,
           fullListing: resultMessage,
         },
@@ -2006,11 +2002,12 @@ const globTool: EnhancedToolDefinition = {
       logger.error('Error in glob file search', {
         error: error instanceof Error ? error.message : String(error),
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       return {
         success: false,
-        userFeedback: 'Failed to search for files',
+        userFeedback: `Failed to search for files: ${error instanceof Error ? error.message : 'Unknown error'}`,
         previewRefreshNeeded: false,
         technicalDetails: {
           error: error instanceof Error ? error.message : String(error),
@@ -2025,23 +2022,35 @@ const globTool: EnhancedToolDefinition = {
     tags: ['filesystem', 'glob', 'find', 'pattern'],
     examples: [
       {
-        description: 'Find all TypeScript files',
+        description: 'Find all TypeScript files across entire project',
         input: {
           pattern: '**/*.ts',
-          path: '/home/user/project',
         },
       },
       {
-        description: 'Find all markdown files in docs',
+        description: 'Find all React component files in frontend app',
         input: {
-          pattern: 'docs/*.md',
+          pattern: '**/*.tsx',
+          path: '/workspace/apps/frontend',
         },
       },
       {
-        description: 'Case-sensitive search for specific files',
+        description: 'Find all markdown files in docs directory',
         input: {
-          pattern: '**/README.*',
-          caseSensitive: true,
+          pattern: 'docs/**/*.md',
+        },
+      },
+      {
+        description: 'Find specific file by name',
+        input: {
+          pattern: '**/package.json',
+        },
+      },
+      {
+        description: 'Find all CSS files in specific directory',
+        input: {
+          pattern: '**/*.css',
+          path: '/workspace/apps/frontend/src',
         },
       },
     ],

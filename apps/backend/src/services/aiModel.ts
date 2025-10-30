@@ -1,7 +1,7 @@
-import { streamText } from 'ai';
-import { modelSelector } from './model-selector.js';
 import type { ModelSelectionContext } from '@instabuild/shared/types';
+import { streamText } from 'ai';
 import { logger } from '../lib/logger.js';
+import { modelSelector } from './model-selector.js';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';

@@ -188,7 +188,7 @@ export async function sandboxRoutes(fastify: FastifyInstance) {
       try {
         const { sandboxId } = SandboxIdSchema.parse(request.params);
 
-        const sandbox = sandboxManager.getSandboxInfo(sandboxId);
+        const sandbox = await sandboxManager.getSandboxInfo(sandboxId);
 
         if (!sandbox) {
           reply.status(404);

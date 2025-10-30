@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
@@ -32,5 +33,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
     <div className={cn(badgeVariants({ variant }), className)} {...props} />
   );
 }
+
+Badge.displayName = 'Badge';
 
 export { Badge, badgeVariants };

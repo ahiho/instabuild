@@ -77,6 +77,7 @@ export function EditorPage() {
             <PreviewPanel
               pageId={pageId}
               currentVersion={page.currentVersion}
+              sandboxPublicUrl={page.sandboxPublicUrl}
               onToggleChat={handleToggleChat}
               isChatVisible={isChatVisible}
             />

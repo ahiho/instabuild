@@ -1,5 +1,8 @@
 import { prisma } from '../server.js';
 import { octokit } from '../lib/github.js';
+import { sandboxManager } from './sandboxManager.js';
+import { generateSandboxPreviewUrl } from '../lib/preview-url.js';
+import { logger } from '../lib/logger.js';
 import {
   NotFoundError,
   ValidationError,
@@ -55,7 +58,109 @@ export class PageService {
       data: { currentVersionId: version.id },
     });
 
-    return { ...page, currentVersionId: version.id };
+    // Phase 3.5: Create conversation and provision sandbox for preview access
+    let sandboxPublicUrl: string | undefined;
+    let sandboxPort: number | undefined;
+    try {
+      // Check if a conversation with ready sandbox already exists for this page
+      const existingConversation = await prisma.conversation.findFirst({
+        where: {
+          landingPageId: page.id,
+          sandboxStatus: 'ready',
+        },
+        orderBy: { startTime: 'desc' },
+      });
+
+      if (existingConversation && existingConversation.sandboxPublicUrl) {
+        logger.info('Reusing existing sandbox for page', {
+          pageId: page.id,
+          conversationId: existingConversation.id,
+          sandboxPublicUrl: existingConversation.sandboxPublicUrl,
+        });
+        sandboxPublicUrl = existingConversation.sandboxPublicUrl;
+        sandboxPort = existingConversation.sandboxPort || undefined;
+        // Skip sandbox creation - already have a ready one
+      } else {
+        // Create new conversation and provision sandbox
+        const conversation = await prisma.conversation.create({
+          data: {
+            userId: 'system', // TODO: Get from authentication context
+            landingPageId: page.id,
+            startTime: new Date(),
+            lastUpdateTime: new Date(),
+            lastAccessedAt: new Date(),
+            sandboxStatus: 'pending',
+          },
+        });
+
+        logger.info('Created conversation for page', {
+          pageId: page.id,
+          conversationId: conversation.id,
+          landingPageId: conversation.landingPageId,
+        });
+
+        const sandboxRequest = {
+          userId: conversation.userId || 'system',
+          projectId: conversation.id,
+        };
+
+        const sandboxResponse = await sandboxManager.createSandbox(sandboxRequest);
+
+        if (sandboxResponse && sandboxResponse.status === 'ready') {
+          sandboxPort = sandboxResponse.port;
+
+          // Generate preview URL using actual allocated port
+          sandboxPublicUrl = sandboxPort
+            ? `http://localhost:${sandboxPort}`
+            : generateSandboxPreviewUrl(conversation.id);
+
+          // Update conversation with sandbox info + port
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              sandboxId: sandboxResponse.containerId,
+              sandboxPort: sandboxPort,
+              sandboxStatus: 'ready',
+              sandboxCreatedAt: new Date(),
+              sandboxPublicUrl: sandboxPublicUrl,
+            },
+          });
+
+          logger.info('Sandbox provisioned for landing page', {
+            pageId: page.id,
+            conversationId: conversation.id,
+            sandboxId: sandboxResponse.containerId,
+            previewUrl: sandboxPublicUrl,
+          });
+        } else {
+          logger.warn('Sandbox provisioning returned non-ready status for page', {
+            pageId: page.id,
+            status: sandboxResponse?.status,
+            error: sandboxResponse?.error,
+          });
+
+          // Update conversation to mark sandbox as failed
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              sandboxStatus: 'failed',
+            },
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Error provisioning sandbox for page', {
+        pageId: page.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return {
+      ...page,
+      currentVersionId: version.id,
+      sandboxPublicUrl,
+      sandboxPort,
+    };
   }
 
   async getPage(id: string) {
@@ -74,7 +179,40 @@ export class PageService {
       throw new NotFoundError('Landing page');
     }
 
-    return page;
+    // Phase 3.5: Include sandbox information if available
+    // Prioritize conversations with ready sandboxes, fall back to any conversation
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        landingPageId: id,
+        sandboxStatus: 'ready',
+      },
+      orderBy: { startTime: 'desc' },
+      take: 1,
+    });
+
+    // If no ready sandbox found, get the most recent conversation
+    if (!conversation) {
+      conversation = await prisma.conversation.findFirst({
+        where: { landingPageId: id },
+        orderBy: { startTime: 'desc' },
+        take: 1,
+      });
+    }
+
+    logger.info('GetPage - Sandbox lookup', {
+      pageId: id,
+      found: !!conversation,
+      conversationId: conversation?.id,
+      sandboxStatus: conversation?.sandboxStatus,
+      sandboxPublicUrl: conversation?.sandboxPublicUrl,
+    });
+
+    return {
+      ...page,
+      sandboxPublicUrl: conversation?.sandboxPublicUrl,
+      sandboxPort: conversation?.sandboxPort,
+      sandboxStatus: conversation?.sandboxStatus,
+    };
   }
 
   async updatePage(id: string, data: UpdateLandingPageRequest) {

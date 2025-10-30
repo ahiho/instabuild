@@ -44,17 +44,24 @@ export async function chatRoutes(fastify: FastifyInstance) {
           projectId: conversation.id,
         };
 
-        const sandboxResponse = await sandboxManager.createSandbox(sandboxRequest);
+        const sandboxResponse =
+          await sandboxManager.createSandbox(sandboxRequest);
 
         if (sandboxResponse && sandboxResponse.status === 'ready') {
-          // Generate preview URL
-          const previewUrl = generateSandboxPreviewUrl(conversation.id);
+          // Phase 3.5: Store allocated port for reverse proxy routing
+          const sandboxPort = sandboxResponse.port;
 
-          // Update conversation with sandbox info
+          // Generate preview URL using actual allocated port
+          const previewUrl = sandboxPort
+            ? `http://localhost:${sandboxPort}`
+            : generateSandboxPreviewUrl(conversation.id);
+
+          // Update conversation with sandbox info + port
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
             data: {
               sandboxId: sandboxResponse.containerId,
+              sandboxPort, // Phase 3.5: Store for reverse proxy
               sandboxStatus: 'ready',
               sandboxCreatedAt: new Date(),
               sandboxPublicUrl: previewUrl,
@@ -111,35 +118,84 @@ export async function chatRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Messages array cannot be empty' });
     }
 
-    // Get the latest user message for context
+    // Phase 3.5: Validate sandbox is ready before executing agent tools
+    if (conversation.sandboxStatus !== 'ready') {
+      logger.warn('Chat request received but sandbox not ready', {
+        conversationId: conversation.id,
+        sandboxStatus: conversation.sandboxStatus,
+      });
+
+      return reply.code(503).send({
+        error: 'Sandbox not ready',
+        message:
+          conversation.sandboxStatus === 'pending'
+            ? 'Sandbox is provisioning. Please wait a moment and try again.'
+            : 'Sandbox failed to initialize. Please create a new page.',
+      });
+    }
+
+    // Log all messages for debugging
+    // Get the latest user message for context (AI SDK v5.0 uses parts array)
     const latestUserMessage = messages
       .filter((m: any) => m.role === 'user')
       .slice(-1)[0];
 
-    // Extract text content from the message
-    const messageContent = latestUserMessage?.content || '';
+    logger.debug('Latest user message found', {
+      conversationId: conversation.id,
+      found: !!latestUserMessage,
+      partsCount: latestUserMessage?.parts?.length,
+    });
+
+    // Extract text content from the message parts array (AI SDK v5.0 format)
+    let messageContent = '';
+    if (latestUserMessage?.parts && Array.isArray(latestUserMessage.parts)) {
+      const textParts = latestUserMessage.parts
+        .filter((part: any) => part.type === 'text')
+        .map((part: any) => part.text);
+      messageContent = textParts.join(' ');
+      logger.debug('Message content extracted from parts', {
+        conversationId: conversation.id,
+        partsCount: latestUserMessage.parts.length,
+        textPartsCount: textParts.length,
+        contentLength: messageContent.length,
+      });
+    }
 
     logger.info('Processing agentic chat request', {
       conversationId: conversation.id,
       messageCount: messages.length,
       landingPageId: conversation.landingPageId,
       maxSteps: maxSteps || 10,
+      userMessageContent: messageContent.substring(0, 100),
+      userMessageLength: messageContent.length,
     });
 
-    // Save user message to database
-    if (latestUserMessage && messageContent) {
-      await prisma.chatMessage.create({
-        data: {
-          conversationId: conversation.id,
-          landingPageId: conversation.landingPageId,
-          senderType: 'User',
-          role: 'user',
-          content: messageContent,
-          metadata: {
-            messageId: latestUserMessage.id,
+    // Save user message to database immediately
+    if (latestUserMessage && messageContent.trim()) {
+      try {
+        await prisma.chatMessage.create({
+          data: {
+            conversationId: conversation.id,
+            landingPageId: conversation.landingPageId,
+            senderType: 'User',
+            role: 'user',
+            content: messageContent,
+            metadata: {
+              messageId: latestUserMessage.id,
+            },
           },
-        },
-      });
+        });
+
+        logger.info('User message persisted to database', {
+          conversationId: conversation.id,
+          messageLength: messageContent.length,
+        });
+      } catch (error) {
+        logger.error('Failed to persist user message', {
+          conversationId: conversation.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     // Use agentic AI service for multi-step execution
@@ -147,8 +203,8 @@ export async function chatRoutes(fastify: FastifyInstance) {
       messages,
       conversationId: conversation.id,
       userId: 'system', // TODO: Get from authentication context
-      landingPageId: conversation.landingPageId,
-      sandboxId: conversation.sandboxId, // Phase 2: Pass sandbox context
+      landingPageId: conversation.landingPageId || undefined,
+      sandboxId: conversation.sandboxId || undefined, // Phase 2: Pass sandbox context
       maxSteps: maxSteps || 10,
       onStepFinish: async stepResult => {
         // Log step completion for monitoring
@@ -177,62 +233,8 @@ export async function chatRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // Set up onFinish callback to save assistant message
-    const originalOnFinish = result.onFinish;
-    result.onFinish = async finalResult => {
-      try {
-        // Call original onFinish if it exists
-        if (originalOnFinish) {
-          await originalOnFinish(finalResult);
-        }
-
-        // Save assistant message to database
-        await prisma.chatMessage.create({
-          data: {
-            conversationId: conversation.id,
-            landingPageId: conversation.landingPageId,
-            senderType: 'AI',
-            role: 'assistant',
-            content: finalResult.text || '',
-            metadata: {
-              totalSteps: finalResult.steps?.length || 0,
-              finishReason: finalResult.finishReason,
-              totalUsage: finalResult.usage,
-              toolCallsCount:
-                finalResult.steps?.flatMap(s => s.toolCalls || []).length || 0,
-            },
-          },
-        });
-
-        // Update conversation timestamp
-        await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: { lastUpdateTime: new Date() },
-        });
-
-        logger.info('Agentic chat response completed', {
-          conversationId: conversation.id,
-          responseLength: finalResult.text?.length || 0,
-          totalSteps: finalResult.steps?.length || 0,
-        });
-      } finally {
-        // Phase 2: Update last accessed time for idle timeout tracking (4 hours)
-        if (conversation.sandboxId) {
-          try {
-            await prisma.conversation.update({
-              where: { id: conversation.id },
-              data: { lastAccessedAt: new Date() },
-            });
-          } catch (error) {
-            logger.warn('Failed to update lastAccessedAt', {
-              conversationId: conversation.id,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
-        }
-      }
-    };
-
+    // Return the streaming response
+    // Message persistence is now handled in agenticAIService.onFinish callback
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
       onError: error => {

@@ -1,6 +1,7 @@
 import Docker from 'dockerode';
 import { EventEmitter } from 'events';
 import { logger } from '../lib/logger';
+import { prisma } from '../server';
 
 export interface SandboxContainer {
   id: string;
@@ -40,7 +41,10 @@ export interface SandboxProvisionResponse {
 
 export class SandboxProvisioningService extends EventEmitter {
   private docker: Docker;
-  private containers: Map<string, SandboxContainer> = new Map();
+  /**
+   * Phase 3.5: Sandbox state is persisted in Conversation model
+   * No in-memory tracking - all data reads/writes go through Prisma
+   */
   private readonly defaultResourceLimits: ResourceLimits = {
     cpuLimit: '0.25', // 0.25 CPU cores
     memoryLimit: '256m', // 256MB RAM
@@ -62,26 +66,37 @@ export class SandboxProvisioningService extends EventEmitter {
     // Start cleanup timer
     setInterval(() => this.cleanupIdleContainers(), this.cleanupInterval);
 
+    // Recover existing sandboxes from database on startup
+    this.recoverExistingSandboxes().catch(error => {
+      logger.error('Failed to recover existing sandboxes on startup', {
+        error,
+      });
+    });
+
     logger.info('SandboxProvisioningService initialized');
   }
 
   /**
    * Provision a new sandbox container for a user
+   * Stores all state in Conversation model via Prisma (no in-memory storage)
    */
   async provisionSandbox(
     request: SandboxProvisionRequest
   ): Promise<SandboxProvisionResponse> {
-    const sandboxId = `${request.userId}-${request.projectId}-${Date.now()}`;
+    const conversationId = `${request.userId}-${request.projectId}-${Date.now()}`;
 
     try {
       logger.info(`Provisioning sandbox for user ${request.userId}`, {
-        sandboxId,
+        conversationId,
         request,
       });
 
-      // Create sandbox container record
-      const sandbox: SandboxContainer = {
-        id: sandboxId,
+      // Find available port
+      const port = await this.findAvailablePort();
+
+      // Create temporary sandbox container record for config generation
+      const tempSandbox: SandboxContainer = {
+        id: conversationId,
         userId: request.userId,
         status: 'provisioning',
         createdAt: new Date(),
@@ -92,53 +107,85 @@ export class SandboxProvisioningService extends EventEmitter {
         },
       };
 
-      this.containers.set(sandboxId, sandbox);
-
-      // Find available port
-      const port = await this.findAvailablePort();
-
       // Create container configuration
       const containerConfig = this.createContainerConfig(
-        sandbox,
+        tempSandbox,
         port,
         request.useGVisor
       );
 
-      // Create and start container
+      // Create and start Docker container
       const container = await this.docker.createContainer(containerConfig);
       await container.start();
 
-      // Update sandbox record
-      sandbox.containerId = container.id;
-      sandbox.port = port;
-      sandbox.endpoint = `http://localhost:${port}`;
-      sandbox.status = 'ready';
-
-      logger.info('Sandbox provisioned successfully', {
-        sandboxId,
-        containerId: container.id,
-        port,
+      // Phase 3.5: Store sandbox state in Conversation via Prisma (persistent)
+      const conversation = await prisma.conversation.create({
+        data: {
+          id: conversationId,
+          userId: request.userId,
+          landingPageId: request.projectId,
+          sandboxId: container.id, // Docker container ID
+          sandboxStatus: 'ready',
+          sandboxPort: port,
+          sandboxCreatedAt: new Date(),
+          sandboxPublicUrl: `http://localhost:${port}`,
+          lastAccessedAt: new Date(),
+        },
       });
 
-      this.emit('sandbox-provisioned', sandbox);
+      logger.info('Sandbox provisioned successfully', {
+        conversationId,
+        containerId: container.id,
+        port,
+        sandboxId: container.id,
+      });
+
+      this.emit('sandbox-provisioned', {
+        id: conversationId,
+        userId: request.userId,
+        status: 'ready',
+        createdAt: conversation.startTime,
+        lastActivity: conversation.lastAccessedAt || new Date(),
+        resourceLimits: tempSandbox.resourceLimits,
+        containerId: container.id,
+        port,
+        endpoint: `http://localhost:${port}`,
+      });
 
       return {
-        containerId: sandboxId,
+        containerId: conversationId,
         status: 'ready',
-        endpoint: sandbox.endpoint,
+        endpoint: `http://localhost:${port}`,
         port,
       };
     } catch (error) {
-      logger.error('Failed to provision sandbox', { sandboxId, error });
+      logger.error('Failed to provision sandbox', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
-      // Update status to failed
-      const sandbox = this.containers.get(sandboxId);
-      if (sandbox) {
-        sandbox.status = 'failed';
+      // Phase 3.5: Mark as failed in database
+      try {
+        await prisma.conversation.upsert({
+          where: { id: conversationId },
+          create: {
+            id: conversationId,
+            userId: request.userId,
+            landingPageId: request.projectId,
+            sandboxStatus: 'failed',
+          },
+          update: {
+            sandboxStatus: 'failed',
+          },
+        });
+      } catch (dbError) {
+        logger.error('Failed to update sandbox status in database', {
+          dbError,
+        });
       }
 
       return {
-        containerId: sandboxId,
+        containerId: conversationId,
         status: 'failed',
         error: error instanceof Error ? error.message : 'Unknown error',
       };
@@ -146,85 +193,210 @@ export class SandboxProvisioningService extends EventEmitter {
   }
 
   /**
-   * Get sandbox information
+   * Get sandbox information from database
+   * Phase 3.5: Queries Conversation model instead of in-memory storage
    */
-  getSandbox(sandboxId: string): SandboxContainer | undefined {
-    return this.containers.get(sandboxId);
+  async getSandbox(
+    conversationId: string
+  ): Promise<SandboxContainer | undefined> {
+    try {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+      });
+
+      if (!conversation || !conversation.sandboxId) {
+        logger.info('Sandbox not found in database', {
+          conversationId,
+          found: false,
+        });
+        return undefined;
+      }
+
+      logger.info('Retrieved sandbox from database', {
+        conversationId,
+        found: true,
+        sandboxId: conversation.sandboxId,
+        sandboxStatus: conversation.sandboxStatus,
+        sandboxPort: conversation.sandboxPort,
+      });
+
+      return {
+        id: conversationId,
+        userId: conversation.userId || 'unknown',
+        status:
+          (conversation.sandboxStatus as
+            | 'provisioning'
+            | 'ready'
+            | 'running'
+            | 'stopped'
+            | 'failed') || 'failed',
+        createdAt: conversation.sandboxCreatedAt || conversation.startTime,
+        lastActivity: conversation.lastAccessedAt || new Date(),
+        resourceLimits: this.defaultResourceLimits,
+        containerId: conversation.sandboxId,
+        port: conversation.sandboxPort || undefined,
+        endpoint: conversation.sandboxPublicUrl || undefined,
+      };
+    } catch (error) {
+      logger.error('Error retrieving sandbox from database', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   /**
-   * Update sandbox activity timestamp
+   * Update sandbox activity timestamp in database
    */
-  updateActivity(sandboxId: string): void {
-    const sandbox = this.containers.get(sandboxId);
-    if (sandbox) {
-      sandbox.lastActivity = new Date();
+  async updateActivity(conversationId: string): Promise<void> {
+    try {
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          lastAccessedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      logger.warn('Failed to update sandbox activity', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
   /**
    * Stop and remove a sandbox
+   * Phase 3.5: Updates Conversation model to mark as stopped
    */
-  async destroySandbox(sandboxId: string): Promise<boolean> {
-    const sandbox = this.containers.get(sandboxId);
-    if (!sandbox || !sandbox.containerId) {
-      return false;
-    }
-
+  async destroySandbox(conversationId: string): Promise<boolean> {
     try {
-      const container = this.docker.getContainer(sandbox.containerId);
+      // Get sandbox from database
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+      });
 
-      // Stop container
+      if (!conversation || !conversation.sandboxId) {
+        logger.warn('Sandbox not found for destruction', { conversationId });
+        return false;
+      }
+
       try {
-        await container.stop({ t: 10 }); // 10 second timeout
+        const container = this.docker.getContainer(conversation.sandboxId);
+
+        // Stop container
+        try {
+          await container.stop({ t: 10 }); // 10 second timeout
+        } catch (error) {
+          // Container might already be stopped
+          logger.warn('Container already stopped', {
+            conversationId,
+            containerId: conversation.sandboxId,
+          });
+        }
+
+        // Remove container
+        await container.remove({ force: true });
       } catch (error) {
-        // Container might already be stopped
-        logger.warn('Container already stopped', {
-          sandboxId,
-          containerId: sandbox.containerId,
+        logger.warn('Failed to stop/remove Docker container', {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
 
-      // Remove container
-      await container.remove({ force: true });
-
-      // Remove from tracking
-      this.containers.delete(sandboxId);
+      // Phase 3.5: Mark as stopped in database
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          sandboxStatus: 'stopped',
+        },
+      });
 
       logger.info('Sandbox destroyed', {
-        sandboxId,
-        containerId: sandbox.containerId,
+        conversationId,
+        containerId: conversation.sandboxId,
       });
-      this.emit('sandbox-destroyed', sandbox);
+
+      this.emit('sandbox-destroyed', {
+        id: conversationId,
+        containerId: conversation.sandboxId,
+      });
 
       return true;
     } catch (error) {
-      logger.error('Failed to destroy sandbox', { sandboxId, error });
+      logger.error('Failed to destroy sandbox', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }
 
   /**
-   * List all active sandboxes for a user
+   * List all active sandboxes for a user from database
    */
-  getUserSandboxes(userId: string): SandboxContainer[] {
-    return Array.from(this.containers.values()).filter(
-      sandbox => sandbox.userId === userId && sandbox.status !== 'failed'
-    );
+  async getUserSandboxes(userId: string): Promise<SandboxContainer[]> {
+    try {
+      const conversations = await prisma.conversation.findMany({
+        where: {
+          userId,
+          sandboxStatus: {
+            in: ['provisioning', 'ready', 'running'],
+          },
+        },
+      });
+
+      return conversations
+        .filter(conv => conv.sandboxId)
+        .map(conv => ({
+          id: conv.id,
+          userId: conv.userId || 'unknown',
+          status:
+            (conv.sandboxStatus as
+              | 'provisioning'
+              | 'ready'
+              | 'running'
+              | 'stopped'
+              | 'failed') || 'failed',
+          createdAt: conv.sandboxCreatedAt || conv.startTime,
+          lastActivity: conv.lastAccessedAt || new Date(),
+          resourceLimits: this.defaultResourceLimits,
+          containerId: conv.sandboxId!,
+          port: conv.sandboxPort || undefined,
+          endpoint: conv.sandboxPublicUrl || undefined,
+        }));
+    } catch (error) {
+      logger.error('Failed to get user sandboxes', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
   }
 
   /**
-   * Get container statistics
+   * Get container statistics from Docker
    */
-  async getContainerStats(sandboxId: string): Promise<any> {
-    const sandbox = this.containers.get(sandboxId);
-    if (!sandbox || !sandbox.containerId) {
-      throw new Error('Sandbox not found');
-    }
+  async getContainerStats(conversationId: string): Promise<any> {
+    try {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+      });
 
-    const container = this.docker.getContainer(sandbox.containerId);
-    const stats = await container.stats({ stream: false });
-    return stats;
+      if (!conversation || !conversation.sandboxId) {
+        throw new Error('Sandbox not found');
+      }
+
+      const container = this.docker.getContainer(conversation.sandboxId);
+      const stats = await container.stats({ stream: false });
+      return stats;
+    } catch (error) {
+      logger.error('Failed to get container stats', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -341,27 +513,143 @@ export class SandboxProvisioningService extends EventEmitter {
   }
 
   /**
-   * Clean up idle containers
+   * Clean up idle containers from database
+   * Phase 3.5: Queries database instead of in-memory Map
    */
   private async cleanupIdleContainers(): Promise<void> {
-    const now = new Date();
-    const idleContainers: string[] = [];
+    try {
+      const now = new Date();
+      const idleThreshold = new Date(now.getTime() - this.maxIdleTime);
 
-    for (const [sandboxId, sandbox] of this.containers.entries()) {
-      const idleTime = now.getTime() - sandbox.lastActivity.getTime();
+      // Find idle sandboxes from database
+      const idleSandboxes = await prisma.conversation.findMany({
+        where: {
+          sandboxStatus: {
+            in: ['ready', 'running'],
+          },
+          lastAccessedAt: {
+            lt: idleThreshold,
+          },
+        },
+        select: {
+          id: true,
+          sandboxId: true,
+        },
+      });
 
-      if (idleTime > this.maxIdleTime) {
-        idleContainers.push(sandboxId);
+      if (idleSandboxes.length === 0) {
+        return;
       }
-    }
 
-    for (const sandboxId of idleContainers) {
-      logger.info('Cleaning up idle sandbox', { sandboxId });
-      await this.destroySandbox(sandboxId);
-    }
+      logger.info('Found idle sandboxes for cleanup', {
+        count: idleSandboxes.length,
+      });
 
-    if (idleContainers.length > 0) {
-      logger.info(`Cleaned up ${idleContainers.length} idle containers`);
+      // Destroy idle containers
+      for (const sandbox of idleSandboxes) {
+        logger.info('Cleaning up idle sandbox', {
+          conversationId: sandbox.id,
+          sandboxId: sandbox.sandboxId,
+        });
+        await this.destroySandbox(sandbox.id);
+      }
+
+      logger.info(`Cleaned up ${idleSandboxes.length} idle containers`);
+    } catch (error) {
+      logger.error('Error during sandbox cleanup', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Recover existing sandboxes from database on server startup
+   * Phase 3.5: Reconnects to existing Docker containers tracked in Conversation model
+   */
+  private async recoverExistingSandboxes(): Promise<void> {
+    try {
+      logger.info('Recovering existing sandboxes from database');
+
+      // Find all active sandboxes in database
+      const activeSandboxes = await prisma.conversation.findMany({
+        where: {
+          sandboxStatus: {
+            in: ['provisioning', 'ready', 'running'],
+          },
+          sandboxId: {
+            not: null,
+          },
+        },
+        select: {
+          id: true,
+          userId: true,
+          sandboxId: true,
+          sandboxStatus: true,
+          sandboxPort: true,
+        },
+      });
+
+      logger.info('Found sandboxes in database', {
+        count: activeSandboxes.length,
+      });
+
+      // Try to reconnect to each container
+      let recoveredCount = 0;
+      let failedCount = 0;
+
+      for (const sandbox of activeSandboxes) {
+        try {
+          const container = this.docker.getContainer(sandbox.sandboxId!);
+          const containerInfo = await container.inspect();
+
+          if (containerInfo.State.Running) {
+            logger.info('Successfully recovered sandbox', {
+              conversationId: sandbox.id,
+              containerId: sandbox.sandboxId,
+              port: sandbox.sandboxPort,
+            });
+            recoveredCount++;
+
+            // Update lastAccessedAt to current time
+            await prisma.conversation.update({
+              where: { id: sandbox.id },
+              data: { lastAccessedAt: new Date() },
+            });
+          } else {
+            logger.warn('Container not running, marking as stopped', {
+              conversationId: sandbox.id,
+              containerId: sandbox.sandboxId,
+            });
+            failedCount++;
+            await prisma.conversation.update({
+              where: { id: sandbox.id },
+              data: { sandboxStatus: 'stopped' },
+            });
+          }
+        } catch (error) {
+          logger.warn('Failed to recover sandbox, marking as failed', {
+            conversationId: sandbox.id,
+            containerId: sandbox.sandboxId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          failedCount++;
+
+          await prisma.conversation.update({
+            where: { id: sandbox.id },
+            data: { sandboxStatus: 'failed' },
+          });
+        }
+      }
+
+      logger.info('Sandbox recovery complete', {
+        total: activeSandboxes.length,
+        recovered: recoveredCount,
+        failed: failedCount,
+      });
+    } catch (error) {
+      logger.error('Error recovering sandboxes', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -383,12 +671,21 @@ export class SandboxProvisioningService extends EventEmitter {
 
       const baseImageExists = images.length > 0;
 
+      // Get active sandbox count from database
+      const activeSandboxCount = await prisma.conversation.count({
+        where: {
+          sandboxStatus: {
+            in: ['ready', 'running'],
+          },
+        },
+      });
+
       return {
         status: baseImageExists ? 'healthy' : 'unhealthy',
         details: {
           dockerConnected: true,
           baseImageExists,
-          activeContainers: this.containers.size,
+          activeSandboxCount,
           baseImage: this.baseImage,
         },
       };

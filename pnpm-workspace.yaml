@@ -9,5 +9,6 @@ onlyBuiltDependencies:
   - esbuild
   - prisma
   - protobufjs
+  - sharp
   - ssh2
   - unrs-resolver

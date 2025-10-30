@@ -77,13 +77,33 @@ export class SandboxManager {
       await this.initialize();
     }
 
-    return this.shellRunner.executeCommand(request);
+    logger.info('SandboxManager.executeCommand - delegating to shellRunner', {
+      sandboxId: request.sandboxId,
+      command: request.command,
+      args: request.args,
+    });
+
+    const result = await this.shellRunner.executeCommand(request);
+
+    logger.info('SandboxManager.executeCommand - result received', {
+      sandboxId: request.sandboxId,
+      command: request.command,
+      success: result.success,
+      exitCode: result.exitCode,
+      hasStderr: result.stderr.length > 0,
+      stderrLength: result.stderr.length,
+      hasStdout: result.stdout.length > 0,
+      stdoutLength: result.stdout.length,
+    });
+
+    return result;
   }
 
   /**
-   * Get sandbox information
+   * Get sandbox information from database
+   * Phase 3.5: Now async - queries from Conversation model
    */
-  getSandboxInfo(sandboxId: string) {
+  async getSandboxInfo(sandboxId: string) {
     return this.provisioningService.getSandbox(sandboxId);
   }
 

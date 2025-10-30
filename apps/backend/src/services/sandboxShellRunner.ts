@@ -52,14 +52,18 @@ export class SandboxShellRunner {
     'touch',
     'chmod',
     'chown',
+    'test', // Phase 3.5: File/directory existence checks
+    'stat', // Phase 3.5: File metadata
+    'tee', // Phase 3.5: Write files (for containerFilesystem)
 
-    // Text processing
+    // Text processing and search
     'sed',
     'awk',
     'cut',
     'tr',
     'diff',
     'patch',
+    'rg', // ripgrep - for fast file searching and globbing
 
     // Development tools
     'npm',
@@ -91,7 +95,8 @@ export class SandboxShellRunner {
   // Security: Dangerous command patterns to block
   private readonly blockedPatterns = [
     /sudo/i,
-    /su\s/i,
+    /^su\s/i, // Only block 'su ' at start of command
+    /\ssu\s/i, // Or 'su ' in the middle (not in file paths)
     /passwd/i,
     /adduser/i,
     /deluser/i,
@@ -99,8 +104,9 @@ export class SandboxShellRunner {
     /umount/i,
     /iptables/i,
     /netstat/i,
-    /ss\s/i,
-    /nc\s/i,
+    /^ss\s/i, // Only block 'ss ' at start of command (the network tool)
+    /^nc\s/i, // Only block 'nc ' at start
+    /\snc\s/i, // Or 'nc ' in the middle
     /netcat/i,
     /telnet/i,
     /ssh/i,
@@ -110,7 +116,7 @@ export class SandboxShellRunner {
     /systemctl/i,
     /service/i,
     /crontab/i,
-    /at\s/i,
+    /^at\s/i, // Only block 'at ' at start
     /batch/i,
     /nohup/i,
     /screen/i,
@@ -149,7 +155,7 @@ export class SandboxShellRunner {
       });
 
       // Validate sandbox exists and is ready
-      const sandbox = this.sandboxService.getSandbox(request.sandboxId);
+      const sandbox = await this.sandboxService.getSandbox(request.sandboxId);
       if (!sandbox) {
         throw new Error('Sandbox not found');
       }
@@ -163,7 +169,7 @@ export class SandboxShellRunner {
       }
 
       // Update activity timestamp
-      this.sandboxService.updateActivity(request.sandboxId);
+      await this.sandboxService.updateActivity(request.sandboxId);
 
       // Validate and sanitize command
       const validation = this.validateCommand(request.command, request.args);
@@ -172,6 +178,10 @@ export class SandboxShellRunner {
       }
 
       // Get container reference
+      logger.debug('SandboxShellRunner.executeCommand - Getting container reference', {
+        containerId: sandbox.containerId,
+      });
+
       const container = this.docker.getContainer(sandbox.containerId);
 
       // Prepare execution options
@@ -196,19 +206,35 @@ export class SandboxShellRunner {
           : undefined,
       };
 
+      logger.debug('SandboxShellRunner.executeCommand - Prepared exec options', {
+        cmd: execOptions.Cmd,
+        workingDir: execOptions.WorkingDir,
+        timeout,
+      });
+
       // Create exec instance
+      logger.debug('SandboxShellRunner.executeCommand - Creating exec instance');
       const exec = await container.exec(execOptions);
 
       // Execute with timeout
+      logger.debug('SandboxShellRunner.executeCommand - Executing with timeout', {
+        timeout,
+      });
+
       const result = await this.executeWithTimeout(exec, timeout);
 
       const executionTime = Date.now() - startTime;
 
-      logger.info('Command executed successfully', {
+      logger.info('SandboxShellRunner.executeCommand - Command executed', {
         sandboxId: request.sandboxId,
         command: request.command,
         exitCode: result.exitCode,
         executionTime,
+        stdoutLength: result.stdout.length,
+        stderrLength: result.stderr.length,
+        success: result.exitCode === 0,
+        stdout: result.stdout.substring(0, 100),
+        stderr: result.stderr.substring(0, 100),
       });
 
       return {
@@ -403,7 +429,7 @@ export class SandboxShellRunner {
     network: { rx: number; tx: number };
     processes: number;
   }> {
-    const sandbox = this.sandboxService.getSandbox(sandboxId);
+    const sandbox = await this.sandboxService.getSandbox(sandboxId);
     if (!sandbox || !sandbox.containerId) {
       throw new Error('Sandbox not found');
     }

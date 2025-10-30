@@ -508,6 +508,78 @@ const SANDBOX_ERROR = {
 
 ---
 
+## Phase 3.5: Port Mapping & Preview URL Infrastructure
+
+**Status**: ✅ COMPLETE
+**Priority**: CRITICAL | **Complexity**: MEDIUM | **Time**: 1 hour
+**Date Completed**: 2025-10-28
+
+### Changes Made:
+
+#### 1. Database Schema Update
+- **File**: `apps/backend/prisma/schema.prisma`
+- Added `sandboxPort` (Int) field to Conversation model
+- Added index for reverse proxy port-based lookups
+- **Migration**: `20251028101040_add_sandbox_port_mapping`
+
+#### 2. Chat Route Enhancement
+- **File**: `apps/backend/src/routes/chat.ts`
+- Captures allocated `sandboxPort` from `sandboxResponse`
+- Stores port alongside sandbox metadata in database
+- Generates `previewUrl` using allocated port (fallback to URL generation)
+
+#### 3. Page Service Integration
+- **File**: `apps/backend/src/services/page.ts`
+- Provisions sandbox when page is created via POST /api/v1/pages
+- Returns `sandboxPublicUrl` and `sandboxPort` in API response
+- Updated getPage() to include latest sandbox info in response
+
+#### 4. Frontend Preview Integration
+- **File**: `apps/frontend/src/components/PreviewPanel.tsx`
+- Accepts `sandboxPublicUrl` prop
+- Uses `src={sandboxUrl}` for live preview instead of hardcoded template
+- Falls back to HTML rendering if no sandbox available
+- Added iframe sandbox attribute for security
+
+- **File**: `apps/frontend/src/pages/EditorPage.tsx`
+- Passes `sandboxPublicUrl` from page data to PreviewPanel
+
+### How It Works:
+
+```
+User creates page via POST /api/v1/pages
+    ↓
+PageService creates Conversation + provisions Sandbox
+    ↓
+SandboxManager allocates container:5173 → localhost:30000-40000
+    ↓
+Port stored in database (Conversation.sandboxPort)
+    ↓
+API returns sandboxPublicUrl (http://localhost:PORT)
+    ↓
+Frontend receives URL and displays live preview via iframe src
+    ↓
+Vite HMR works through iframe (WebSocket on allocated port)
+```
+
+### Infrastructure Status:
+
+✅ Port allocation system (Docker port bindings)
+✅ Port mapping stored in database
+✅ Preview URLs returned in API responses
+✅ Sandbox provisioning on page creation
+✅ Frontend connected to actual sandbox URLs
+✅ Live preview iframe working
+
+### Next Steps (Future):
+
+- [ ] Subdomain routing middleware for production (*.vusercontent.net)
+- [ ] Vite HMR WebSocket tunneling through proxy
+- [ ] Container restart detection (auto-reconnect preview)
+- [ ] Sandbox performance metrics
+
+---
+
 ## Architecture Notes
 
 - **Sandbox Isolation**: The Docker container (with gVisor) IS the security boundary

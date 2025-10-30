@@ -29,6 +29,7 @@ export default [
       '@stylistic/comma-dangle': 'off',
       '@stylistic/spaced-comment': 'off',
       '@stylistic/semi': 'off',
+      '@stylistic/generator-star-spacing': 'off',
     },
   },
 ];

@@ -3,7 +3,7 @@ import type {
   ToolExecutionContext,
 } from '@instabuild/shared/types';
 import {
-  convertToCoreMessages,
+  convertToModelMessages,
   hasToolCall,
   stepCountIs,
   streamText,
@@ -310,8 +310,19 @@ export class AgenticAIService {
       reasoning: selection.reasoning,
     });
 
-    // Convert UI messages to core messages format
-    const coreMessages = convertToCoreMessages(messages);
+    // Log message format for debugging
+    logger.debug('Processing messages for agentic chat', {
+      conversationId,
+      messageCount: messages.length,
+      firstMessage: messages[0]
+        ? {
+            id: messages[0]?.id,
+            role: messages[0]?.role,
+            contentType: typeof messages[0]?.content,
+            content: messages[0]?.content,
+          }
+        : null,
+    });
 
     // Create execution context for tools
     const executionContext: ToolExecutionContext = {
@@ -327,7 +338,7 @@ export class AgenticAIService {
     // Configure multi-step execution with Vercel AI SDK
     const result = streamText({
       model,
-      messages: coreMessages,
+      messages: convertToModelMessages(messages),
       tools: availableTools,
       stopWhen: taskConfig.stopConditions,
       system: this.buildSystemPrompt(
@@ -482,6 +493,45 @@ export class AgenticAIService {
         }
       },
       onFinish: async finalResult => {
+        try {
+          // Save assistant message to database BEFORE finishing
+          // This ensures the message is persisted before the stream completes
+          const { prisma } = await import('../server.js');
+
+          // Get all tool calls from all steps
+          const allToolCalls =
+            finalResult.steps?.flatMap(step => step.toolCalls || []) || [];
+
+          // Save AI message to database
+          await prisma.chatMessage.create({
+            data: {
+              conversationId,
+              landingPageId,
+              senderType: 'AI',
+              role: 'assistant',
+              content: finalResult.text || '',
+              metadata: {
+                totalSteps: finalResult.steps?.length || 0,
+                finishReason: finalResult.finishReason,
+                totalUsage: finalResult.usage,
+                toolCallsCount: allToolCalls.length,
+              },
+            },
+          });
+
+          logger.info('AI message persisted to database', {
+            conversationId,
+            messageLength: finalResult.text?.length || 0,
+            toolCallsCount: allToolCalls.length,
+          });
+        } catch (persistError) {
+          logger.error('Failed to persist AI message', {
+            conversationId,
+            error:
+              persistError instanceof Error ? persistError.message : String(persistError),
+          });
+        }
+
         // Complete reasoning step
         reasoningTransparencyService.completeReasoningStep(
           conversationId,

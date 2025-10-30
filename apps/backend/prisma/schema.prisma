@@ -72,6 +72,9 @@ model Conversation {
   sandboxId      String?  // Docker container ID for this conversation's sandbox
   sandboxStatus  String?  @db.VarChar(50) // Status: pending, ready, failed, terminated
   sandboxCreatedAt DateTime? // Timestamp when sandbox was provisioned
+  sandboxPublicUrl String? // Public preview URL for accessing sandbox
+  // Phase 3.5: Port mapping for preview access
+  sandboxPort    Int?     // Allocated host port (30000-40000) for preview access
   // Phase 2: Sandbox lifecycle - 4 hour idle timeout
   lastAccessedAt DateTime? // Last time this conversation was used (for idle cleanup)
 
@@ -81,6 +84,7 @@ model Conversation {
   modelUsage     ModelUsage[]
 
   @@index([sandboxId])  // Index for fast lookups by sandbox
+  @@index([sandboxPort])  // Index for reverse proxy lookups
   @@index([sandboxStatus])  // Index for cleanup queries
   @@index([lastAccessedAt])  // Index for idle timeout cleanup
   @@map("conversations")

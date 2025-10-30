@@ -125,16 +125,33 @@ export class ChatPersistenceService {
 
   /**
    * Get or create a conversation for a landing page
+   * Phase 3.5: Prioritize conversations with ready sandboxes to ensure sandboxId is available
    * @param landingPageId - The landing page ID
    * @param userId - Optional user ID
    * @returns The conversation
    */
   async getOrCreatePageConversation(landingPageId: string, userId?: string) {
-    // Try to find existing conversation for this page
+    // Phase 3.5: First, prioritize conversations with ready sandboxes
+    // This ensures the conversation has sandboxId set for tool execution
+    const readySandboxConversation = await prisma.conversation.findFirst({
+      where: {
+        landingPageId,
+        sandboxStatus: 'ready',
+      },
+      orderBy: {
+        startTime: 'desc',
+      },
+    });
+
+    if (readySandboxConversation && readySandboxConversation.sandboxId) {
+      return readySandboxConversation;
+    }
+
+    // Fallback: Try to find any existing conversation for this page
+    // Don't filter by userId - just find any conversation for this landing page
     const existingConversation = await prisma.conversation.findFirst({
       where: {
         landingPageId,
-        userId: userId || null,
       },
       orderBy: {
         lastUpdateTime: 'desc',

@@ -13,6 +13,7 @@ import { VersionSelector } from './editor/VersionSelector';
 interface PreviewPanelProps {
   pageId: string;
   currentVersion?: LandingPageVersion;
+  sandboxPublicUrl?: string;
   onToggleChat?: () => void;
   isChatVisible?: boolean;
 }
@@ -20,24 +21,27 @@ interface PreviewPanelProps {
 export function PreviewPanel({
   pageId,
   currentVersion,
+  sandboxPublicUrl,
   onToggleChat,
   isChatVisible = true,
 }: PreviewPanelProps) {
   const [previewContent, setPreviewContent] = useState<string>('');
-  const [previewUrl, setPreviewUrl] = useState<string>(
-    'preview://landing-page'
-  );
+  const [previewUrl, setPreviewUrl] = useState<string>('');
   const [iframeKey, setIframeKey] = useState<number>(0);
-  const [navigationHistory] = useState<string[]>(['preview://landing-page']);
+  const [navigationHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   useEffect(() => {
-    if (currentVersion?.sourceCode) {
-      // Convert React component to HTML for preview
+    if (sandboxPublicUrl) {
+      // Use the actual sandbox URL for live preview
+      setPreviewUrl(sandboxPublicUrl);
+    } else if (currentVersion?.sourceCode) {
+      // Fallback: Convert React component to HTML for preview if no sandbox
       const htmlContent = convertReactToHtml(currentVersion.sourceCode);
       setPreviewContent(htmlContent);
+      setPreviewUrl('preview://landing-page');
     }
-  }, [currentVersion]);
+  }, [sandboxPublicUrl, currentVersion]);
 
   const handleReload = () => {
     setIframeKey(prev => prev + 1);
@@ -188,10 +192,11 @@ export function PreviewPanel({
 
       {/* Preview */}
       <div className="flex-1 bg-gray-900">
-        {previewContent ? (
+        {previewUrl ? (
           <iframe
             key={iframeKey}
-            srcDoc={previewContent}
+            src={sandboxPublicUrl ? previewUrl : undefined}
+            srcDoc={sandboxPublicUrl ? undefined : previewContent}
             className="w-full h-full border-0"
             title="Landing Page Preview"
           />
