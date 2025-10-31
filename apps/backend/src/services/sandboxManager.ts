@@ -180,7 +180,7 @@ export class SandboxManager {
     );
 
     // Destroy all active sandboxes
-    const destroyPromises = allSandboxes.map(sandbox =>
+    const destroyPromises = allSandboxes.map((sandbox: any) =>
       this.provisioningService.destroySandbox(sandbox.id)
     );
 

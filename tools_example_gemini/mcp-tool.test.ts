@@ -32,13 +32,13 @@ describe('generateValidName', () => {
 
   it('should replace invalid characters with underscores', () => {
     expect(generateValidName('invalid-name with spaces')).toBe(
-      'invalid-name_with_spaces',
+      'invalid-name_with_spaces'
     );
   });
 
   it('should truncate long names', () => {
     expect(generateValidName('x'.repeat(80))).toBe(
-      'xxxxxxxxxxxxxxxxxxxxxxxxxxxx___xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      'xxxxxxxxxxxxxxxxxxxxxxxxxxxx___xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     );
   });
 
@@ -79,7 +79,7 @@ describe('DiscoveredMCPTool', () => {
       serverName,
       serverToolName,
       baseDescription,
-      inputSchema,
+      inputSchema
     );
     // Clear allowlist before each relevant test, especially for shouldConfirmExecute
     const invocation = tool.build({ param: 'mock' }) as any;
@@ -126,7 +126,7 @@ describe('DiscoveredMCPTool', () => {
 
       const invocation = tool.build(params);
       const toolResult: ToolResult = await invocation.execute(
-        new AbortController().signal,
+        new AbortController().signal
       );
 
       expect(mockCallTool).toHaveBeenCalledWith([
@@ -134,7 +134,7 @@ describe('DiscoveredMCPTool', () => {
       ]);
 
       const stringifiedResponseContent = JSON.stringify(
-        mockToolSuccessResultObject,
+        mockToolSuccessResultObject
       );
       expect(toolResult.llmContent).toEqual([
         { text: stringifiedResponseContent },
@@ -148,7 +148,7 @@ describe('DiscoveredMCPTool', () => {
       mockCallTool.mockResolvedValue(mockMcpToolResponsePartsEmpty);
       const invocation = tool.build(params);
       const toolResult: ToolResult = await invocation.execute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(toolResult.returnDisplay).toBe('```json\n[]\n```');
       expect(toolResult.llmContent).toEqual([
@@ -163,7 +163,7 @@ describe('DiscoveredMCPTool', () => {
 
       const invocation = tool.build(params);
       await expect(
-        invocation.execute(new AbortController().signal),
+        invocation.execute(new AbortController().signal)
       ).rejects.toThrow(expectedError);
     });
 
@@ -178,7 +178,7 @@ describe('DiscoveredMCPTool', () => {
           serverName,
           serverToolName,
           baseDescription,
-          inputSchema,
+          inputSchema
         );
         const params = { param: 'isErrorTrueCase' };
         const functionCall = {
@@ -199,7 +199,7 @@ describe('DiscoveredMCPTool', () => {
         const expectedErrorMessage = `MCP tool '${
           serverToolName
         }' reported tool error for function call: ${safeJsonStringify(
-          functionCall,
+          functionCall
         )} with response: ${safeJsonStringify(mockMcpToolResponseParts)}`;
         const invocation = tool.build(params);
         const result = await invocation.execute(new AbortController().signal);
@@ -207,9 +207,9 @@ describe('DiscoveredMCPTool', () => {
         expect(result.error?.type).toBe(ToolErrorType.MCP_TOOL_ERROR);
         expect(result.llmContent).toBe(expectedErrorMessage);
         expect(result.returnDisplay).toContain(
-          `Error: MCP tool '${serverToolName}' reported an error.`,
+          `Error: MCP tool '${serverToolName}' reported an error.`
         );
-      },
+      }
     );
 
     it.each([
@@ -223,7 +223,7 @@ describe('DiscoveredMCPTool', () => {
           serverName,
           serverToolName,
           baseDescription,
-          inputSchema,
+          inputSchema
         );
         const params = { param: 'isErrorFalseCase' };
         const mockToolSuccessResultObject = {
@@ -253,17 +253,17 @@ describe('DiscoveredMCPTool', () => {
 
         const invocation = tool.build(params);
         const toolResult = await invocation.execute(
-          new AbortController().signal,
+          new AbortController().signal
         );
 
         const stringifiedResponseContent = JSON.stringify(
-          mockToolSuccessResultObject,
+          mockToolSuccessResultObject
         );
         expect(toolResult.llmContent).toEqual([
           { text: stringifiedResponseContent },
         ]);
         expect(toolResult.returnDisplay).toBe(stringifiedResponseContent);
-      },
+      }
     );
 
     it('should handle a simple text response correctly', async () => {
@@ -367,7 +367,7 @@ describe('DiscoveredMCPTool', () => {
         },
       ]);
       expect(toolResult.returnDisplay).toBe(
-        '[Link to My Resource: file:///path/to/thing]',
+        '[Link to My Resource: file:///path/to/thing]'
       );
     });
 
@@ -441,7 +441,7 @@ describe('DiscoveredMCPTool', () => {
         },
       ]);
       expect(toolResult.returnDisplay).toBe(
-        '[Embedded Resource: application/octet-stream]',
+        '[Embedded Resource: application/octet-stream]'
       );
     });
 
@@ -484,7 +484,7 @@ describe('DiscoveredMCPTool', () => {
         { text: 'Second part.' },
       ]);
       expect(toolResult.returnDisplay).toBe(
-        'First part.\n[Image: image/jpeg]\nSecond part.',
+        'First part.\n[Image: image/jpeg]\nSecond part.'
       );
     });
 
@@ -510,7 +510,7 @@ describe('DiscoveredMCPTool', () => {
 
       expect(toolResult.llmContent).toEqual([{ text: 'Valid part.' }]);
       expect(toolResult.returnDisplay).toBe(
-        'Valid part.\n[Unknown content type: future_block]',
+        'Valid part.\n[Unknown content type: future_block]'
       );
     });
 
@@ -569,7 +569,7 @@ describe('DiscoveredMCPTool', () => {
         },
       ]);
       expect(toolResult.returnDisplay).toBe(
-        'Here is a resource.\n[Link to My Resource: file:///path/to/resource]\nEmbedded text content.\n[Image: image/jpeg]',
+        'Here is a resource.\n[Link to My Resource: file:///path/to/resource]\nEmbedded text content.\n[Image: image/jpeg]'
       );
     });
 
@@ -582,7 +582,7 @@ describe('DiscoveredMCPTool', () => {
         const invocation = tool.build(params);
 
         await expect(invocation.execute(controller.signal)).rejects.toThrow(
-          'Tool call aborted',
+          'Tool call aborted'
         );
 
         // Tool should not be called if signal is already aborted
@@ -596,7 +596,7 @@ describe('DiscoveredMCPTool', () => {
         // Mock a delayed response to simulate long-running tool
         mockCallTool.mockImplementation(
           () =>
-            new Promise((resolve) => {
+            new Promise(resolve => {
               setTimeout(() => {
                 resolve([
                   {
@@ -609,7 +609,7 @@ describe('DiscoveredMCPTool', () => {
                   },
                 ]);
               }, 1000);
-            }),
+            })
         );
 
         const invocation = tool.build(params);
@@ -666,7 +666,7 @@ describe('DiscoveredMCPTool', () => {
 
         expect(result.error?.type).toBe(ToolErrorType.MCP_TOOL_ERROR);
         expect(result.returnDisplay).toContain(
-          `Error: MCP tool '${serverToolName}' reported an error.`,
+          `Error: MCP tool '${serverToolName}' reported an error.`
         );
       });
 
@@ -680,7 +680,7 @@ describe('DiscoveredMCPTool', () => {
         const invocation = tool.build(params);
 
         await expect(invocation.execute(controller.signal)).rejects.toThrow(
-          expectedError,
+          expectedError
         );
       });
 
@@ -739,11 +739,11 @@ describe('DiscoveredMCPTool', () => {
         inputSchema,
         true,
         undefined,
-        { isTrustedFolder: () => true } as any,
+        { isTrustedFolder: () => true } as any
       );
       const invocation = trustedTool.build({ param: 'mock' });
       expect(
-        await invocation.shouldConfirmExecute(new AbortController().signal),
+        await invocation.shouldConfirmExecute(new AbortController().signal)
       ).toBe(false);
     });
 
@@ -751,7 +751,7 @@ describe('DiscoveredMCPTool', () => {
       const invocation = tool.build({ param: 'mock' }) as any;
       invocation.constructor.allowlist.add(serverName);
       expect(
-        await invocation.shouldConfirmExecute(new AbortController().signal),
+        await invocation.shouldConfirmExecute(new AbortController().signal)
       ).toBe(false);
     });
 
@@ -760,14 +760,14 @@ describe('DiscoveredMCPTool', () => {
       const invocation = tool.build({ param: 'mock' }) as any;
       invocation.constructor.allowlist.add(toolAllowlistKey);
       expect(
-        await invocation.shouldConfirmExecute(new AbortController().signal),
+        await invocation.shouldConfirmExecute(new AbortController().signal)
       ).toBe(false);
     });
 
     it('should return confirmation details if not trusted and not allowlisted', async () => {
       const invocation = tool.build({ param: 'mock' });
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       if (confirmation && confirmation.type === 'mcp') {
@@ -778,11 +778,11 @@ describe('DiscoveredMCPTool', () => {
       } else if (confirmation) {
         // Handle other possible confirmation types if necessary, or strengthen test if only MCP is expected
         throw new Error(
-          'Confirmation was not of expected type MCP or was false',
+          'Confirmation was not of expected type MCP or was false'
         );
       } else {
         throw new Error(
-          'Confirmation details not in expected format or was false',
+          'Confirmation details not in expected format or was false'
         );
       }
     });
@@ -790,7 +790,7 @@ describe('DiscoveredMCPTool', () => {
     it('should add server to allowlist on ProceedAlwaysServer', async () => {
       const invocation = tool.build({ param: 'mock' }) as any;
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       if (
@@ -800,12 +800,12 @@ describe('DiscoveredMCPTool', () => {
         typeof confirmation.onConfirm === 'function'
       ) {
         await confirmation.onConfirm(
-          ToolConfirmationOutcome.ProceedAlwaysServer,
+          ToolConfirmationOutcome.ProceedAlwaysServer
         );
         expect(invocation.constructor.allowlist.has(serverName)).toBe(true);
       } else {
         throw new Error(
-          'Confirmation details or onConfirm not in expected format',
+          'Confirmation details or onConfirm not in expected format'
         );
       }
     });
@@ -814,7 +814,7 @@ describe('DiscoveredMCPTool', () => {
       const toolAllowlistKey = `${serverName}.${serverToolName}`;
       const invocation = tool.build({ param: 'mock' }) as any;
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       if (
@@ -825,11 +825,11 @@ describe('DiscoveredMCPTool', () => {
       ) {
         await confirmation.onConfirm(ToolConfirmationOutcome.ProceedAlwaysTool);
         expect(invocation.constructor.allowlist.has(toolAllowlistKey)).toBe(
-          true,
+          true
         );
       } else {
         throw new Error(
-          'Confirmation details or onConfirm not in expected format',
+          'Confirmation details or onConfirm not in expected format'
         );
       }
     });
@@ -837,7 +837,7 @@ describe('DiscoveredMCPTool', () => {
     it('should handle Cancel confirmation outcome', async () => {
       const invocation = tool.build({ param: 'mock' }) as any;
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       if (
@@ -851,12 +851,12 @@ describe('DiscoveredMCPTool', () => {
         expect(invocation.constructor.allowlist.has(serverName)).toBe(false);
         expect(
           invocation.constructor.allowlist.has(
-            `${serverName}.${serverToolName}`,
-          ),
+            `${serverName}.${serverToolName}`
+          )
         ).toBe(false);
       } else {
         throw new Error(
-          'Confirmation details or onConfirm not in expected format',
+          'Confirmation details or onConfirm not in expected format'
         );
       }
     });
@@ -864,7 +864,7 @@ describe('DiscoveredMCPTool', () => {
     it('should handle ProceedOnce confirmation outcome', async () => {
       const invocation = tool.build({ param: 'mock' }) as any;
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       if (
@@ -878,12 +878,12 @@ describe('DiscoveredMCPTool', () => {
         expect(invocation.constructor.allowlist.has(serverName)).toBe(false);
         expect(
           invocation.constructor.allowlist.has(
-            `${serverName}.${serverToolName}`,
-          ),
+            `${serverName}.${serverToolName}`
+          )
         ).toBe(false);
       } else {
         throw new Error(
-          'Confirmation details or onConfirm not in expected format',
+          'Confirmation details or onConfirm not in expected format'
         );
       }
     });
@@ -903,11 +903,11 @@ describe('DiscoveredMCPTool', () => {
         inputSchema,
         true, // trust = true
         undefined,
-        mockConfig(true) as any, // isTrustedFolder = true
+        mockConfig(true) as any // isTrustedFolder = true
       );
       const invocation = trustedTool.build({ param: 'mock' });
       expect(
-        await invocation.shouldConfirmExecute(new AbortController().signal),
+        await invocation.shouldConfirmExecute(new AbortController().signal)
       ).toBe(false);
     });
 
@@ -920,11 +920,11 @@ describe('DiscoveredMCPTool', () => {
         inputSchema,
         true, // trust = true
         undefined,
-        mockConfig(false) as any, // isTrustedFolder = false
+        mockConfig(false) as any // isTrustedFolder = false
       );
       const invocation = trustedTool.build({ param: 'mock' });
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       expect(confirmation).toHaveProperty('type', 'mcp');
@@ -939,11 +939,11 @@ describe('DiscoveredMCPTool', () => {
         inputSchema,
         false, // trust = false
         undefined,
-        mockConfig(true) as any, // isTrustedFolder = true
+        mockConfig(true) as any // isTrustedFolder = true
       );
       const invocation = untrustedTool.build({ param: 'mock' });
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(confirmation).not.toBe(false);
       expect(confirmation).toHaveProperty('type', 'mcp');

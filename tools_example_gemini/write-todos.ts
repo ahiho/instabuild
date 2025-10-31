@@ -109,12 +109,12 @@ class WriteTodosToolInvocation extends BaseToolInvocation<
 
   async execute(
     _signal: AbortSignal,
-    _updateOutput?: (output: string) => void,
+    _updateOutput?: (output: string) => void
   ): Promise<ToolResult> {
     const todos = this.params.todos ?? [];
     const todoListString = todos
       .map(
-        (todo, index) => `${index + 1}. [${todo.status}] ${todo.description}`,
+        (todo, index) => `${index + 1}. [${todo.status}] ${todo.description}`
       )
       .join('\n');
 
@@ -168,12 +168,12 @@ export class WriteTodosTool extends BaseDeclarativeTool<
           },
         },
         required: ['todos'],
-      },
+      }
     );
   }
 
   protected override validateToolParamValues(
-    params: WriteTodosToolParams,
+    params: WriteTodosToolParams
   ): string | null {
     const todos = params?.todos;
     if (!params || !Array.isArray(todos)) {
@@ -193,7 +193,7 @@ export class WriteTodosTool extends BaseDeclarativeTool<
     }
 
     const inProgressCount = todos.filter(
-      (todo: Todo) => todo.status === 'in_progress',
+      (todo: Todo) => todo.status === 'in_progress'
     ).length;
 
     if (inProgressCount > 1) {
@@ -207,7 +207,7 @@ export class WriteTodosTool extends BaseDeclarativeTool<
     params: WriteTodosToolParams,
     _messageBus?: MessageBus,
     _toolName?: string,
-    _displayName?: string,
+    _displayName?: string
   ): ToolInvocation<WriteTodosToolParams, ToolResult> {
     return new WriteTodosToolInvocation(params);
   }

@@ -71,13 +71,13 @@ class DiscoveredMCPToolInvocation extends BaseToolInvocation<
     readonly displayName: string,
     readonly trust?: boolean,
     params: ToolParams = {},
-    private readonly cliConfig?: Config,
+    private readonly cliConfig?: Config
   ) {
     super(params);
   }
 
   override async shouldConfirmExecute(
-    _abortSignal: AbortSignal,
+    _abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     const serverAllowListKey = this.serverName;
     const toolAllowListKey = `${this.serverName}.${this.serverToolName}`;
@@ -161,11 +161,11 @@ class DiscoveredMCPToolInvocation extends BaseToolInvocation<
 
       this.mcpTool
         .callTool(functionCalls)
-        .then((res) => {
+        .then(res => {
           cleanup();
           resolve(res);
         })
-        .catch((err) => {
+        .catch(err => {
           cleanup();
           reject(err);
         });
@@ -176,7 +176,7 @@ class DiscoveredMCPToolInvocation extends BaseToolInvocation<
       const errorMessage = `MCP tool '${
         this.serverToolName
       }' reported tool error for function call: ${safeJsonStringify(
-        functionCalls[0],
+        functionCalls[0]
       )} with response: ${safeJsonStringify(rawResponseParts)}`;
       return {
         llmContent: errorMessage,
@@ -214,7 +214,7 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
     readonly trust?: boolean,
     nameOverride?: string,
     private readonly cliConfig?: Config,
-    override readonly extensionId?: string,
+    override readonly extensionId?: string
   ) {
     super(
       nameOverride ?? generateValidName(serverToolName),
@@ -225,7 +225,7 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
       true, // isOutputMarkdown
       false, // canUpdateOutput
       undefined, // messageBus
-      extensionId,
+      extensionId
     );
   }
 
@@ -239,7 +239,7 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
       this.trust,
       `${this.serverName}__${this.serverToolName}`,
       this.cliConfig,
-      this.extensionId,
+      this.extensionId
     );
   }
 
@@ -247,7 +247,7 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
     params: ToolParams,
     _messageBus?: MessageBus,
     _toolName?: string,
-    _displayName?: string,
+    _displayName?: string
   ): ToolInvocation<ToolParams, ToolResult> {
     return new DiscoveredMCPToolInvocation(
       this.mcpTool,
@@ -256,7 +256,7 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
       this.displayName,
       this.trust,
       params,
-      this.cliConfig,
+      this.cliConfig
     );
   }
 }
@@ -267,7 +267,7 @@ function transformTextBlock(block: McpTextBlock): Part {
 
 function transformImageAudioBlock(
   block: McpMediaBlock,
-  toolName: string,
+  toolName: string
 ): Part[] {
   return [
     {
@@ -286,7 +286,7 @@ function transformImageAudioBlock(
 
 function transformResourceBlock(
   block: McpResourceBlock,
-  toolName: string,
+  toolName: string
 ): Part | Part[] | null {
   const resource = block.resource;
   if (resource?.text) {
@@ -345,7 +345,7 @@ function transformMcpContentToParts(sdkResponse: Part[]): Part[] {
         default:
           return null;
       }
-    },
+    }
   );
 
   return transformed.filter((part): part is Part => part !== null);

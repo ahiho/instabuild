@@ -112,7 +112,7 @@ describe('canUseRipgrep', () => {
               .then(() => resolve())
               .catch(reject);
           }, 0);
-        }),
+        })
     );
 
     const firstCall = ensureRgPath();
@@ -194,7 +194,7 @@ describe('ensureRgPath', () => {
       expect(rgPath).toBe(expectedRgExePath);
       expect(downloadRipGrep).not.toHaveBeenCalled();
       await expect(fs.access(expectedRgExePath)).resolves.toBeUndefined();
-    },
+    }
   );
 });
 
@@ -204,7 +204,7 @@ function createMockSpawn(
     outputData?: string;
     exitCode?: number;
     signal?: string;
-  } = {},
+  } = {}
 ) {
   const { outputData, exitCode = 0, signal } = options;
 
@@ -226,11 +226,11 @@ function createMockSpawn(
     // Set up event listeners immediately
     setTimeout(() => {
       const stdoutDataHandler = mockProcess.stdout.on.mock.calls.find(
-        (call) => call[0] === 'data',
+        call => call[0] === 'data'
       )?.[1];
 
       const closeHandler = mockProcess.on.mock.calls.find(
-        (call) => call[0] === 'close',
+        call => call[0] === 'close'
       )?.[1];
 
       if (stdoutDataHandler && outputData) {
@@ -277,20 +277,20 @@ describe('RipGrepTool', () => {
     // Create some test files and directories
     await fs.writeFile(
       path.join(tempRootDir, 'fileA.txt'),
-      'hello world\nsecond line with world',
+      'hello world\nsecond line with world'
     );
     await fs.writeFile(
       path.join(tempRootDir, 'fileB.js'),
-      'const foo = "bar";\nfunction baz() { return "hello"; }',
+      'const foo = "bar";\nfunction baz() { return "hello"; }'
     );
     await fs.mkdir(path.join(tempRootDir, 'sub'));
     await fs.writeFile(
       path.join(tempRootDir, 'sub', 'fileC.txt'),
-      'another world in sub dir',
+      'another world in sub dir'
     );
     await fs.writeFile(
       path.join(tempRootDir, 'sub', 'fileD.md'),
-      '# Markdown file\nThis is a test.',
+      '# Markdown file\nThis is a test.'
     );
   });
 
@@ -323,7 +323,7 @@ describe('RipGrepTool', () => {
     it('should return error if pattern is missing', () => {
       const params = { path: '.' } as unknown as RipGrepToolParams;
       expect(grepTool.validateToolParams(params)).toBe(
-        `params must have required property 'pattern'`,
+        `params must have required property 'pattern'`
       );
     });
 
@@ -339,7 +339,7 @@ describe('RipGrepTool', () => {
       };
       // Check for the core error message, as the full path might vary
       expect(grepTool.validateToolParams(params)).toContain(
-        'Failed to access path stats for',
+        'Failed to access path stats for'
       );
       expect(grepTool.validateToolParams(params)).toContain('nonexistent');
     });
@@ -348,7 +348,7 @@ describe('RipGrepTool', () => {
       const filePath = path.join(tempRootDir, 'fileA.txt');
       const params: RipGrepToolParams = { pattern: 'hello', path: filePath };
       expect(grepTool.validateToolParams(params)).toContain(
-        `Path is not a directory: ${filePath}`,
+        `Path is not a directory: ${filePath}`
       );
     });
   });
@@ -359,20 +359,20 @@ describe('RipGrepTool', () => {
         createMockSpawn({
           outputData: `fileA.txt:1:hello world${EOL}fileA.txt:2:second line with world${EOL}sub/fileC.txt:1:another world in sub dir${EOL}`,
           exitCode: 0,
-        }),
+        })
       );
 
       const params: RipGrepToolParams = { pattern: 'world' };
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 3 matches for pattern "world" in the workspace directory',
+        'Found 3 matches for pattern "world" in the workspace directory'
       );
       expect(result.llmContent).toContain('File: fileA.txt');
       expect(result.llmContent).toContain('L1: hello world');
       expect(result.llmContent).toContain('L2: second line with world');
       expect(result.llmContent).toContain(
-        `File: ${path.join('sub', 'fileC.txt')}`,
+        `File: ${path.join('sub', 'fileC.txt')}`
       );
       expect(result.llmContent).toContain('L1: another world in sub dir');
       expect(result.returnDisplay).toBe('Found 3 matches');
@@ -384,14 +384,14 @@ describe('RipGrepTool', () => {
         createMockSpawn({
           outputData: `fileC.txt:1:another world in sub dir${EOL}`,
           exitCode: 0,
-        }),
+        })
       );
 
       const params: RipGrepToolParams = { pattern: 'world', path: 'sub' };
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "world" in path "sub"',
+        'Found 1 match for pattern "world" in path "sub"'
       );
       expect(result.llmContent).toContain('File: fileC.txt'); // Path relative to 'sub'
       expect(result.llmContent).toContain('L1: another world in sub dir');
@@ -404,18 +404,18 @@ describe('RipGrepTool', () => {
         createMockSpawn({
           outputData: `fileB.js:2:function baz() { return "hello"; }${EOL}`,
           exitCode: 0,
-        }),
+        })
       );
 
       const params: RipGrepToolParams = { pattern: 'hello', include: '*.js' };
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "hello" in the workspace directory (filter: "*.js"):',
+        'Found 1 match for pattern "hello" in the workspace directory (filter: "*.js"):'
       );
       expect(result.llmContent).toContain('File: fileB.js');
       expect(result.llmContent).toContain(
-        'L2: function baz() { return "hello"; }',
+        'L2: function baz() { return "hello"; }'
       );
       expect(result.returnDisplay).toBe('Found 1 match');
     });
@@ -423,7 +423,7 @@ describe('RipGrepTool', () => {
     it('should find matches with an include glob and path', async () => {
       await fs.writeFile(
         path.join(tempRootDir, 'sub', 'another.js'),
-        'const greeting = "hello";',
+        'const greeting = "hello";'
       );
 
       // Setup specific mock for this test - searching for 'hello' in 'sub' with '*.js' filter
@@ -444,10 +444,10 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
@@ -470,7 +470,7 @@ describe('RipGrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "hello" in path "sub" (filter: "*.js")',
+        'Found 1 match for pattern "hello" in path "sub" (filter: "*.js")'
       );
       expect(result.llmContent).toContain('File: another.js');
       expect(result.llmContent).toContain('L1: const greeting = "hello";');
@@ -482,14 +482,14 @@ describe('RipGrepTool', () => {
       mockSpawn.mockImplementationOnce(
         createMockSpawn({
           exitCode: 1, // No matches found
-        }),
+        })
       );
 
       const params: RipGrepToolParams = { pattern: 'nonexistentpattern' };
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'No matches found for pattern "nonexistentpattern" in the workspace directory.',
+        'No matches found for pattern "nonexistentpattern" in the workspace directory.'
       );
       expect(result.returnDisplay).toBe('No matches found');
     });
@@ -498,7 +498,7 @@ describe('RipGrepTool', () => {
       mockSpawn.mockImplementationOnce(
         createMockSpawn({
           exitCode: 2,
-        }),
+        })
       );
 
       const params: RipGrepToolParams = { pattern: '[[' };
@@ -506,7 +506,7 @@ describe('RipGrepTool', () => {
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain('ripgrep exited with code 2');
       expect(result.returnDisplay).toContain(
-        'Error: ripgrep exited with code 2',
+        'Error: ripgrep exited with code 2'
       );
     });
 
@@ -529,10 +529,10 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
@@ -551,7 +551,7 @@ describe('RipGrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "foo.*bar" in the workspace directory:',
+        'Found 1 match for pattern "foo.*bar" in the workspace directory:'
       );
       expect(result.llmContent).toContain('File: fileB.js');
       expect(result.llmContent).toContain('L1: const foo = "bar";');
@@ -576,18 +576,18 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
             // Return case-insensitive matches for 'HELLO'
             onData(
               Buffer.from(
-                `fileA.txt:1:hello world${EOL}fileB.js:2:function baz() { return "hello"; }${EOL}`,
-              ),
+                `fileA.txt:1:hello world${EOL}fileB.js:2:function baz() { return "hello"; }${EOL}`
+              )
             );
           }
           if (onClose) {
@@ -602,20 +602,20 @@ describe('RipGrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 2 matches for pattern "HELLO" in the workspace directory:',
+        'Found 2 matches for pattern "HELLO" in the workspace directory:'
       );
       expect(result.llmContent).toContain('File: fileA.txt');
       expect(result.llmContent).toContain('L1: hello world');
       expect(result.llmContent).toContain('File: fileB.js');
       expect(result.llmContent).toContain(
-        'L2: function baz() { return "hello"; }',
+        'L2: function baz() { return "hello"; }'
       );
     });
 
     it('should throw an error if params are invalid', async () => {
       const params = { path: '.' } as unknown as RipGrepToolParams; // Invalid: pattern missing
       expect(() => grepTool.build(params)).toThrow(
-        /params must have required property 'pattern'/,
+        /params must have required property 'pattern'/
       );
     });
 
@@ -637,15 +637,15 @@ describe('RipGrepTool', () => {
     it('should search across all workspace directories when no path is specified', async () => {
       // Create additional directory with test files
       const secondDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'grep-tool-second-'),
+        path.join(os.tmpdir(), 'grep-tool-second-')
       );
       await fs.writeFile(
         path.join(secondDir, 'other.txt'),
-        'hello from second directory\nworld in second',
+        'hello from second directory\nworld in second'
       );
       await fs.writeFile(
         path.join(secondDir, 'another.js'),
-        'function world() { return "test"; }',
+        'function world() { return "test"; }'
       );
 
       // Create a mock config with multiple directories
@@ -677,11 +677,11 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const stdoutDataHandler = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
 
           const closeHandler = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           let outputData = '';
@@ -721,7 +721,7 @@ describe('RipGrepTool', () => {
 
       // Should find matches in both directories
       expect(result.llmContent).toContain(
-        'Found 5 matches for pattern "world"',
+        'Found 5 matches for pattern "world"'
       );
 
       // Matches from first directory
@@ -745,12 +745,12 @@ describe('RipGrepTool', () => {
     it('should search only specified path within workspace directories', async () => {
       // Create additional directory
       const secondDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'grep-tool-second-'),
+        path.join(os.tmpdir(), 'grep-tool-second-')
       );
       await fs.mkdir(path.join(secondDir, 'sub'));
       await fs.writeFile(
         path.join(secondDir, 'sub', 'test.txt'),
-        'hello from second sub directory',
+        'hello from second sub directory'
       );
 
       // Create a mock config with multiple directories
@@ -779,10 +779,10 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
@@ -805,7 +805,7 @@ describe('RipGrepTool', () => {
 
       // Should only find matches in the specified sub directory
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "world" in path "sub"',
+        'Found 1 match for pattern "world" in path "sub"'
       );
       expect(result.llmContent).toContain('File: fileC.txt');
       expect(result.llmContent).toContain('L1: another world in sub dir');
@@ -850,7 +850,7 @@ describe('RipGrepTool', () => {
         // Simulate process being aborted - use setTimeout to ensure handlers are registered first
         setTimeout(() => {
           const closeHandler = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (closeHandler) {
@@ -871,10 +871,10 @@ describe('RipGrepTool', () => {
 
       const result = await invocation.execute(controller.signal);
       expect(result.llmContent).toContain(
-        'Error during grep search operation: ripgrep exited with code null',
+        'Error during grep search operation: ripgrep exited with code null'
       );
       expect(result.returnDisplay).toContain(
-        'Error: ripgrep exited with code null',
+        'Error: ripgrep exited with code null'
       );
     });
   });
@@ -907,7 +907,7 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onClose) {
@@ -947,7 +947,7 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onClose) {
@@ -969,7 +969,7 @@ describe('RipGrepTool', () => {
       const specialFileName = 'file with spaces & symbols!.txt';
       await fs.writeFile(
         path.join(tempRootDir, specialFileName),
-        'hello world with special chars',
+        'hello world with special chars'
       );
 
       // Setup specific mock for this test - searching for 'world' should find the file with special characters
@@ -990,17 +990,17 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
             onData(
               Buffer.from(
-                `${specialFileName}:1:hello world with special chars${EOL}`,
-              ),
+                `${specialFileName}:1:hello world with special chars${EOL}`
+              )
             );
           }
           if (onClose) {
@@ -1024,7 +1024,7 @@ describe('RipGrepTool', () => {
       await fs.mkdir(deepPath, { recursive: true });
       await fs.writeFile(
         path.join(deepPath, 'deep.txt'),
-        'content in deep directory',
+        'content in deep directory'
       );
 
       // Setup specific mock for this test - searching for 'deep' should find the deeply nested file
@@ -1045,17 +1045,17 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
             onData(
               Buffer.from(
-                `a/b/c/d/e/deep.txt:1:content in deep directory${EOL}`,
-              ),
+                `a/b/c/d/e/deep.txt:1:content in deep directory${EOL}`
+              )
             );
           }
           if (onClose) {
@@ -1079,7 +1079,7 @@ describe('RipGrepTool', () => {
     it('should handle complex regex patterns', async () => {
       await fs.writeFile(
         path.join(tempRootDir, 'code.js'),
-        'function getName() { return "test"; }\nconst getValue = () => "value";',
+        'function getName() { return "test"; }\nconst getValue = () => "value";'
       );
 
       // Setup specific mock for this test - regex pattern should match function declarations
@@ -1100,17 +1100,17 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
             onData(
               Buffer.from(
-                `code.js:1:function getName() { return "test"; }${EOL}`,
-              ),
+                `code.js:1:function getName() { return "test"; }${EOL}`
+              )
             );
           }
           if (onClose) {
@@ -1132,7 +1132,7 @@ describe('RipGrepTool', () => {
     it('should handle case sensitivity correctly in JS fallback', async () => {
       await fs.writeFile(
         path.join(tempRootDir, 'case.txt'),
-        'Hello World\nhello world\nHELLO WORLD',
+        'Hello World\nhello world\nHELLO WORLD'
       );
 
       // Setup specific mock for this test - case insensitive search should match all variants
@@ -1153,17 +1153,17 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
             onData(
               Buffer.from(
-                `case.txt:1:Hello World${EOL}case.txt:2:hello world${EOL}case.txt:3:HELLO WORLD${EOL}`,
-              ),
+                `case.txt:1:Hello World${EOL}case.txt:2:hello world${EOL}case.txt:3:HELLO WORLD${EOL}`
+              )
             );
           }
           if (onClose) {
@@ -1186,7 +1186,7 @@ describe('RipGrepTool', () => {
     it('should handle escaped regex special characters', async () => {
       await fs.writeFile(
         path.join(tempRootDir, 'special.txt'),
-        'Price: $19.99\nRegex: [a-z]+ pattern\nEmail: test@example.com',
+        'Price: $19.99\nRegex: [a-z]+ pattern\nEmail: test@example.com'
       );
 
       // Setup specific mock for this test - escaped regex pattern should match price format
@@ -1207,10 +1207,10 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
@@ -1237,12 +1237,12 @@ describe('RipGrepTool', () => {
     it('should handle multiple file extensions in include pattern', async () => {
       await fs.writeFile(
         path.join(tempRootDir, 'test.ts'),
-        'typescript content',
+        'typescript content'
       );
       await fs.writeFile(path.join(tempRootDir, 'test.tsx'), 'tsx content');
       await fs.writeFile(
         path.join(tempRootDir, 'test.js'),
-        'javascript content',
+        'javascript content'
       );
       await fs.writeFile(path.join(tempRootDir, 'test.txt'), 'text content');
 
@@ -1264,17 +1264,17 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
             onData(
               Buffer.from(
-                `test.ts:1:typescript content${EOL}test.tsx:1:tsx content${EOL}`,
-              ),
+                `test.ts:1:typescript content${EOL}test.tsx:1:tsx content${EOL}`
+              )
             );
           }
           if (onClose) {
@@ -1302,7 +1302,7 @@ describe('RipGrepTool', () => {
       await fs.mkdir(path.join(tempRootDir, 'src'), { recursive: true });
       await fs.writeFile(
         path.join(tempRootDir, 'src', 'main.ts'),
-        'source code',
+        'source code'
       );
       await fs.writeFile(path.join(tempRootDir, 'other.ts'), 'other code');
 
@@ -1324,10 +1324,10 @@ describe('RipGrepTool', () => {
 
         setTimeout(() => {
           const onData = mockProcess.stdout.on.mock.calls.find(
-            (call) => call[0] === 'data',
+            call => call[0] === 'data'
           )?.[1];
           const onClose = mockProcess.on.mock.calls.find(
-            (call) => call[0] === 'close',
+            call => call[0] === 'close'
           )?.[1];
 
           if (onData) {
@@ -1395,7 +1395,7 @@ describe('RipGrepTool', () => {
       const params: RipGrepToolParams = { pattern: 'testPattern' };
       const invocation = multiDirGrepTool.build(params);
       expect(invocation.getDescription()).toBe(
-        "'testPattern' across all workspace directories",
+        "'testPattern' across all workspace directories"
       );
     });
 
@@ -1409,7 +1409,7 @@ describe('RipGrepTool', () => {
       };
       const invocation = grepTool.build(params);
       expect(invocation.getDescription()).toContain(
-        "'testPattern' in *.ts within",
+        "'testPattern' in *.ts within"
       );
       expect(invocation.getDescription()).toContain(path.join('src', 'app'));
     });

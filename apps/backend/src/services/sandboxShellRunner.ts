@@ -160,7 +160,7 @@ export class SandboxShellRunner {
         throw new Error('Sandbox not found');
       }
 
-      if (sandbox.status !== 'ready' && sandbox.status !== 'running') {
+      if (sandbox.status !== 'READY') {
         throw new Error(`Sandbox not ready (status: ${sandbox.status})`);
       }
 
@@ -178,9 +178,12 @@ export class SandboxShellRunner {
       }
 
       // Get container reference
-      logger.debug('SandboxShellRunner.executeCommand - Getting container reference', {
-        containerId: sandbox.containerId,
-      });
+      logger.debug(
+        'SandboxShellRunner.executeCommand - Getting container reference',
+        {
+          containerId: sandbox.containerId,
+        }
+      );
 
       const container = this.docker.getContainer(sandbox.containerId);
 
@@ -206,20 +209,28 @@ export class SandboxShellRunner {
           : undefined,
       };
 
-      logger.debug('SandboxShellRunner.executeCommand - Prepared exec options', {
-        cmd: execOptions.Cmd,
-        workingDir: execOptions.WorkingDir,
-        timeout,
-      });
+      logger.debug(
+        'SandboxShellRunner.executeCommand - Prepared exec options',
+        {
+          cmd: execOptions.Cmd,
+          workingDir: execOptions.WorkingDir,
+          timeout,
+        }
+      );
 
       // Create exec instance
-      logger.debug('SandboxShellRunner.executeCommand - Creating exec instance');
+      logger.debug(
+        'SandboxShellRunner.executeCommand - Creating exec instance'
+      );
       const exec = await container.exec(execOptions);
 
       // Execute with timeout
-      logger.debug('SandboxShellRunner.executeCommand - Executing with timeout', {
-        timeout,
-      });
+      logger.debug(
+        'SandboxShellRunner.executeCommand - Executing with timeout',
+        {
+          timeout,
+        }
+      );
 
       const result = await this.executeWithTimeout(exec, timeout);
 

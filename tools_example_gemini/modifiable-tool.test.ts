@@ -50,7 +50,7 @@ describe('modifyWithEditor', () => {
     vi.resetAllMocks();
 
     testProjectDir = await fsp.mkdtemp(
-      path.join(os.tmpdir(), 'modifiable-tool-test-'),
+      path.join(os.tmpdir(), 'modifiable-tool-test-')
     );
     abortSignal = new AbortController().signal;
 
@@ -96,14 +96,14 @@ describe('modifyWithEditor', () => {
         mockModifyContext,
         'vscode' as EditorType,
         abortSignal,
-        vi.fn(),
+        vi.fn()
       );
 
       expect(mockModifyContext.getCurrentContent).toHaveBeenCalledWith(
-        mockParams,
+        mockParams
       );
       expect(mockModifyContext.getProposedContent).toHaveBeenCalledWith(
-        mockParams,
+        mockParams
       );
       expect(mockModifyContext.getFilePath).toHaveBeenCalledWith(mockParams);
 
@@ -113,7 +113,7 @@ describe('modifyWithEditor', () => {
       expect(mockModifyContext.createUpdatedParams).toHaveBeenCalledWith(
         currentContent,
         modifiedContent,
-        mockParams,
+        mockParams
       );
 
       expect(mockCreatePatch).toHaveBeenCalledWith(
@@ -125,7 +125,7 @@ describe('modifyWithEditor', () => {
         expect.objectContaining({
           context: 3,
           ignoreWhitespace: true,
-        }),
+        })
       );
 
       // Check that temp files are deleted.
@@ -151,7 +151,7 @@ describe('modifyWithEditor', () => {
         mockModifyContext,
         'vscode' as EditorType,
         abortSignal,
-        vi.fn(),
+        vi.fn()
       );
 
       const stats = await fsp.stat(diffDir);
@@ -169,7 +169,7 @@ describe('modifyWithEditor', () => {
         mockModifyContext,
         'vscode' as EditorType,
         abortSignal,
-        vi.fn(),
+        vi.fn()
       );
 
       expect(mkdirSpy).not.toHaveBeenCalled();
@@ -188,7 +188,7 @@ describe('modifyWithEditor', () => {
       mockModifyContext,
       'vscode' as EditorType,
       abortSignal,
-      vi.fn(),
+      vi.fn()
     );
 
     expect(mockCreatePatch).toHaveBeenCalledWith(
@@ -200,7 +200,7 @@ describe('modifyWithEditor', () => {
       expect.objectContaining({
         context: 3,
         ignoreWhitespace: true,
-      }),
+      })
     );
 
     expect(result.updatedParams).toBeDefined();
@@ -217,7 +217,7 @@ describe('modifyWithEditor', () => {
       mockModifyContext,
       'vscode' as EditorType,
       abortSignal,
-      vi.fn(),
+      vi.fn()
     );
 
     expect(mockCreatePatch).toHaveBeenCalledWith(
@@ -229,7 +229,7 @@ describe('modifyWithEditor', () => {
       expect.objectContaining({
         context: 3,
         ignoreWhitespace: true,
-      }),
+      })
     );
 
     expect(result.updatedParams).toBeDefined();
@@ -248,8 +248,8 @@ describe('modifyWithEditor', () => {
         mockModifyContext,
         'vscode' as EditorType,
         abortSignal,
-        vi.fn(),
-      ),
+        vi.fn()
+      )
     ).rejects.toThrow('Editor failed to open');
 
     expect(writeSpy).toHaveBeenCalledTimes(2);
@@ -275,12 +275,12 @@ describe('modifyWithEditor', () => {
       mockModifyContext,
       'vscode' as EditorType,
       abortSignal,
-      vi.fn(),
+      vi.fn()
     );
 
     expect(consoleErrorSpy).toHaveBeenCalledTimes(2);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error deleting temp diff file:'),
+      expect.stringContaining('Error deleting temp diff file:')
     );
 
     consoleErrorSpy.mockRestore();
@@ -290,7 +290,7 @@ describe('modifyWithEditor', () => {
     const testFilePath = path.join(
       testProjectDir,
       'subfolder',
-      'test-file.txt',
+      'test-file.txt'
     );
     mockModifyContext.getFilePath = vi.fn().mockReturnValue(testFilePath);
 
@@ -299,7 +299,7 @@ describe('modifyWithEditor', () => {
       mockModifyContext,
       'vscode' as EditorType,
       abortSignal,
-      vi.fn(),
+      vi.fn()
     );
 
     expect(mockOpenDiff).toHaveBeenCalledOnce();
@@ -321,7 +321,7 @@ describe('modifyWithEditor', () => {
       mockModifyContext,
       'vscode' as EditorType,
       abortSignal,
-      vi.fn(),
+      vi.fn()
     );
 
     expect(mockOpenDiff).toHaveBeenCalledOnce();

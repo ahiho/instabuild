@@ -54,7 +54,7 @@ class TestToolInvocation extends BaseToolInvocation<TestParams, TestResult> {
   }
 
   override async shouldConfirmExecute(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<false> {
     // This conditional is here to allow testing of the case where there is no message bus.
     if (this.messageBus) {
@@ -86,7 +86,7 @@ class TestTool extends BaseDeclarativeTool<TestParams, TestResult> {
       },
       true,
       false,
-      messageBus,
+      messageBus
     );
   }
 
@@ -124,7 +124,7 @@ describe('Message Bus Integration', () => {
 
       // Start confirmation process
       const confirmationPromise = invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
 
       // Verify confirmation request was published
@@ -140,7 +140,7 @@ describe('Message Bus Integration', () => {
       // Verify subscription to response
       expect(subscribeSpy).toHaveBeenCalledWith(
         MessageBusType.TOOL_CONFIRMATION_RESPONSE,
-        expect.any(Function),
+        expect.any(Function)
       );
 
       // Simulate confirmation response
@@ -165,7 +165,7 @@ describe('Message Bus Integration', () => {
       const subscribeSpy = vi.spyOn(messageBus, 'subscribe');
 
       const confirmationPromise = invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
 
       // Simulate denial response
@@ -180,7 +180,7 @@ describe('Message Bus Integration', () => {
 
       // Should reject with error when denied
       await expect(confirmationPromise).rejects.toThrow(
-        'Tool execution denied by policy',
+        'Tool execution denied by policy'
       );
     });
 
@@ -191,7 +191,7 @@ describe('Message Bus Integration', () => {
       const invocation = tool.build({ testParam: 'test-value' });
 
       const confirmationPromise = invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
 
       // Fast-forward past timeout
@@ -209,14 +209,14 @@ describe('Message Bus Integration', () => {
 
       const abortController = new AbortController();
       const confirmationPromise = invocation.shouldConfirmExecute(
-        abortController.signal,
+        abortController.signal
       );
 
       // Abort the operation
       abortController.abort();
 
       await expect(confirmationPromise).rejects.toThrow(
-        'Tool execution denied by policy',
+        'Tool execution denied by policy'
       );
     });
 
@@ -225,7 +225,7 @@ describe('Message Bus Integration', () => {
       const invocation = tool.build({ testParam: 'test-value' });
 
       const result = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(result).toBe(false);
     });
@@ -238,7 +238,7 @@ describe('Message Bus Integration', () => {
 
       const subscribeSpy = vi.spyOn(messageBus, 'subscribe');
       const confirmationPromise = invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
 
       // Send response with wrong correlation ID
@@ -293,7 +293,7 @@ describe('Message Bus Integration', () => {
       });
 
       const result = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(result).toBe(false); // Should gracefully fall back
     });

@@ -6,8 +6,8 @@
 import { logger } from '../lib/logger.js';
 import { registerAssetManagementTools } from './asset-management-tools.js';
 import { registerFilesystemTools } from './filesystem-tools.js';
-import { registerTextTools } from './text-tools-minimal.js';
 import { registerValidationTools } from './validation-tools.js';
+import { registerShellTool } from './shell-tool.js';
 
 /**
  * Register all available tools
@@ -17,13 +17,10 @@ export function registerAllTools() {
     console.log('🔧 REGISTER ALL TOOLS CALLED');
     logger.info('Registering all tools...');
 
-    console.log('🔧 CALLING registerTextTools()');
-    registerTextTools();
-    console.log('🔧 registerTextTools() completed');
-
     registerFilesystemTools();
     registerValidationTools();
     registerAssetManagementTools();
+    registerShellTool();
 
     logger.info('All tools registered successfully');
   } catch (error) {

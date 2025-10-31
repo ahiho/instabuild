@@ -64,24 +64,24 @@ export async function getOrCreateConversation(pageId: string): Promise<string> {
 
 /**
  * Convert database message format to UIMessage format
+ * Uses parts array as single source of truth
+ * Note: Backend now merges tool-result messages into assistant messages,
+ * so we don't need to handle role='tool' anymore
  */
 interface DatabaseMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  parts: any[];
   createdAt: string;
 }
 
 function convertToUIMessages(dbMessages: DatabaseMessage[]): UIMessage[] {
+  // Backend already merged tool-results into assistant messages,
+  // so just convert each message as-is
   return dbMessages.map(msg => ({
     id: msg.id,
     role: msg.role,
-    parts: [
-      {
-        type: 'text' as const,
-        text: msg.content,
-      },
-    ],
+    parts: msg.parts || [],
   }));
 }
 
@@ -119,9 +119,7 @@ export async function getConversationMessages(
     }
 
     const dbMessages: DatabaseMessage[] = await response.json();
-    console.log('[Conversation Service] Raw DB messages:', dbMessages);
     const uiMessages = convertToUIMessages(dbMessages);
-    console.log('[Conversation Service] Converted UI messages:', uiMessages);
     console.log(
       '[Conversation Service] Fetched and converted messages:',
       uiMessages.length

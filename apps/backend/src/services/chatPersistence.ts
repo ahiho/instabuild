@@ -136,7 +136,7 @@ export class ChatPersistenceService {
     const readySandboxConversation = await prisma.conversation.findFirst({
       where: {
         landingPageId,
-        sandboxStatus: 'ready',
+        sandboxStatus: 'READY',
       },
       orderBy: {
         startTime: 'desc',

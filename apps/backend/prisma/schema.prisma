@@ -10,6 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SandboxStatus {
+  PENDING  // Sandbox is being provisioned
+  READY    // Sandbox is ready and can execute tools
+  FAILED   // Sandbox failed to initialize
+}
+
 model LandingPage {
   id               String   @id @default(cuid())
   title            String   @db.VarChar(100)
@@ -70,7 +76,7 @@ model Conversation {
   lastUpdateTime DateTime @updatedAt
   // Phase 1: Sandbox isolation tracking
   sandboxId      String?  // Docker container ID for this conversation's sandbox
-  sandboxStatus  String?  @db.VarChar(50) // Status: pending, ready, failed, terminated
+  sandboxStatus  SandboxStatus? @default(PENDING) // Status: pending, ready, failed
   sandboxCreatedAt DateTime? // Timestamp when sandbox was provisioned
   sandboxPublicUrl String? // Public preview URL for accessing sandbox
   // Phase 3.5: Port mapping for preview access
@@ -94,13 +100,22 @@ model ChatMessage {
   id             String   @id @default(cuid())
   conversationId String
   landingPageId  String?  // Made optional for backward compatibility
-  senderType     String   @db.VarChar(20) // User, AI, System
-  role           String   @db.VarChar(20) // user, assistant, system (deprecated, use senderType)
-  content        String   @db.Text
-  parts          Json?    // AI SDK message parts array
-  toolCalls      Json?    // JSON array of tool calls
-  toolResults    Json?    // JSON array of tool results
-  metadata       Json?    // Additional metadata including AI SDK format
+  role           String   @db.VarChar(20) // user, assistant, system, tool
+  parts          Json?    // AI SDK message parts array - single source of truth
+  // Part types stored in parts array:
+  // - text: { type: 'text', text: string }
+  // - tool-call: { type: 'tool-call', toolCallId: string, toolName: string, input: object }
+  // - tool-result: { type: 'tool-result', toolCallId: string, content?: string, error?: string }
+  // - reasoning: { type: 'reasoning', text: string }
+  // - file: { type: 'file', mediaType: string, filename: string, url: string }
+  // - source-url: { type: 'source-url', sourceId: string, url: string, title?: string }
+  // - source-document: { type: 'source-document', sourceId: string, title: string, ... }
+  // Deprecated fields (kept for backward compatibility, not used):
+  // - content: String (use parts instead)
+  // - senderType: String (use role instead)
+  // - toolCalls: Json (included in parts)
+  // - toolResults: Json (included in parts as tool-result parts)
+  metadata       Json?    // Additional metadata (usage, finishReason, etc)
   createdAt      DateTime @default(now())
 
   // Relationships

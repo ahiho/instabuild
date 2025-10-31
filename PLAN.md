@@ -21,25 +21,30 @@ The agent is accessing the entire host filesystem instead of being isolated to s
 ## Root Causes Identified
 
 ### 1. Type System Gap
+
 - `ToolExecutionContext` missing `sandboxId` field
 - No way for tools to know which sandbox to operate in
 
 ### 2. No Sandbox Provisioning
+
 - `agenticAIService.processAgenticChat()` never creates sandboxes
 - Chat route (`chat.ts`) doesn't provision containers for conversations
 - Disconnected infrastructure: SandboxManager exists but unused
 
 ### 3. Direct Filesystem Access
+
 - All tools use `node:fs/promises` without sandbox validation
 - Path checks only validate `path.isAbsolute()` - allows ANY host path
 - No sandbox boundary enforcement
 
 ### 4. Unsafe Path Resolution
+
 - `process.cwd()` used as fallback (lines 1393, 1823 in filesystem-tools.ts)
 - Exposes entire filesystem when relative paths used
 - No path normalization or escape prevention
 
 ### 5. Database Incomplete
+
 - `Conversation` model doesn't track `sandboxId`
 - Can't correlate conversations to their sandboxes
 
@@ -48,12 +53,15 @@ The agent is accessing the entire host filesystem instead of being isolated to s
 ## Detailed Fix Plan
 
 ### Phase 1: Type System & Database Foundation + Preview URL Generation
-**Priority**: CRITICAL | Complexity**: MEDIUM | Files: 3
+
+**Priority**: CRITICAL | Complexity\*\*: MEDIUM | Files: 3
 
 #### Task 1.1: Extend ToolExecutionContext
+
 **File**: `packages/shared/src/types/tool-registry.ts`
 
 Add sandbox field to interface:
+
 ```typescript
 export interface ToolExecutionContext {
   userId: string;
@@ -62,7 +70,7 @@ export interface ToolExecutionContext {
   pageId?: string;
   selectedElementId?: string;
   // NEW: Sandbox isolation context
-  sandboxId?: string;  // Docker container ID - presence indicates sandboxed execution
+  sandboxId?: string; // Docker container ID - presence indicates sandboxed execution
 }
 ```
 
@@ -71,9 +79,11 @@ export interface ToolExecutionContext {
 **Validation**: Ensure backward compatibility - all fields optional
 
 #### Task 1.2: Update Conversation Schema
+
 **File**: `apps/backend/prisma/schema.prisma`
 
 Add fields to Conversation model:
+
 ```prisma
 model Conversation {
   // ... existing fields
@@ -89,6 +99,7 @@ model Conversation {
 **After change**: Run `npx prisma migrate dev --name add_sandbox_isolation_context`
 
 #### Task 1.3: Create Preview URL Generation Utility
+
 **File**: `apps/backend/src/lib/preview-url.ts` (NEW)
 
 ```typescript
@@ -133,36 +144,44 @@ export function isValidSandboxId(sandboxId: string): boolean {
 ```
 
 **Environment variables needed**:
+
 - `PREVIEW_DOMAIN` (production only) - e.g., `vusercontent.net`
 - `NODE_ENV` - `development` or `production`
 
 ---
 
 ### Phase 2: Remove Unnecessary Sandbox Utilities
-**Priority**: LOW | Complexity**: LOW | Files: 0 (REMOVED)
+
+**Priority**: LOW | Complexity\*\*: LOW | Files: 0 (REMOVED)
 
 **Note**: With Docker container isolation as the security boundary, we don't need path validation utilities. The container itself prevents escape attempts. Tools just need to validate `sandboxId` exists.
 
 ---
 
 ### Phase 3: Sandbox Integration in Chat Flow
-**Priority**: CRITICAL | Complexity**: HIGH | Files: 1
+
+**Priority**: CRITICAL | Complexity\*\*: HIGH | Files: 1
 
 #### Task 3.1: Update AgenticAIService
+
 **File**: `apps/backend/src/services/agenticAIService.ts`
 
 **Changes**:
+
 1. Import sandbox utilities
+
    ```typescript
    import { sandboxManager } from './sandboxManager.js';
    import { validateSandboxPath } from '../lib/sandbox-utils.js';
    ```
 
 2. In `processAgenticChat()` method, after receiving sandboxId from context:
+
    ```typescript
    // Get sandbox info passed from route
-   const sandboxInfo = options.sandboxId ?
-     sandboxManager.getSandboxInfo(options.sandboxId) : null;
+   const sandboxInfo = options.sandboxId
+     ? sandboxManager.getSandboxInfo(options.sandboxId)
+     : null;
 
    if (!sandboxInfo && options.requiresSandbox) {
      throw new Error('Sandbox required but not provisioned');
@@ -170,12 +189,13 @@ export function isValidSandboxId(sandboxId: string): boolean {
    ```
 
 3. When creating ToolExecutionContext (line 315-319):
+
    ```typescript
    const executionContext: ToolExecutionContext = {
      userId,
      conversationId,
      toolCallId: 'pending',
-     sandboxId: options.sandboxId,        // NEW - presence indicates sandboxed
+     sandboxId: options.sandboxId, // NEW - presence indicates sandboxed
    };
    ```
 
@@ -185,18 +205,23 @@ export function isValidSandboxId(sandboxId: string): boolean {
 ---
 
 ### Phase 4: Chat Route Integration
-**Priority**: CRITICAL | Complexity**: MEDIUM | Files: 1
+
+**Priority**: CRITICAL | Complexity\*\*: MEDIUM | Files: 1
 
 #### Task 4.1: Update Chat Route to Provision Sandboxes
+
 **File**: `apps/backend/src/routes/chat.ts`
 
 **Changes**:
+
 1. Import sandbox manager
+
    ```typescript
    import { sandboxManager } from '../services/sandboxManager.js';
    ```
 
 2. After creating Conversation (around line 27-34), add:
+
    ```typescript
    // Create sandbox for this conversation
    const sandboxRequest: SandboxProvisionRequest = {
@@ -213,25 +238,31 @@ export function isValidSandboxId(sandboxId: string): boolean {
          where: { id: conversation.id },
          data: {
            sandboxId: sandboxResponse.containerId,
-           sandboxStatus: 'ready'
-         }
-      });
+           sandboxStatus: 'ready',
+         },
+       });
      } else {
        throw new Error(`Sandbox provisioning failed: ${sandboxResponse.error}`);
      }
    } catch (error) {
-     logger.error('Failed to provision sandbox', { error, conversationId: conversation.id });
-     return reply.code(500).send({ error: 'Failed to create execution environment' });
+     logger.error('Failed to provision sandbox', {
+       error,
+       conversationId: conversation.id,
+     });
+     return reply
+       .code(500)
+       .send({ error: 'Failed to create execution environment' });
    }
    ```
 
 3. Pass sandboxId to agenticAIService:
+
    ```typescript
    const result = await agenticAIService.processAgenticChat({
      messages,
      conversationId: conversation.id,
      userId: 'system',
-     sandboxId: conversation.sandboxId,    // NEW
+     sandboxId: conversation.sandboxId, // NEW
      // ... rest of options
    });
    ```
@@ -245,9 +276,11 @@ export function isValidSandboxId(sandboxId: string): boolean {
 ---
 
 ### Phase 5: Filesystem Tools - Path Validation
-**Priority**: CRITICAL | Complexity**: VERY HIGH | Files: 1
+
+**Priority**: CRITICAL | Complexity\*\*: VERY HIGH | Files: 1
 
 #### Task 5.1: Update All Filesystem Tools
+
 **File**: `apps/backend/src/tools/filesystem-tools.ts`
 
 **Pattern for each tool** (apply to all 6 tools):
@@ -258,7 +291,8 @@ export function isValidSandboxId(sandboxId: string): boolean {
    if (!context.sandboxId) {
      return {
        success: false,
-       userFeedback: 'This operation requires a sandbox environment. Please try again.',
+       userFeedback:
+         'This operation requires a sandbox environment. Please try again.',
        previewRefreshNeeded: false,
        technicalDetails: {
          error: 'Missing sandbox context - sandboxId required',
@@ -274,34 +308,43 @@ export function isValidSandboxId(sandboxId: string): boolean {
 For each tool, add the sandbox check at the beginning of the execute function:
 
 **Tool: list_directory** (line 74)
+
 - Add sandbox validation check
 
 **Tool: read_file** (line 351)
+
 - Add sandbox validation check
 
 **Tool: write_file** (line 671)
+
 - Add sandbox validation check
 
 **Tool: replace** (line 925)
+
 - Add sandbox validation check
 
 **Tool: search_file_content** (line 1357)
+
 - Add sandbox validation check
 - Replace `process.cwd()` fallback with `context.sandboxId` check (ensures execution in sandbox)
 
 **Tool: glob** (line 1785)
+
 - Add sandbox validation check
 - Replace `process.cwd()` fallback with `context.sandboxId` check (ensures execution in sandbox)
 
 **Remove these dangerous patterns**:
+
 - Remove `process.cwd()` fallbacks (lines 1393, 1823) - should fail if sandboxId missing
 
 ---
 
 ### Phase 4: Testing & Validation
-**Priority**: HIGH | Complexity**: MEDIUM | Files: 2 (NEW)
+
+**Priority**: HIGH | Complexity\*\*: MEDIUM | Files: 2 (NEW)
 
 #### Task 4.1: Tool Integration Tests
+
 **File**: `apps/backend/src/__tests__/filesystem-tools-sandbox.test.ts` (NEW)
 
 ```typescript
@@ -313,7 +356,7 @@ describe('Filesystem Tools - Sandbox Isolation', () => {
       userId: 'test-user',
       conversationId: 'test-conv',
       toolCallId: 'test-call',
-      sandboxId: 'sandbox-123',  // Presence of sandboxId indicates sandboxed execution
+      sandboxId: 'sandbox-123', // Presence of sandboxId indicates sandboxed execution
     };
   });
 
@@ -346,6 +389,7 @@ describe('Filesystem Tools - Sandbox Isolation', () => {
 ```
 
 #### Task 4.2: End-to-End Integration Test
+
 **File**: `apps/backend/src/__tests__/sandbox-isolation-e2e.test.ts` (NEW)
 
 ```typescript
@@ -353,7 +397,7 @@ describe('Sandbox Isolation E2E', () => {
   test('conversation → sandbox → tool execution flow', async () => {
     // 1. Create conversation
     const conversation = await prisma.conversation.create({
-      data: { userId: 'test' }
+      data: { userId: 'test' },
     });
 
     // 2. Provision sandbox
@@ -367,8 +411,8 @@ describe('Sandbox Isolation E2E', () => {
       where: { id: conversation.id },
       data: {
         sandboxId: sandboxResponse.containerId,
-        sandboxStatus: 'ready'
-      }
+        sandboxStatus: 'ready',
+      },
     });
 
     // 4. Execute tool with sandbox context
@@ -376,7 +420,7 @@ describe('Sandbox Isolation E2E', () => {
       userId: 'test',
       conversationId: conversation.id,
       toolCallId: 'call-1',
-      sandboxId: updated.sandboxId,  // Presence indicates sandboxed
+      sandboxId: updated.sandboxId, // Presence indicates sandboxed
     };
 
     // 5. Verify tool works with sandbox
@@ -396,16 +440,20 @@ describe('Sandbox Isolation E2E', () => {
 ---
 
 ### Phase 5: Error Handling & Cleanup
-**Priority**: HIGH | Complexity**: MEDIUM | Files: 1
+
+**Priority**: HIGH | Complexity\*\*: MEDIUM | Files: 1
 
 #### Task 5.1: Add Sandbox-Specific Errors
+
 **File**: `apps/backend/src/tools/filesystem-tools.ts` (updates to execute functions)
 
 Add consistent error response:
+
 ```typescript
 const SANDBOX_ERROR = {
   success: false,
-  userFeedback: 'This operation requires a sandbox environment. Please refresh and try again.',
+  userFeedback:
+    'This operation requires a sandbox environment. Please refresh and try again.',
   previewRefreshNeeded: false,
   technicalDetails: {
     error: 'Sandbox context missing - sandboxId is required',
@@ -418,6 +466,7 @@ const SANDBOX_ERROR = {
 ## Implementation Checklist
 
 ### Phase 1: Foundation (Type System + Preview URLs)
+
 - [ ] Add `sandboxId` to ToolExecutionContext
 - [ ] Update Conversation schema with sandbox fields (sandboxId, sandboxStatus, sandboxCreatedAt, sandboxPublicUrl)
 - [ ] Create preview-url.ts utility with URL generation logic
@@ -425,6 +474,7 @@ const SANDBOX_ERROR = {
 - [ ] Commit: "feat(types): add sandbox isolation context and preview URL generation"
 
 ### Phase 2: Sandbox Integration
+
 - [x] Update `agenticAIService.ts` to use sandbox context
 - [x] Update `chat.ts` route to provision sandboxes
 - [x] Add sandbox lifecycle management (4-hour idle timeout)
@@ -433,6 +483,7 @@ const SANDBOX_ERROR = {
 - [x] Fix: Implement proper cleanup with idle timeout (not immediate)
 
 ### Phase 3: Filesystem Tools (Add sandbox validation)
+
 - [x] Create validateSandboxContext() helper function
 - [x] Update `list_directory` tool - check sandboxId exists
 - [x] Update `read_file` tool - check sandboxId exists
@@ -443,12 +494,14 @@ const SANDBOX_ERROR = {
 - [x] Commit: "feat(tools): enforce sandbox isolation in filesystem tools"
 
 ### Phase 4: Testing
+
 - [ ] Create tool sandbox tests
 - [ ] Create E2E integration test
 - [ ] Run full test suite
 - [ ] Commit: "test(sandbox): add sandbox isolation tests"
 
 ### Phase 5: Finalization
+
 - [ ] Run `pnpm type-check` - should have 0 errors
 - [ ] Run `pnpm lint` - should have 0 errors
 - [ ] Manual testing: verify sandbox isolation with chat example
@@ -460,11 +513,13 @@ const SANDBOX_ERROR = {
 ## Risk Assessment
 
 ### High Risk Items
+
 - **Backward compatibility**: Optional fields minimize risk
 - **Migration**: Test Prisma migration thoroughly
 - **Performance**: Path validation on every tool call (minimal overhead)
 
 ### Edge Cases to Handle
+
 - [ ] Symlinks pointing outside sandbox - resolve and validate
 - [ ] Special characters in paths - encode/decode safely
 - [ ] Concurrent access to same sandbox - concurrent safety in utils
@@ -473,6 +528,7 @@ const SANDBOX_ERROR = {
 - [ ] Cleanup on process crash - use finally blocks
 
 ### Security Validation
+
 - [ ] No `../` sequences allowed
 - [ ] No absolute paths escaping sandbox
 - [ ] No `~` home directory expansion
@@ -483,24 +539,24 @@ const SANDBOX_ERROR = {
 
 ## Progress Tracking
 
-| Phase | Task | Status | Priority | Est. Time |
-|-------|------|--------|----------|-----------|
-| 1 | Extend ToolExecutionContext with sandboxId | ✅ DONE | CRITICAL | 15 min |
-| 1 | Update Conversation schema with sandbox fields | ✅ DONE | CRITICAL | 15 min |
-| 1 | Create preview-url.ts utility | ✅ DONE | CRITICAL | 20 min |
-| 1 | Create Prisma migration | ✅ DONE | CRITICAL | 10 min |
-| 1 | Commit Phase 1 changes | ✅ DONE | CRITICAL | 5 min |
-| 2 | Update agenticAIService | ✅ DONE | CRITICAL | 30 min |
-| 2 | Update chat route (provision sandboxes) | ✅ DONE | CRITICAL | 1 hour |
-| 2 | Create SandboxCleanupService (4h timeout) | ✅ DONE | CRITICAL | 1 hour |
-| 2 | Commit Phase 2 changes | ✅ DONE | CRITICAL | 5 min |
-| 3 | Create validateSandboxContext() helper | ✅ DONE | CRITICAL | 15 min |
-| 3 | Update all 6 filesystem tools | ✅ DONE | CRITICAL | 1 hour |
-| 3 | Remove process.cwd() fallbacks | ✅ DONE | CRITICAL | 15 min |
-| 3 | Commit Phase 3 changes | ✅ DONE | CRITICAL | 5 min |
-| 4 | Tool sandbox tests | Pending | HIGH | 1.5 hours |
-| 4 | E2E integration test | Pending | HIGH | 1 hour |
-| 5 | Error handling & documentation | Pending | HIGH | 1 hour |
+| Phase | Task                                           | Status  | Priority | Est. Time |
+| ----- | ---------------------------------------------- | ------- | -------- | --------- |
+| 1     | Extend ToolExecutionContext with sandboxId     | ✅ DONE | CRITICAL | 15 min    |
+| 1     | Update Conversation schema with sandbox fields | ✅ DONE | CRITICAL | 15 min    |
+| 1     | Create preview-url.ts utility                  | ✅ DONE | CRITICAL | 20 min    |
+| 1     | Create Prisma migration                        | ✅ DONE | CRITICAL | 10 min    |
+| 1     | Commit Phase 1 changes                         | ✅ DONE | CRITICAL | 5 min     |
+| 2     | Update agenticAIService                        | ✅ DONE | CRITICAL | 30 min    |
+| 2     | Update chat route (provision sandboxes)        | ✅ DONE | CRITICAL | 1 hour    |
+| 2     | Create SandboxCleanupService (4h timeout)      | ✅ DONE | CRITICAL | 1 hour    |
+| 2     | Commit Phase 2 changes                         | ✅ DONE | CRITICAL | 5 min     |
+| 3     | Create validateSandboxContext() helper         | ✅ DONE | CRITICAL | 15 min    |
+| 3     | Update all 6 filesystem tools                  | ✅ DONE | CRITICAL | 1 hour    |
+| 3     | Remove process.cwd() fallbacks                 | ✅ DONE | CRITICAL | 15 min    |
+| 3     | Commit Phase 3 changes                         | ✅ DONE | CRITICAL | 5 min     |
+| 4     | Tool sandbox tests                             | Pending | HIGH     | 1.5 hours |
+| 4     | E2E integration test                           | Pending | HIGH     | 1 hour    |
+| 5     | Error handling & documentation                 | Pending | HIGH     | 1 hour    |
 
 **Progress**: Phase 1, 2 & 3 Complete! ✅
 **Elapsed Time**: ~4 hours
@@ -517,24 +573,28 @@ const SANDBOX_ERROR = {
 ### Changes Made:
 
 #### 1. Database Schema Update
+
 - **File**: `apps/backend/prisma/schema.prisma`
 - Added `sandboxPort` (Int) field to Conversation model
 - Added index for reverse proxy port-based lookups
 - **Migration**: `20251028101040_add_sandbox_port_mapping`
 
 #### 2. Chat Route Enhancement
+
 - **File**: `apps/backend/src/routes/chat.ts`
 - Captures allocated `sandboxPort` from `sandboxResponse`
 - Stores port alongside sandbox metadata in database
 - Generates `previewUrl` using allocated port (fallback to URL generation)
 
 #### 3. Page Service Integration
+
 - **File**: `apps/backend/src/services/page.ts`
 - Provisions sandbox when page is created via POST /api/v1/pages
 - Returns `sandboxPublicUrl` and `sandboxPort` in API response
 - Updated getPage() to include latest sandbox info in response
 
 #### 4. Frontend Preview Integration
+
 - **File**: `apps/frontend/src/components/PreviewPanel.tsx`
 - Accepts `sandboxPublicUrl` prop
 - Uses `src={sandboxUrl}` for live preview instead of hardcoded template
@@ -573,7 +633,7 @@ Vite HMR works through iframe (WebSocket on allocated port)
 
 ### Next Steps (Future):
 
-- [ ] Subdomain routing middleware for production (*.vusercontent.net)
+- [ ] Subdomain routing middleware for production (\*.vusercontent.net)
 - [ ] Vite HMR WebSocket tunneling through proxy
 - [ ] Container restart detection (auto-reconnect preview)
 - [ ] Sandbox performance metrics
@@ -607,4 +667,3 @@ Vite HMR works through iframe (WebSocket on allocated port)
 - Metrics to track sandbox usage per user
 - WebSocket progress updates for long operations
 - Subdomain routing middleware for production
-

@@ -52,7 +52,7 @@ class ReadFileToolInvocation extends BaseToolInvocation<
     params: ReadFileToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ) {
     super(params, messageBus, _toolName, _toolDisplayName);
   }
@@ -60,7 +60,7 @@ class ReadFileToolInvocation extends BaseToolInvocation<
   getDescription(): string {
     const relativePath = makeRelative(
       this.params.absolute_path,
-      this.config.getTargetDir(),
+      this.config.getTargetDir()
     );
     return shortenPath(relativePath);
   }
@@ -75,7 +75,7 @@ class ReadFileToolInvocation extends BaseToolInvocation<
       this.config.getTargetDir(),
       this.config.getFileSystemService(),
       this.params.offset,
-      this.params.limit,
+      this.params.limit
     );
 
     if (result.error) {
@@ -123,8 +123,8 @@ ${result.llmContent}`;
         lines,
         mimetype,
         path.extname(this.params.absolute_path),
-        programming_language,
-      ),
+        programming_language
+      )
     );
 
     return {
@@ -145,7 +145,7 @@ export class ReadFileTool extends BaseDeclarativeTool<
 
   constructor(
     private config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       ReadFileTool.Name,
@@ -177,12 +177,12 @@ export class ReadFileTool extends BaseDeclarativeTool<
       },
       true,
       false,
-      messageBus,
+      messageBus
     );
   }
 
   protected override validateToolParamValues(
-    params: ReadFileToolParams,
+    params: ReadFileToolParams
   ): string | null {
     const filePath = params.absolute_path;
     if (params.absolute_path.trim() === '') {
@@ -227,14 +227,14 @@ export class ReadFileTool extends BaseDeclarativeTool<
     params: ReadFileToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<ReadFileToolParams, ToolResult> {
     return new ReadFileToolInvocation(
       this.config,
       params,
       messageBus,
       _toolName,
-      _toolDisplayName,
+      _toolDisplayName
     );
   }
 }

@@ -38,7 +38,7 @@ describe('ReadFileTool', () => {
   beforeEach(async () => {
     // Create a unique temporary root directory for each test run
     tempRootDir = await fsp.mkdtemp(
-      path.join(os.tmpdir(), 'read-file-tool-root-'),
+      path.join(os.tmpdir(), 'read-file-tool-root-')
     );
 
     const mockConfigInstance = {
@@ -78,7 +78,7 @@ describe('ReadFileTool', () => {
         absolute_path: 'relative/path.txt',
       };
       expect(() => tool.build(params)).toThrow(
-        'File path must be absolute, but was relative: relative/path.txt. You must provide an absolute path.',
+        'File path must be absolute, but was relative: relative/path.txt. You must provide an absolute path.'
       );
     });
 
@@ -87,7 +87,7 @@ describe('ReadFileTool', () => {
         absolute_path: '/outside/root.txt',
       };
       expect(() => tool.build(params)).toThrow(
-        /File path must be within one of the workspace directories/,
+        /File path must be within one of the workspace directories/
       );
     });
 
@@ -105,7 +105,7 @@ describe('ReadFileTool', () => {
         absolute_path: '/completely/outside/path.txt',
       };
       expect(() => tool.build(params)).toThrow(
-        /File path must be within one of the workspace directories.*or within the project temp directory/,
+        /File path must be within one of the workspace directories.*or within the project temp directory/
       );
     });
 
@@ -114,7 +114,7 @@ describe('ReadFileTool', () => {
         absolute_path: '',
       };
       expect(() => tool.build(params)).toThrow(
-        /The 'absolute_path' parameter must be non-empty./,
+        /The 'absolute_path' parameter must be non-empty./
       );
     });
 
@@ -124,7 +124,7 @@ describe('ReadFileTool', () => {
         offset: -1,
       };
       expect(() => tool.build(params)).toThrow(
-        'Offset must be a non-negative number',
+        'Offset must be a non-negative number'
       );
     });
 
@@ -134,7 +134,7 @@ describe('ReadFileTool', () => {
         limit: 0,
       };
       expect(() => tool.build(params)).toThrow(
-        'Limit must be a positive number',
+        'Limit must be a positive number'
       );
     });
   });
@@ -150,7 +150,7 @@ describe('ReadFileTool', () => {
       expect(
         (
           invocation as ToolInvocation<ReadFileToolParams, ToolResult>
-        ).getDescription(),
+        ).getDescription()
       ).toBe(path.join('sub', 'dir', 'file.txt'));
     });
 
@@ -166,7 +166,7 @@ describe('ReadFileTool', () => {
         'the',
         'normal',
         'limit',
-        'file.txt',
+        'file.txt'
       );
       const params: ReadFileToolParams = { absolute_path: deepPath };
       const invocation = tool.build(params);
@@ -188,7 +188,7 @@ describe('ReadFileTool', () => {
       expect(
         (
           invocation as ToolInvocation<ReadFileToolParams, ToolResult>
-        ).getDescription(),
+        ).getDescription()
       ).toBe(path.join('sub', 'dir', 'file.txt'));
     });
 
@@ -199,7 +199,7 @@ describe('ReadFileTool', () => {
       expect(
         (
           invocation as ToolInvocation<ReadFileToolParams, ToolResult>
-        ).getDescription(),
+        ).getDescription()
       ).toBe('.');
     });
   });
@@ -216,9 +216,9 @@ describe('ReadFileTool', () => {
       const schema = tool.schema;
       expect(
         (schema.parametersJsonSchema as ReadFileParameterSchema).properties
-          .absolute_path.description,
+          .absolute_path.description
       ).toBe(
-        "The absolute path to the file to read (e.g., 'C:\\Users\\project\\file.txt'). Relative paths are not supported. You must provide an absolute path.",
+        "The absolute path to the file to read (e.g., 'C:\\Users\\project\\file.txt'). Relative paths are not supported. You must provide an absolute path."
       );
     });
 
@@ -229,9 +229,9 @@ describe('ReadFileTool', () => {
       const schema = tool.schema;
       expect(
         (schema.parametersJsonSchema as ReadFileParameterSchema).properties
-          .absolute_path.description,
+          .absolute_path.description
       ).toBe(
-        "The absolute path to the file to read (e.g., '/home/user/project/file.txt'). Relative paths are not supported. You must provide an absolute path.",
+        "The absolute path to the file to read (e.g., '/home/user/project/file.txt'). Relative paths are not supported. You must provide an absolute path."
       );
     });
   });
@@ -309,7 +309,7 @@ describe('ReadFileTool', () => {
       expect(result).toHaveProperty('error');
       expect(result.error?.type).toBe(ToolErrorType.FILE_TOO_LARGE);
       expect(result.error?.message).toContain(
-        'File size exceeds the 20MB limit',
+        'File size exceeds the 20MB limit'
       );
     });
 
@@ -326,7 +326,7 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'IMPORTANT: The file content has been truncated',
+        'IMPORTANT: The file content has been truncated'
       );
       expect(result.llmContent).toContain('--- FILE CONTENT (truncated) ---');
       expect(result.returnDisplay).toContain('some lines were shortened');
@@ -389,7 +389,7 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe(
-        'Cannot display content of binary file: binary.bin',
+        'Cannot display content of binary file: binary.bin'
       );
       expect(result.returnDisplay).toBe('Skipped binary file: binary.bin');
     });
@@ -422,10 +422,10 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe(
-        'Cannot display content of SVG file larger than 1MB: large.svg',
+        'Cannot display content of SVG file larger than 1MB: large.svg'
       );
       expect(result.returnDisplay).toBe(
-        'Skipped large SVG file (>1MB): large.svg',
+        'Skipped large SVG file (>1MB): large.svg'
       );
     });
 
@@ -461,16 +461,16 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'IMPORTANT: The file content has been truncated',
+        'IMPORTANT: The file content has been truncated'
       );
       expect(result.llmContent).toContain(
-        'Status: Showing lines 6-8 of 20 total lines',
+        'Status: Showing lines 6-8 of 20 total lines'
       );
       expect(result.llmContent).toContain('Line 6');
       expect(result.llmContent).toContain('Line 7');
       expect(result.llmContent).toContain('Line 8');
       expect(result.returnDisplay).toBe(
-        'Read lines 6-8 of 20 from paginated.txt',
+        'Read lines 6-8 of 20 from paginated.txt'
       );
     });
 
@@ -496,7 +496,7 @@ describe('ReadFileTool', () => {
       beforeEach(async () => {
         await fsp.writeFile(
           path.join(tempRootDir, '.geminiignore'),
-          ['foo.*', 'ignored/'].join('\n'),
+          ['foo.*', 'ignored/'].join('\n')
         );
       });
 

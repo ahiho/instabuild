@@ -71,7 +71,7 @@ let currentGeminiMdFilename: string | string[] = DEFAULT_CONTEXT_FILENAME;
 export function setGeminiMdFilename(newFilename: string | string[]): void {
   if (Array.isArray(newFilename)) {
     if (newFilename.length > 0) {
-      currentGeminiMdFilename = newFilename.map((name) => name.trim());
+      currentGeminiMdFilename = newFilename.map(name => name.trim());
     }
   } else if (newFilename && newFilename.trim() !== '') {
     currentGeminiMdFilename = newFilename.trim();
@@ -149,7 +149,7 @@ function computeNewContent(currentContent: string, fact: string): string {
     const startOfSectionContent = headerIndex + MEMORY_SECTION_HEADER.length;
     let endOfSectionIndex = currentContent.indexOf(
       '\n## ',
-      startOfSectionContent,
+      startOfSectionContent
     );
     if (endOfSectionIndex === -1) {
       endOfSectionIndex = currentContent.length; // End of file
@@ -181,7 +181,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
     params: SaveMemoryParams,
     messageBus?: MessageBus,
     toolName?: string,
-    displayName?: string,
+    displayName?: string
   ) {
     super(params, messageBus, toolName, displayName);
   }
@@ -192,7 +192,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
   }
 
   protected override async getConfirmationDetails(
-    _abortSignal: AbortSignal,
+    _abortSignal: AbortSignal
   ): Promise<ToolEditConfirmationDetails | false> {
     const memoryFilePath = getGlobalMemoryFilePath();
     const allowlistKey = memoryFilePath;
@@ -211,7 +211,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
       newContent,
       'Current',
       'Proposed',
-      DEFAULT_DIFF_OPTIONS,
+      DEFAULT_DIFF_OPTIONS
     );
 
     const confirmationDetails: ToolEditConfirmationDetails = {
@@ -243,7 +243,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
         await fs.writeFile(
           getGlobalMemoryFilePath(),
           modified_content,
-          'utf-8',
+          'utf-8'
         );
         const successMessage = `Okay, I've updated the memory file with your modifications.`;
         return {
@@ -262,7 +262,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
             readFile: fs.readFile,
             writeFile: fs.writeFile,
             mkdir: fs.mkdir,
-          },
+          }
         );
         const successMessage = `Okay, I've remembered that: "${fact}"`;
         return {
@@ -277,7 +277,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.warn(
-        `[MemoryTool] Error executing save_memory for fact "${fact}": ${errorMessage}`,
+        `[MemoryTool] Error executing save_memory for fact "${fact}": ${errorMessage}`
       );
       return {
         llmContent: JSON.stringify({
@@ -309,12 +309,12 @@ export class MemoryTool
       memoryToolSchemaData.parametersJsonSchema as Record<string, unknown>,
       true,
       false,
-      messageBus,
+      messageBus
     );
   }
 
   protected override validateToolParamValues(
-    params: SaveMemoryParams,
+    params: SaveMemoryParams
   ): string | null {
     if (params.fact.trim() === '') {
       return 'Parameter "fact" must be a non-empty string.';
@@ -327,13 +327,13 @@ export class MemoryTool
     params: SaveMemoryParams,
     messageBus?: MessageBus,
     toolName?: string,
-    displayName?: string,
+    displayName?: string
   ) {
     return new MemoryToolInvocation(
       params,
       messageBus ?? this.messageBus,
       toolName ?? this.name,
-      displayName ?? this.displayName,
+      displayName ?? this.displayName
     );
   }
 
@@ -345,13 +345,13 @@ export class MemoryTool
       writeFile: (
         path: string,
         data: string,
-        encoding: 'utf-8',
+        encoding: 'utf-8'
       ) => Promise<void>;
       mkdir: (
         path: string,
-        options: { recursive: boolean },
+        options: { recursive: boolean }
       ) => Promise<string | undefined>;
-    },
+    }
   ): Promise<void> {
     try {
       await fsAdapter.mkdir(path.dirname(memoryFilePath), { recursive: true });
@@ -368,10 +368,10 @@ export class MemoryTool
     } catch (error) {
       console.error(
         `[MemoryTool] Error adding memory entry to ${memoryFilePath}:`,
-        error,
+        error
       );
       throw new Error(
-        `[MemoryTool] Failed to add memory entry: ${error instanceof Error ? error.message : String(error)}`,
+        `[MemoryTool] Failed to add memory entry: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -388,7 +388,7 @@ export class MemoryTool
       createUpdatedParams: (
         _oldContent: string,
         modifiedProposedContent: string,
-        originalParams: SaveMemoryParams,
+        originalParams: SaveMemoryParams
       ): SaveMemoryParams => ({
         ...originalParams,
         modified_by_user: true,

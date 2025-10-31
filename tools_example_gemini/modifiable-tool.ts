@@ -36,7 +36,7 @@ export interface ModifyContext<ToolParams> {
   createUpdatedParams: (
     oldContent: string,
     modifiedProposedContent: string,
-    originalParams: ToolParams,
+    originalParams: ToolParams
   ) => ToolParams;
 }
 
@@ -49,7 +49,7 @@ export interface ModifyResult<ToolParams> {
  * Type guard to check if a declarative tool is modifiable.
  */
 export function isModifiableDeclarativeTool(
-  tool: AnyDeclarativeTool,
+  tool: AnyDeclarativeTool
 ): tool is ModifiableDeclarativeTool<object> {
   return 'getModifyContext' in tool;
 }
@@ -57,7 +57,7 @@ export function isModifiableDeclarativeTool(
 function createTempFilesForModify(
   currentContent: string,
   proposedContent: string,
-  file_path: string,
+  file_path: string
 ): { oldPath: string; newPath: string } {
   const tempDir = os.tmpdir();
   const diffDir = path.join(tempDir, 'gemini-cli-tool-modify-diffs');
@@ -71,11 +71,11 @@ function createTempFilesForModify(
   const timestamp = Date.now();
   const tempOldPath = path.join(
     diffDir,
-    `gemini-cli-modify-${fileName}-old-${timestamp}${ext}`,
+    `gemini-cli-modify-${fileName}-old-${timestamp}${ext}`
   );
   const tempNewPath = path.join(
     diffDir,
-    `gemini-cli-modify-${fileName}-new-${timestamp}${ext}`,
+    `gemini-cli-modify-${fileName}-new-${timestamp}${ext}`
   );
 
   fs.writeFileSync(tempOldPath, currentContent, 'utf8');
@@ -88,7 +88,7 @@ function getUpdatedParams<ToolParams>(
   tmpOldPath: string,
   tempNewPath: string,
   originalParams: ToolParams,
-  modifyContext: ModifyContext<ToolParams>,
+  modifyContext: ModifyContext<ToolParams>
 ): { updatedParams: ToolParams; updatedDiff: string } {
   let oldContent = '';
   let newContent = '';
@@ -110,7 +110,7 @@ function getUpdatedParams<ToolParams>(
   const updatedParams = modifyContext.createUpdatedParams(
     oldContent,
     newContent,
-    originalParams,
+    originalParams
   );
   const updatedDiff = Diff.createPatch(
     path.basename(modifyContext.getFilePath(originalParams)),
@@ -118,7 +118,7 @@ function getUpdatedParams<ToolParams>(
     newContent,
     'Current',
     'Proposed',
-    DEFAULT_DIFF_OPTIONS,
+    DEFAULT_DIFF_OPTIONS
   );
 
   return { updatedParams, updatedDiff };
@@ -147,7 +147,7 @@ export async function modifyWithEditor<ToolParams>(
   modifyContext: ModifyContext<ToolParams>,
   editorType: EditorType,
   _abortSignal: AbortSignal,
-  onEditorClose: () => void,
+  onEditorClose: () => void
 ): Promise<ModifyResult<ToolParams>> {
   const currentContent = await modifyContext.getCurrentContent(originalParams);
   const proposedContent =
@@ -156,7 +156,7 @@ export async function modifyWithEditor<ToolParams>(
   const { oldPath, newPath } = createTempFilesForModify(
     currentContent,
     proposedContent,
-    modifyContext.getFilePath(originalParams),
+    modifyContext.getFilePath(originalParams)
   );
 
   try {
@@ -165,7 +165,7 @@ export async function modifyWithEditor<ToolParams>(
       oldPath,
       newPath,
       originalParams,
-      modifyContext,
+      modifyContext
     );
 
     return result;

@@ -66,7 +66,7 @@ function hashContent(content: string): string {
 
 function restoreTrailingNewline(
   originalContent: string,
-  modifiedContent: string,
+  modifiedContent: string
 ): string {
   const hadTrailingNewline = originalContent.endsWith('\n');
   if (hadTrailingNewline && !modifiedContent.endsWith('\n')) {
@@ -87,7 +87,7 @@ function escapeRegex(str: string): string {
 }
 
 async function calculateExactReplacement(
-  context: ReplacementContext,
+  context: ReplacementContext
 ): Promise<ReplacementResult | null> {
   const { currentContent, params } = context;
   const { old_string, new_string } = params;
@@ -101,7 +101,7 @@ async function calculateExactReplacement(
     let modifiedCode = safeLiteralReplace(
       normalizedCode,
       normalizedSearch,
-      normalizedReplace,
+      normalizedReplace
     );
     modifiedCode = restoreTrailingNewline(currentContent, modifiedCode);
     return {
@@ -116,7 +116,7 @@ async function calculateExactReplacement(
 }
 
 async function calculateFlexibleReplacement(
-  context: ReplacementContext,
+  context: ReplacementContext
 ): Promise<ReplacementResult | null> {
   const { currentContent, params } = context;
   const { old_string, new_string } = params;
@@ -137,7 +137,7 @@ async function calculateFlexibleReplacement(
     const window = sourceLines.slice(i, i + searchLinesStripped.length);
     const windowStripped = window.map((line: string) => line.trim());
     const isMatch = windowStripped.every(
-      (line: string, index: number) => line === searchLinesStripped[index],
+      (line: string, index: number) => line === searchLinesStripped[index]
     );
 
     if (isMatch) {
@@ -146,12 +146,12 @@ async function calculateFlexibleReplacement(
       const indentationMatch = firstLineInMatch.match(/^(\s*)/);
       const indentation = indentationMatch ? indentationMatch[1] : '';
       const newBlockWithIndent = replaceLines.map(
-        (line: string) => `${indentation}${line}`,
+        (line: string) => `${indentation}${line}`
       );
       sourceLines.splice(
         i,
         searchLinesStripped.length,
-        newBlockWithIndent.join('\n'),
+        newBlockWithIndent.join('\n')
       );
       i += replaceLines.length;
     } else {
@@ -174,7 +174,7 @@ async function calculateFlexibleReplacement(
 }
 
 async function calculateRegexReplacement(
-  context: ReplacementContext,
+  context: ReplacementContext
 ): Promise<ReplacementResult | null> {
   const { currentContent, params } = context;
   const { old_string, new_string } = params;
@@ -217,14 +217,14 @@ async function calculateRegexReplacement(
   const indentation = match[1] || '';
   const newLines = normalizedReplace.split('\n');
   const newBlockWithIndent = newLines
-    .map((line) => `${indentation}${line}`)
+    .map(line => `${indentation}${line}`)
     .join('\n');
 
   // Use replace with the regex to substitute the matched content.
   // Since the regex doesn't have the 'g' flag, it will only replace the first occurrence.
   const modifiedCode = currentContent.replace(
     flexibleRegex,
-    newBlockWithIndent,
+    newBlockWithIndent
   );
 
   return {
@@ -248,7 +248,7 @@ function detectLineEnding(content: string): '\r\n' | '\n' {
 
 export async function calculateReplacement(
   config: Config,
-  context: ReplacementContext,
+  context: ReplacementContext
 ): Promise<ReplacementResult> {
   const { currentContent, params } = context;
   const { old_string, new_string } = params;
@@ -298,7 +298,7 @@ export function getErrorReplaceResult(
   occurrences: number,
   expectedReplacements: number,
   finalOldString: string,
-  finalNewString: string,
+  finalNewString: string
 ) {
   let error: { display: string; raw: string; type: ToolErrorType } | undefined =
     undefined;
@@ -380,7 +380,7 @@ class EditToolInvocation
     params: EditToolParams,
     messageBus?: MessageBus,
     toolName?: string,
-    displayName?: string,
+    displayName?: string
   ) {
     super(params, messageBus, toolName, displayName);
   }
@@ -394,7 +394,7 @@ class EditToolInvocation
     currentContent: string,
     initialError: { display: string; raw: string; type: ToolErrorType },
     abortSignal: AbortSignal,
-    originalLineEnding: '\r\n' | '\n',
+    originalLineEnding: '\r\n' | '\n'
   ): Promise<CalculatedEdit> {
     // In order to keep from clobbering edits made outside our system,
     // check if the file has been modified since we first read it.
@@ -421,7 +421,7 @@ class EditToolInvocation
       errorForLlmEditFixer,
       contentForLlmEditFixer,
       this.config.getBaseLlmClient(),
-      abortSignal,
+      abortSignal
     );
 
     if (fixedEdit.noChangesRequired) {
@@ -454,7 +454,7 @@ class EditToolInvocation
       secondAttemptResult.occurrences,
       1, // expectedReplacements is always 1 for smart_edit
       secondAttemptResult.finalOldString,
-      secondAttemptResult.finalNewString,
+      secondAttemptResult.finalNewString
     );
 
     if (secondError) {
@@ -493,7 +493,7 @@ class EditToolInvocation
    */
   private async calculateEdit(
     params: EditToolParams,
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<CalculatedEdit> {
     const expectedReplacements = 1;
     let currentContent: string | null = null;
@@ -584,7 +584,7 @@ class EditToolInvocation
       replacementResult.occurrences,
       expectedReplacements,
       replacementResult.finalOldString,
-      replacementResult.finalNewString,
+      replacementResult.finalNewString
     );
 
     if (!initialError) {
@@ -604,7 +604,7 @@ class EditToolInvocation
       currentContent,
       initialError,
       abortSignal,
-      originalLineEnding,
+      originalLineEnding
     );
   }
 
@@ -613,7 +613,7 @@ class EditToolInvocation
    * It needs to calculate the diff to show the user.
    */
   protected override async getConfirmationDetails(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     if (this.config.getApprovalMode() === ApprovalMode.AUTO_EDIT) {
       return false;
@@ -643,7 +643,7 @@ class EditToolInvocation
       editData.newContent,
       'Current',
       'Proposed',
-      DEFAULT_DIFF_OPTIONS,
+      DEFAULT_DIFF_OPTIONS
     );
     const ideClient = await IdeClient.getInstance();
     const ideConfirmation =
@@ -682,7 +682,7 @@ class EditToolInvocation
   getDescription(): string {
     const relativePath = makeRelative(
       this.params.file_path,
-      this.config.getTargetDir(),
+      this.config.getTargetDir()
     );
     if (this.params.old_string === '') {
       return `Create ${shortenPath(relativePath)}`;
@@ -761,7 +761,7 @@ class EditToolInvocation
           editData.newContent,
           'Current',
           'Proposed',
-          DEFAULT_DIFF_OPTIONS,
+          DEFAULT_DIFF_OPTIONS
         );
         const originallyProposedContent =
           this.params.ai_proposed_string || this.params.new_string;
@@ -769,7 +769,7 @@ class EditToolInvocation
           fileName,
           editData.currentContent ?? '',
           originallyProposedContent,
-          this.params.new_string,
+          this.params.new_string
         );
         displayResult = {
           fileDiff,
@@ -787,7 +787,7 @@ class EditToolInvocation
       ];
       if (this.params.modified_by_user) {
         llmSuccessMessageParts.push(
-          `User modified the \`new_string\` content to be: ${this.params.new_string}.`,
+          `User modified the \`new_string\` content to be: ${this.params.new_string}.`
         );
       }
 
@@ -830,7 +830,7 @@ export class SmartEditTool
 
   constructor(
     private readonly config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       SmartEditTool.Name,
@@ -890,7 +890,7 @@ A good instruction should concisely answer:
       },
       true, // isOutputMarkdown
       false, // canUpdateOutput
-      messageBus,
+      messageBus
     );
   }
 
@@ -900,7 +900,7 @@ A good instruction should concisely answer:
    * @returns Error message string or null if valid
    */
   protected override validateToolParamValues(
-    params: EditToolParams,
+    params: EditToolParams
   ): string | null {
     if (!params.file_path) {
       return "The 'file_path' parameter must be non-empty.";
@@ -928,14 +928,14 @@ A good instruction should concisely answer:
   }
 
   protected createInvocation(
-    params: EditToolParams,
+    params: EditToolParams
   ): ToolInvocation<EditToolParams, ToolResult> {
     return new EditToolInvocation(
       this.config,
       params,
       this.messageBus,
       this.name,
-      this.displayName,
+      this.displayName
     );
   }
 
@@ -961,7 +961,7 @@ A good instruction should concisely answer:
             currentContent,
             params.old_string,
             params.new_string,
-            params.old_string === '' && currentContent === '',
+            params.old_string === '' && currentContent === ''
           );
         } catch (err) {
           if (!isNodeError(err) || err.code !== 'ENOENT') throw err;
@@ -971,7 +971,7 @@ A good instruction should concisely answer:
       createUpdatedParams: (
         oldContent: string,
         modifiedProposedContent: string,
-        originalParams: EditToolParams,
+        originalParams: EditToolParams
       ): EditToolParams => {
         const content = originalParams.new_string;
         return {

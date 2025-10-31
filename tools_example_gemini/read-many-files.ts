@@ -117,7 +117,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
     params: ReadManyFilesParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ) {
     super(params, messageBus, _toolName, _toolDisplayName);
   }
@@ -144,14 +144,14 @@ ${this.config.getTargetDir()}
 ${finalExclusionPatternsForDescription
   .slice(0, 2)
   .join(
-    '`, `',
+    '`, `'
   )}${finalExclusionPatternsForDescription.length > 2 ? '...`' : '`'}`
         : 'none specified'
     }`;
 
     return `Will attempt to read and concatenate files ${pathDesc}. ${excludeDesc}. File encoding: ${DEFAULT_ENCODING}. Separator: "${DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
       '{filePath}',
-      'path/to/file.ext',
+      'path/to/file.ext'
     )}".`;
   }
 
@@ -203,8 +203,8 @@ ${finalExclusionPatternsForDescription
           allEntries.add(entry);
         }
       }
-      const relativeEntries = Array.from(allEntries).map((p) =>
-        path.relative(this.config.getTargetDir(), p),
+      const relativeEntries = Array.from(allEntries).map(p =>
+        path.relative(this.config.getTargetDir(), p)
       );
 
       const fileDiscovery = this.config.getFileService();
@@ -270,12 +270,12 @@ ${finalExclusionPatternsForDescription
             const fileExtension = path.extname(filePath).toLowerCase();
             const fileNameWithoutExtension = path.basename(
               filePath,
-              fileExtension,
+              fileExtension
             );
             const requestedExplicitly = inputPatterns.some(
               (pattern: string) =>
                 pattern.toLowerCase().includes(fileExtension) ||
-                pattern.includes(fileNameWithoutExtension),
+                pattern.includes(fileNameWithoutExtension)
             );
 
             if (!requestedExplicitly) {
@@ -293,7 +293,7 @@ ${finalExclusionPatternsForDescription
           const fileReadResult = await processSingleFileContent(
             filePath,
             this.config.getTargetDir(),
-            this.config.getFileSystemService(),
+            this.config.getFileSystemService()
           );
 
           if (fileReadResult.error) {
@@ -323,7 +323,7 @@ ${finalExclusionPatternsForDescription
             reason: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
           };
         }
-      },
+      }
     );
 
     const results = await Promise.allSettled(fileProcessingPromises);
@@ -346,7 +346,7 @@ ${finalExclusionPatternsForDescription
           if (typeof fileReadResult.llmContent === 'string') {
             const separator = DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
               '{filePath}',
-              filePath,
+              filePath
             );
             let fileContentForLlm = '';
             if (fileReadResult.isTruncated) {
@@ -377,8 +377,8 @@ ${finalExclusionPatternsForDescription
               lines,
               mimetype,
               path.extname(filePath),
-              programming_language,
-            ),
+              programming_language
+            )
           );
         }
       } else {
@@ -396,13 +396,13 @@ ${finalExclusionPatternsForDescription
       if (processedFilesRelativePaths.length <= 10) {
         displayMessage += `\n**Processed Files:**\n`;
         processedFilesRelativePaths.forEach(
-          (p) => (displayMessage += `- \`${p}\`\n`),
+          p => (displayMessage += `- \`${p}\`\n`)
         );
       } else {
         displayMessage += `\n**Processed Files (first 10 shown):**\n`;
         processedFilesRelativePaths
           .slice(0, 10)
-          .forEach((p) => (displayMessage += `- \`${p}\`\n`));
+          .forEach(p => (displayMessage += `- \`${p}\`\n`));
         displayMessage += `- ...and ${processedFilesRelativePaths.length - 10} more.\n`;
       }
     }
@@ -419,7 +419,7 @@ ${finalExclusionPatternsForDescription
       skippedFiles
         .slice(0, 5)
         .forEach(
-          (f) => (displayMessage += `- \`${f.path}\` (Reason: ${f.reason})\n`),
+          f => (displayMessage += `- \`${f.path}\` (Reason: ${f.reason})\n`)
         );
       if (skippedFiles.length > 5) {
         displayMessage += `- ...and ${skippedFiles.length - 5} more.\n`;
@@ -435,7 +435,7 @@ ${finalExclusionPatternsForDescription
       contentParts.push(DEFAULT_OUTPUT_TERMINATOR);
     } else {
       contentParts.push(
-        'No files matching the criteria were found or all were skipped.',
+        'No files matching the criteria were found or all were skipped.'
       );
     }
     return {
@@ -458,7 +458,7 @@ export class ReadManyFilesTool extends BaseDeclarativeTool<
 
   constructor(
     private config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     const parameterSchema = {
       type: 'object',
@@ -543,7 +543,7 @@ Use this tool when the user's query implies needing the content of several files
       parameterSchema,
       true, // isOutputMarkdown
       false, // canUpdateOutput
-      messageBus,
+      messageBus
     );
   }
 
@@ -551,14 +551,14 @@ Use this tool when the user's query implies needing the content of several files
     params: ReadManyFilesParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<ReadManyFilesParams, ToolResult> {
     return new ReadManyFilesToolInvocation(
       this.config,
       params,
       messageBus,
       _toolName,
-      _toolDisplayName,
+      _toolDisplayName
     );
   }
 }

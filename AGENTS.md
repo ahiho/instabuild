@@ -21,7 +21,7 @@ An AI-powered landing page builder that:
 ### Core Stack
 
 - **TypeScript (strict mode)** - All code with full type safety
-- **pnpm workspaces** - Monorepo package management
+- **pnpm workspaces** - Monorepo package management (ALWAYS use `pnpm`, never `npm` or `yarn`)
 - **Vercel AI SDK v5.0** - Agentic multi-step execution with tool calling
 - **Docker + gVisor** - Secure sandbox architecture for code execution
 
@@ -74,12 +74,15 @@ tools_example_gemini/ # Reference tool implementations
 
 ## Commands
 
+**IMPORTANT: This project uses pnpm. Always use `pnpm` commands, never `npm` or `yarn`.**
+
 ```bash
 pnpm dev              # Start all services in development
 pnpm build            # Build all packages
 pnpm test             # Run all tests
 pnpm lint             # Lint all code
 pnpm type-check       # TypeScript validation
+pnpm add <package>    # Install a package (NOT npm install)
 ```
 
 ## Code Style
@@ -172,13 +175,28 @@ pnpm type-check       # TypeScript validation
 
 ### Core Components
 
-#### 1. AgenticAIService (`apps/backend/src/services/agenticAIService.ts`)
+#### 1. AgenticAIService (`apps/backend/src/services/agentic/`)
 
-- **Task complexity analysis** (Simple → Advanced)
-- **Model selection** based on complexity and cost
+The AgenticAIService has been refactored into a modular architecture with 10 focused modules:
+
+**Core Orchestrator** (`AgenticAIService.ts`):
 - **Multi-step execution** with Vercel AI SDK
-- **Error recovery** with multiple strategies
-- **Progress tracking** and user feedback
+- **Progress tracking** and callback management
+- **Public API** for integration with routes
+- **Lifecycle management** for conversations
+
+**Supporting Modules**:
+- **TaskConfiguration** - Task complexity analysis (Simple → Advanced), step limits, guidelines
+- **ErrorRecovery** - Error classification, strategy selection, tool call repair
+- **StateManagement** - Conversation state tracking, execution metrics collection
+- **SystemPromptBuilder** - Dynamic system prompt generation with complexity-aware guidelines
+- **AnalyticsGenerator** - Analytics summary generation and performance statistics
+
+**Key Benefits**:
+- Single-responsibility modules for better maintainability
+- Independent unit testing of each component
+- Easier to extend with new recovery strategies or metrics
+- Reduced cognitive load (580 lines per file vs. 1,441 monolithic)
 
 #### 2. Tool Registry (`apps/backend/src/services/toolRegistry.ts`)
 

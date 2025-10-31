@@ -3,12 +3,16 @@ import type {
   ToolExecutionContext,
 } from '@instabuild/shared/types';
 import { ToolCategory } from '@instabuild/shared/types';
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
 import { logger } from '../lib/logger.js';
 import { toolRegistry } from '../services/toolRegistry.js';
 import { containerFilesystem } from './container-filesystem.js';
+import { calculateReplacement } from './utils/text-replacement.js';
+import {
+  isBinaryFile,
+  processFileContent,
+} from './utils/file-reading.js';
 
 /**
  * File entry returned by list_directory tool
@@ -91,7 +95,9 @@ const listDirectoryTool: EnhancedToolDefinition = {
     ignore: z
       .array(z.string())
       .optional()
-      .describe('List of glob patterns to ignore (e.g., ["*.log", "node_modules"])'),
+      .describe(
+        'List of glob patterns to ignore (e.g., ["*.log", "node_modules"])'
+      ),
   }),
 
   async execute(
@@ -197,7 +203,7 @@ const listDirectoryTool: EnhancedToolDefinition = {
           path: entry.path,
           isDirectory: entry.isDirectory,
           size: entry.size,
-          modifiedTime: entry.modifiedTime,
+          modifiedTime: entry.modifiedTime || new Date(),
         });
       }
 
@@ -280,68 +286,7 @@ const listDirectoryTool: EnhancedToolDefinition = {
   },
 };
 
-/**
- * Detect if a file is binary based on its extension
- */
-function isBinaryFile(filePath: string): boolean {
-  const binaryExtensions = [
-    '.jpg',
-    '.jpeg',
-    '.png',
-    '.gif',
-    '.bmp',
-    '.webp',
-    '.svg',
-    '.pdf',
-    '.doc',
-    '.docx',
-    '.xls',
-    '.xlsx',
-    '.ppt',
-    '.pptx',
-    '.zip',
-    '.tar',
-    '.gz',
-    '.rar',
-    '.7z',
-    '.exe',
-    '.dll',
-    '.so',
-    '.dylib',
-    '.mp3',
-    '.mp4',
-    '.avi',
-    '.mov',
-    '.wav',
-  ];
-
-  const ext = path.extname(filePath).toLowerCase();
-  return binaryExtensions.includes(ext);
-}
-
-/**
- * Get specific MIME type for a file
- */
-function getSpecificMimeType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.ts': 'application/typescript',
-    '.json': 'application/json',
-    '.md': 'text/markdown',
-    '.txt': 'text/plain',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.pdf': 'application/pdf',
-  };
-
-  return mimeTypes[ext] || 'application/octet-stream';
-}
+// Binary file detection and MIME type functions moved to utils/file-reading.js
 
 /**
  * Tool for reading file contents
@@ -438,10 +383,10 @@ const readFileTool: EnhancedToolDefinition = {
       }
 
       // Phase 3.5: Check if file exists INSIDE CONTAINER
-      const isFile = !await containerFilesystem.isDirectory(
+      const isFile = !(await containerFilesystem.isDirectory(
         context.sandboxId!,
         filePath
-      );
+      ));
 
       if (!isFile) {
         const exists = await containerFilesystem.exists(
@@ -470,150 +415,27 @@ const readFileTool: EnhancedToolDefinition = {
         };
       }
 
+      // Get file information
       const fileSize = await containerFilesystem.getFileSize(
         context.sandboxId!,
         filePath
       );
-      const mimeType = getSpecificMimeType(filePath);
       const isBinary = isBinaryFile(filePath);
 
-      // Handle binary files (images, PDFs, etc.)
-      if (isBinary) {
-        try {
-          // Phase 3.5: Read binary file from container
-          const base64Content = await containerFilesystem.readFile(
-            context.sandboxId!,
-            filePath,
-            'base64'
-          );
+      // Read file content from container
+      const encoding = isBinary ? 'base64' : 'utf8';
+      let fileContent: string;
 
-          return {
-            success: true,
-            data: {
-              content: base64Content,
-              encoding: 'base64',
-              mimeType,
-              fileSize,
-              isBinary: true,
-            },
-            userFeedback: `Successfully read binary file: ${path.basename(filePath)} (${fileSize} bytes, ${mimeType})`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              path: filePath,
-              fileSize,
-              mimeType,
-              encoding: 'base64',
-              contentLength: base64Content.length,
-            },
-          };
-        } catch (error) {
-          return {
-            success: false,
-            userFeedback: `Failed to read binary file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: error instanceof Error ? error.message : String(error),
-              path: filePath,
-            },
-          };
-        }
-      }
-
-      // Handle text files
       try {
-        // Phase 3.5: Read text file from container
-        const content = await containerFilesystem.readFile(
+        fileContent = await containerFilesystem.readFile(
           context.sandboxId!,
           filePath,
-          'utf8'
+          encoding
         );
-        const lines = content.split('\n');
-        const totalLines = lines.length;
-
-        let processedContent = content;
-        let isTruncated = false;
-        let linesShown: [number, number] | undefined;
-
-        // Handle offset and limit for text files
-        if (offset !== undefined || limit !== undefined) {
-          const startLine = offset || 0;
-          const endLine = limit ? startLine + limit : totalLines;
-
-          if (startLine >= totalLines) {
-            return {
-              success: false,
-              userFeedback: `Offset ${startLine} is beyond the file length (${totalLines} lines)`,
-              previewRefreshNeeded: false,
-              technicalDetails: {
-                error: 'Offset beyond file length',
-                offset: startLine,
-                totalLines,
-              },
-            };
-          }
-
-          const selectedLines = lines.slice(
-            startLine,
-            Math.min(endLine, totalLines)
-          );
-          processedContent = selectedLines.join('\n');
-          isTruncated = endLine < totalLines;
-          linesShown = [startLine + 1, Math.min(endLine, totalLines)]; // 1-based for user display
-        } else {
-          // Check if file is too large and needs truncation
-          const maxLines = 2000; // Default limit
-          if (totalLines > maxLines) {
-            const selectedLines = lines.slice(0, maxLines);
-            processedContent = selectedLines.join('\n');
-            isTruncated = true;
-            linesShown = [1, maxLines];
-          }
-        }
-
-        let userMessage = `Successfully read file: ${path.basename(filePath)} (${totalLines} lines, ${fileSize} bytes)`;
-        let llmContent = processedContent;
-
-        if (isTruncated && linesShown) {
-          const [start, end] = linesShown;
-          const nextOffset = offset ? offset + (end - start + 1) : end;
-
-          userMessage = `File content truncated. Showing lines ${start}-${end} of ${totalLines} total lines.`;
-          llmContent = `IMPORTANT: The file content has been truncated.
-Status: Showing lines ${start}-${end} of ${totalLines} total lines.
-Action: To read more of the file, you can use the 'offset' and 'limit' parameters in a subsequent 'read_file' call. For example, to read the next section of the file, use offset: ${nextOffset}.
-
---- FILE CONTENT (truncated) ---
-${processedContent}`;
-        }
-
-        return {
-          success: true,
-          data: {
-            content: llmContent,
-            encoding: 'utf8',
-            mimeType,
-            fileSize,
-            totalLines,
-            isBinary: false,
-            isTruncated,
-            linesShown,
-          },
-          userFeedback: userMessage,
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            path: filePath,
-            fileSize,
-            mimeType,
-            totalLines,
-            isTruncated,
-            linesShown,
-            contentLength: processedContent.length,
-          },
-        };
       } catch (error) {
         return {
           success: false,
-          userFeedback: `Failed to read text file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          userFeedback: `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`,
           previewRefreshNeeded: false,
           technicalDetails: {
             error: error instanceof Error ? error.message : String(error),
@@ -621,6 +443,70 @@ ${processedContent}`;
           },
         };
       }
+
+      // Process file content using utility function
+      const result = await processFileContent(
+        fileContent,
+        filePath,
+        fileSize,
+        isBinary,
+        offset,
+        limit
+      );
+
+      // Handle processing errors
+      if (!result.success) {
+        return {
+          success: false,
+          userFeedback: result.error!.message,
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: result.error!.message,
+            errorCode: result.error!.code,
+            path: filePath,
+            ...result.error!.details,
+          },
+        };
+      }
+
+      // Build user feedback message
+      const fileName = path.basename(filePath);
+      let userMessage: string;
+
+      if (isBinary) {
+        userMessage = `Successfully read binary file: ${fileName} (${fileSize} bytes, ${result.mimeType})`;
+      } else if (result.isTruncated && result.linesShown) {
+        const [start, end] = result.linesShown;
+        userMessage = `File content truncated. Showing lines ${start}-${end} of ${result.totalLines} total lines.`;
+      } else {
+        userMessage = `Successfully read file: ${fileName} (${result.totalLines} lines, ${fileSize} bytes)`;
+      }
+
+      return {
+        success: true,
+        data: {
+          content: result.content,
+          encoding: result.encoding,
+          mimeType: result.mimeType,
+          fileSize: result.fileSize,
+          totalLines: result.totalLines,
+          isBinary: result.isBinary,
+          isTruncated: result.isTruncated,
+          linesShown: result.linesShown,
+        },
+        userFeedback: userMessage,
+        previewRefreshNeeded: false,
+        technicalDetails: {
+          path: filePath,
+          fileSize: result.fileSize,
+          mimeType: result.mimeType,
+          totalLines: result.totalLines,
+          isTruncated: result.isTruncated,
+          linesShown: result.linesShown,
+          encoding: result.encoding,
+          contentLength: result.content?.length,
+        },
+      };
     } catch (error) {
       logger.error('Error reading file', {
         error: error instanceof Error ? error.message : String(error),
@@ -801,10 +687,7 @@ const writeFileTool: EnhancedToolDefinition = {
       // Phase 3.5: Create directory if it doesn't exist INSIDE CONTAINER
       const dirName = path.dirname(filePath);
       try {
-        await containerFilesystem.mkdir(
-          context.sandboxId!,
-          dirName
-        );
+        await containerFilesystem.mkdir(context.sandboxId!, dirName);
       } catch (error) {
         return {
           success: false,
@@ -912,46 +795,6 @@ const writeFileTool: EnhancedToolDefinition = {
 };
 
 /**
- * Safely replace text in content, handling special regex characters
- */
-function safeLiteralReplace(
-  content: string,
-  oldString: string,
-  newString: string
-): string {
-  // Escape special regex characters in the old string
-  const escapedOldString = oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(escapedOldString, 'g');
-  return content.replace(regex, newString);
-}
-
-/**
- * Apply replacement to content
- */
-function applyReplacement(
-  currentContent: string | null,
-  oldString: string,
-  newString: string,
-  isNewFile: boolean
-): string {
-  if (isNewFile) {
-    return newString;
-  }
-
-  if (currentContent === null) {
-    return oldString === '' ? newString : '';
-  }
-
-  // If oldString is empty and it's not a new file, do not modify the content
-  if (oldString === '' && !isNewFile) {
-    return currentContent;
-  }
-
-  // Use safe literal replacement
-  return safeLiteralReplace(currentContent, oldString, newString);
-}
-
-/**
  * Tool for precise text replacement in files
  */
 const replaceTool: EnhancedToolDefinition = {
@@ -1033,11 +876,11 @@ const replaceTool: EnhancedToolDefinition = {
         };
       }
 
+      // Phase 3.5: Read current file content INSIDE CONTAINER
       let currentContent: string | null = null;
       let fileExists = false;
       let isNewFile = false;
 
-      // Phase 3.5: Try to read the current file content INSIDE CONTAINER
       try {
         fileExists = await containerFilesystem.exists(
           context.sandboxId!,
@@ -1052,6 +895,21 @@ const replaceTool: EnhancedToolDefinition = {
           );
           // Normalize line endings to LF for consistent processing
           currentContent = currentContent.replace(/\r\n/g, '\n');
+        } else {
+          // File doesn't exist - check if this is a new file creation
+          isNewFile = oldString === '';
+          if (!isNewFile) {
+            return {
+              success: false,
+              userFeedback:
+                'File not found. Cannot apply edit. Use an empty old_string to create a new file.',
+              previewRefreshNeeded: false,
+              technicalDetails: {
+                error: 'File not found',
+                path: filePath,
+              },
+            };
+          }
         }
       } catch (error: any) {
         return {
@@ -1065,123 +923,38 @@ const replaceTool: EnhancedToolDefinition = {
         };
       }
 
-      // Handle new file creation
-      if (oldString === '' && !fileExists) {
-        isNewFile = true;
-      } else if (!fileExists) {
-        return {
-          success: false,
-          userFeedback:
-            'File not found. Cannot apply edit. Use an empty old_string to create a new file.',
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'File not found',
-            path: filePath,
-          },
-        };
-      }
-
-      let occurrences = 0;
-      const finalOldString = oldString;
-      const finalNewString = newString;
-
-      // For existing files, count occurrences and validate
-      if (currentContent !== null) {
-        if (oldString === '') {
-          return {
-            success: false,
-            userFeedback:
-              'Failed to edit. Attempted to create a file that already exists.',
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'File already exists, cannot create',
-              path: filePath,
-            },
-          };
-        }
-
-        // Count occurrences of the old string
-        const escapedOldString = oldString.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          '\\$&'
-        );
-        const regex = new RegExp(escapedOldString, 'g');
-        const matches = currentContent?.match(regex);
-        occurrences = matches ? matches.length : 0;
-
-        if (occurrences === 0) {
-          return {
-            success: false,
-            userFeedback:
-              'Failed to edit, could not find the string to replace.',
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'No occurrences found',
-              path: filePath,
-              searchString: oldString,
-            },
-          };
-        }
-
-        if (occurrences !== expectedReplacements) {
-          const occurrenceTerm =
-            expectedReplacements === 1 ? 'occurrence' : 'occurrences';
-          return {
-            success: false,
-            userFeedback: `Failed to edit, expected ${expectedReplacements} ${occurrenceTerm} but found ${occurrences}.`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'Occurrence count mismatch',
-              expected: expectedReplacements,
-              found: occurrences,
-              path: filePath,
-            },
-          };
-        }
-
-        if (finalOldString === finalNewString) {
-          return {
-            success: false,
-            userFeedback:
-              'No changes to apply. The old_string and new_string are identical.',
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'No change needed',
-              path: filePath,
-            },
-          };
-        }
-      }
-
-      // Apply the replacement
-      const newContent = applyReplacement(
+      // Calculate and validate the replacement WITHOUT modifying the file
+      // This ensures we catch all errors BEFORE writing to disk
+      const replacementResult = calculateReplacement(
         currentContent,
-        finalOldString,
-        finalNewString,
+        oldString,
+        newString,
+        expectedReplacements,
         isNewFile
       );
 
-      // Check if content actually changed
-      if (!isNewFile && fileExists && currentContent === newContent) {
+      // If validation failed, return error WITHOUT touching the file
+      if (!replacementResult.success) {
         return {
           success: false,
-          userFeedback:
-            'No changes to apply. The new content is identical to the current content.',
+          userFeedback: replacementResult.error!.message,
           previewRefreshNeeded: false,
           technicalDetails: {
-            error: 'No change in content',
+            error: replacementResult.error!.message,
+            errorCode: replacementResult.error!.code,
             path: filePath,
+            ...replacementResult.error!.details,
           },
         };
       }
+
+      // Validation succeeded - safe to proceed with file write
+      const { newContent, occurrences } = replacementResult;
 
       // Phase 3.5: Create directory if needed INSIDE CONTAINER
       const dirName = path.dirname(filePath);
       try {
-        await containerFilesystem.mkdir(
-          context.sandboxId!,
-          dirName
-        );
+        await containerFilesystem.mkdir(context.sandboxId!, dirName);
       } catch (error) {
         return {
           success: false,
@@ -1306,110 +1079,6 @@ interface SearchMatch {
 }
 
 /**
- * Check if a file should be included based on glob pattern
- */
-function matchesIncludePattern(
-  filePath: string,
-  includePattern?: string
-): boolean {
-  if (!includePattern) return true;
-
-  // Simple glob pattern matching
-  const pattern = includePattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*')
-    .replace(/\?/g, '.');
-
-  const regex = new RegExp(`^${pattern}$`);
-  const fileName = path.basename(filePath);
-  const relativePath = filePath;
-
-  return regex.test(fileName) || regex.test(relativePath);
-}
-
-/**
- * Recursively search for files in a directory
- */
-async function findFilesRecursively(
-  dirPath: string,
-  includePattern?: string
-): Promise<string[]> {
-  const files: string[] = [];
-
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name);
-
-      // Skip common directories that should be ignored
-      if (entry.isDirectory()) {
-        const dirName = entry.name;
-        if (
-          dirName === 'node_modules' ||
-          dirName === '.git' ||
-          dirName === '.next' ||
-          dirName === 'dist' ||
-          dirName === 'build'
-        ) {
-          continue;
-        }
-
-        // Recursively search subdirectories
-        const subFiles = await findFilesRecursively(fullPath, includePattern);
-        files.push(...subFiles);
-      } else if (entry.isFile()) {
-        // Check if file matches include pattern
-        if (matchesIncludePattern(fullPath, includePattern)) {
-          files.push(fullPath);
-        }
-      }
-    }
-  } catch (error) {
-    // Skip directories we can't read
-    logger.debug(`Cannot read directory ${dirPath}`, { error });
-  }
-
-  return files;
-}
-
-/**
- * Search for pattern in a single file
- */
-async function searchInFile(
-  filePath: string,
-  pattern: string
-): Promise<SearchMatch[]> {
-  const matches: SearchMatch[] = [];
-
-  try {
-    // Skip binary files
-    if (isBinaryFile(filePath)) {
-      return matches;
-    }
-
-    const content = await fs.readFile(filePath, 'utf8');
-    const lines = content.split('\n');
-    const regex = new RegExp(pattern, 'i'); // Case-insensitive search
-
-    lines.forEach((line: string, index: number) => {
-      if (regex.test(line)) {
-        matches.push({
-          filePath,
-          lineNumber: index + 1, // 1-based line numbers
-          line: line.trim(),
-        });
-      }
-    });
-  } catch (error) {
-    // Skip files we can't read
-    logger.debug(`Cannot read file ${filePath}`, { error });
-  }
-
-  return matches;
-}
-
-/**
  * Tool for searching text content across files
  */
 const searchFileContentTool: EnhancedToolDefinition = {
@@ -1431,7 +1100,7 @@ const searchFileContentTool: EnhancedToolDefinition = {
       .string()
       .optional()
       .describe(
-        'IMPORTANT: The absolute path to the directory to search within (e.g., /workspace/src, /workspace/apps/frontend). If omitted, defaults to /workspace (the sandbox root). Do NOT use relative paths like "src/" or "./src" - always provide absolute paths starting with /workspace. To search the entire project, omit this parameter.'
+        'IMPORTANT: The absolute path to search within - can be a directory or a single file (e.g., /workspace/src, /workspace/apps/frontend, /workspace/src/App.css). If omitted, defaults to /workspace (the sandbox root). Do NOT use relative paths like "src/" or "./src" - always provide absolute paths starting with /workspace. To search the entire project, omit this parameter.'
       ),
     include: z
       .string()
@@ -1499,34 +1168,19 @@ const searchFileContentTool: EnhancedToolDefinition = {
         };
       }
 
-      // Phase 3.5: Check if search directory exists INSIDE CONTAINER
-      const isDir = await containerFilesystem.isDirectory(
+      // Phase 3.5: Check if search path exists INSIDE CONTAINER
+      const exists = await containerFilesystem.exists(
         context.sandboxId!,
         searchDir
       );
 
-      if (!isDir) {
-        const exists = await containerFilesystem.exists(
-          context.sandboxId!,
-          searchDir
-        );
-        if (!exists) {
-          return {
-            success: false,
-            userFeedback: `Search directory not found: ${searchDir}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'Directory not found',
-              path: searchDir,
-            },
-          };
-        }
+      if (!exists) {
         return {
           success: false,
-          userFeedback: `Search path is not a directory: ${searchDir}`,
+          userFeedback: `Search path not found: ${searchDir}`,
           previewRefreshNeeded: false,
           technicalDetails: {
-            error: 'Path is not a directory',
+            error: 'Path not found',
             path: searchDir,
           },
         };
@@ -1536,20 +1190,46 @@ const searchFileContentTool: EnhancedToolDefinition = {
       let allMatches: SearchMatch[] = [];
 
       try {
-        // Use containerFilesystem.searchPattern() for container-based search
-        const containerMatches = await containerFilesystem.searchPattern(
+        const isDir = await containerFilesystem.isDirectory(
           context.sandboxId!,
-          pattern,
-          searchDir,
-          include
+          searchDir
         );
 
-        // Convert container search results to SearchMatch format
-        allMatches = containerMatches.map(match => ({
-          filePath: match.filePath,
-          lineNumber: match.lineNumber,
-          line: match.line,
-        }));
+        if (isDir) {
+          // Search within a directory
+          const containerMatches = await containerFilesystem.searchPattern(
+            context.sandboxId!,
+            pattern,
+            searchDir,
+            include
+          );
+
+          // Convert container search results to SearchMatch format
+          allMatches = containerMatches.map(match => ({
+            filePath: match.filePath,
+            lineNumber: match.lineNumber,
+            line: match.line,
+          }));
+        } else {
+          // Search within a single file
+          const fileContent = await containerFilesystem.readFile(
+            context.sandboxId!,
+            searchDir
+          );
+
+          const lines = fileContent.split('\n');
+          const regex = new RegExp(pattern, 'gm');
+
+          lines.forEach((line, index) => {
+            if (regex.test(line)) {
+              allMatches.push({
+                filePath: searchDir,
+                lineNumber: index + 1,
+                line,
+              });
+            }
+          });
+        }
       } catch (error) {
         // If search fails (e.g., pattern not found), return empty results
         const message = include
@@ -1718,157 +1398,11 @@ export function registerFilesystemTools() {
     toolRegistry.registerEnhancedTool(replaceTool);
     toolRegistry.registerEnhancedTool(searchFileContentTool);
     toolRegistry.registerEnhancedTool(globTool);
-
-    logger.info('Filesystem tools registered successfully', {
-      toolCount: 6,
-      tools: [
-        'list_directory',
-        'read_file',
-        'write_file',
-        'replace',
-        'search_file_content',
-        'glob',
-      ],
-    });
   } catch (error) {
     logger.error('Failed to register filesystem tools', { error });
     throw error;
   }
 }
-/**
- * File entry with modification time for sorting
- */
-interface FileEntryWithTime {
-  path: string;
-  modifiedTime: Date;
-}
-
-/**
- * Convert glob pattern to regex
- */
-function globToRegex(pattern: string, caseSensitive: boolean = false): RegExp {
-  const regexPattern = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape special regex chars
-    .replace(/\*\*/g, '§DOUBLESTAR§') // Temporarily replace **
-    .replace(/\*/g, '[^/]*') // * matches anything except /
-    .replace(/§DOUBLESTAR§/g, '.*') // ** matches anything including /
-    .replace(/\?/g, '[^/]'); // ? matches single char except /
-
-  const flags = caseSensitive ? '' : 'i';
-  return new RegExp(`^${regexPattern}$`, flags);
-}
-
-/**
- * Find files matching glob pattern recursively
- */
-async function findFilesWithGlob(
-  searchDir: string,
-  pattern: string,
-  caseSensitive: boolean = false,
-  respectGitIgnore: boolean = true
-): Promise<FileEntryWithTime[]> {
-  const files: FileEntryWithTime[] = [];
-  const regex = globToRegex(pattern, caseSensitive);
-
-  async function searchRecursively(
-    currentDir: string,
-    relativePath: string = ''
-  ) {
-    try {
-      const entries = await fs.readdir(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = path.join(currentDir, entry.name);
-        const entryRelativePath = relativePath
-          ? path.join(relativePath, entry.name)
-          : entry.name;
-
-        // Skip common ignored directories
-        if (entry.isDirectory()) {
-          const dirName = entry.name;
-          if (
-            respectGitIgnore &&
-            (dirName === '.git' ||
-              dirName === 'node_modules' ||
-              dirName === '.next' ||
-              dirName === 'dist' ||
-              dirName === 'build')
-          ) {
-            continue;
-          }
-
-          // Check if directory path matches pattern
-          if (
-            regex.test(entryRelativePath + '/') ||
-            regex.test(entryRelativePath)
-          ) {
-            try {
-              const stats = await fs.stat(fullPath);
-              files.push({
-                path: fullPath,
-                modifiedTime: stats.mtime,
-              });
-            } catch (error) {
-              // Skip if we can't stat the directory
-            }
-          }
-
-          // Recursively search subdirectory
-          await searchRecursively(fullPath, entryRelativePath);
-        } else if (entry.isFile()) {
-          // Check if file path matches pattern
-          if (regex.test(entryRelativePath)) {
-            try {
-              const stats = await fs.stat(fullPath);
-              files.push({
-                path: fullPath,
-                modifiedTime: stats.mtime,
-              });
-            } catch (error) {
-              // Skip if we can't stat the file
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Skip directories we can't read
-      logger.debug(`Cannot read directory ${currentDir}`, { error });
-    }
-  }
-
-  await searchRecursively(searchDir);
-  return files;
-}
-
-/**
- * Sort files by modification time (newest first) with recent files prioritized
- */
-function sortFilesByTime(files: FileEntryWithTime[]): string[] {
-  const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  const sortedFiles = [...files].sort((a, b) => {
-    const aTime = a.modifiedTime.getTime();
-    const bTime = b.modifiedTime.getTime();
-    const aIsRecent = now - aTime < oneDayMs;
-    const bIsRecent = now - bTime < oneDayMs;
-
-    // Recent files first (within 24 hours), sorted by newest first
-    if (aIsRecent && bIsRecent) {
-      return bTime - aTime; // Newest first
-    } else if (aIsRecent) {
-      return -1; // a is recent, b is not
-    } else if (bIsRecent) {
-      return 1; // b is recent, a is not
-    } else {
-      // Both are old, sort alphabetically
-      return a.path.localeCompare(b.path);
-    }
-  });
-
-  return sortedFiles.map(file => file.path);
-}
-
 /**
  * Tool for finding files using glob patterns
  */

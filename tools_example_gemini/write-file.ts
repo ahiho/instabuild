@@ -80,7 +80,7 @@ export async function getCorrectedFileContent(
   config: Config,
   filePath: string,
   proposedContent: string,
-  abortSignal: AbortSignal,
+  abortSignal: AbortSignal
 ): Promise<GetCorrectedFileContentResult> {
   let originalContent = '';
   let fileExists = false;
@@ -124,7 +124,7 @@ export async function getCorrectedFileContent(
       },
       config.getGeminiClient(),
       config.getBaseLlmClient(),
-      abortSignal,
+      abortSignal
     );
     correctedContent = correctedParams.new_string;
   } else {
@@ -132,7 +132,7 @@ export async function getCorrectedFileContent(
     correctedContent = await ensureCorrectFileContent(
       proposedContent,
       config.getBaseLlmClient(),
-      abortSignal,
+      abortSignal
     );
   }
   return { originalContent, correctedContent, fileExists };
@@ -147,7 +147,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     params: WriteFileToolParams,
     messageBus?: MessageBus,
     toolName?: string,
-    displayName?: string,
+    displayName?: string
   ) {
     super(params, messageBus, toolName, displayName);
   }
@@ -159,13 +159,13 @@ class WriteFileToolInvocation extends BaseToolInvocation<
   override getDescription(): string {
     const relativePath = makeRelative(
       this.params.file_path,
-      this.config.getTargetDir(),
+      this.config.getTargetDir()
     );
     return `Writing to ${shortenPath(relativePath)}`;
   }
 
   protected override async getConfirmationDetails(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     if (this.config.getApprovalMode() === ApprovalMode.AUTO_EDIT) {
       return false;
@@ -175,7 +175,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       this.config,
       this.params.file_path,
       this.params.content,
-      abortSignal,
+      abortSignal
     );
 
     if (correctedContentResult.error) {
@@ -186,7 +186,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     const { originalContent, correctedContent } = correctedContentResult;
     const relativePath = makeRelative(
       this.params.file_path,
-      this.config.getTargetDir(),
+      this.config.getTargetDir()
     );
     const fileName = path.basename(this.params.file_path);
 
@@ -196,7 +196,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       correctedContent, // Content after potential correction
       'Current',
       'Proposed',
-      DEFAULT_DIFF_OPTIONS,
+      DEFAULT_DIFF_OPTIONS
     );
 
     const ideClient = await IdeClient.getInstance();
@@ -237,7 +237,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       this.config,
       file_path,
       content,
-      abortSignal,
+      abortSignal
     );
 
     if (correctedContentResult.error) {
@@ -292,7 +292,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
         fileContent,
         'Original',
         'Written',
-        DEFAULT_DIFF_OPTIONS,
+        DEFAULT_DIFF_OPTIONS
       );
 
       const originallyProposedContent = ai_proposed_content || content;
@@ -300,7 +300,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
         fileName,
         currentContentForDiff,
         originallyProposedContent,
-        content,
+        content
       );
 
       const llmSuccessMessageParts = [
@@ -310,7 +310,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       ];
       if (modified_by_user) {
         llmSuccessMessageParts.push(
-          `User modified the \`content\` to be: ${content}`,
+          `User modified the \`content\` to be: ${content}`
         );
       }
 
@@ -328,8 +328,8 @@ class WriteFileToolInvocation extends BaseToolInvocation<
           fileContent.split('\n').length,
           mimetype,
           extension,
-          programmingLanguage,
-        ),
+          programmingLanguage
+        )
       );
 
       const displayResult: FileDiff = {
@@ -398,7 +398,7 @@ export class WriteFileTool
 
   constructor(
     private readonly config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       WriteFileTool.Name,
@@ -424,12 +424,12 @@ export class WriteFileTool
       },
       true,
       false,
-      messageBus,
+      messageBus
     );
   }
 
   protected override validateToolParamValues(
-    params: WriteFileToolParams,
+    params: WriteFileToolParams
   ): string | null {
     const filePath = params.file_path;
 
@@ -445,7 +445,7 @@ export class WriteFileTool
     if (!workspaceContext.isPathWithinWorkspace(filePath)) {
       const directories = workspaceContext.getDirectories();
       return `File path must be within one of the workspace directories: ${directories.join(
-        ', ',
+        ', '
       )}`;
     }
 
@@ -466,19 +466,19 @@ export class WriteFileTool
   }
 
   protected createInvocation(
-    params: WriteFileToolParams,
+    params: WriteFileToolParams
   ): ToolInvocation<WriteFileToolParams, ToolResult> {
     return new WriteFileToolInvocation(
       this.config,
       params,
       this.messageBus,
       this.name,
-      this.displayName,
+      this.displayName
     );
   }
 
   getModifyContext(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): ModifyContext<WriteFileToolParams> {
     return {
       getFilePath: (params: WriteFileToolParams) => params.file_path,
@@ -487,7 +487,7 @@ export class WriteFileTool
           this.config,
           params.file_path,
           params.content,
-          abortSignal,
+          abortSignal
         );
         return correctedContentResult.originalContent;
       },
@@ -496,14 +496,14 @@ export class WriteFileTool
           this.config,
           params.file_path,
           params.content,
-          abortSignal,
+          abortSignal
         );
         return correctedContentResult.correctedContent;
       },
       createUpdatedParams: (
         _oldContent: string,
         modifiedProposedContent: string,
-        originalParams: WriteFileToolParams,
+        originalParams: WriteFileToolParams
       ) => {
         const content = originalParams.content;
         return {

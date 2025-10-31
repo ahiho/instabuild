@@ -89,7 +89,7 @@ vi.mock('@google/genai', async () => {
 
 // Helper to create a mock CallableTool for specific test needs
 const createMockCallableTool = (
-  toolDeclarations: FunctionDeclaration[],
+  toolDeclarations: FunctionDeclaration[]
 ): Mocked<CallableTool> => ({
   tool: vi.fn().mockResolvedValue({ functionDeclarations: toolDeclarations }),
   callTool: vi.fn(),
@@ -133,7 +133,7 @@ describe('ToolRegistry', () => {
 
     mockConfigGetToolDiscoveryCommand = vi.spyOn(
       config,
-      'getToolDiscoveryCommand',
+      'getToolDiscoveryCommand'
     );
     vi.spyOn(config, 'getMcpServers');
     vi.spyOn(config, 'getMcpServerCommand');
@@ -167,7 +167,7 @@ describe('ToolRegistry', () => {
       toolRegistry.registerTool(toolB);
 
       const allTools = toolRegistry.getAllTools();
-      const displayNames = allTools.map((t) => t.displayName);
+      const displayNames = allTools.map(t => t.displayName);
 
       // Assert that the returned array is sorted by displayName
       expect(displayNames).toEqual(['Tool A', 'Tool B', 'Tool C']);
@@ -207,21 +207,21 @@ describe('ToolRegistry', () => {
         server1Name,
         'zebra-tool',
         'd1',
-        {},
+        {}
       );
       const mcpTool1_a = new DiscoveredMCPTool(
         mockCallable,
         server1Name,
         'apple-tool',
         'd2',
-        {},
+        {}
       );
       const mcpTool1_b = new DiscoveredMCPTool(
         mockCallable,
         server1Name,
         'banana-tool',
         'd3',
-        {},
+        {}
       );
 
       const mcpTool2 = new DiscoveredMCPTool(
@@ -229,7 +229,7 @@ describe('ToolRegistry', () => {
         server2Name,
         'tool-on-server2',
         'd4',
-        {},
+        {}
       );
       const nonMcpTool = new MockTool({ name: 'regular-tool' });
 
@@ -240,7 +240,7 @@ describe('ToolRegistry', () => {
       toolRegistry.registerTool(nonMcpTool);
 
       const toolsFromServer1 = toolRegistry.getToolsByServer(server1Name);
-      const toolNames = toolsFromServer1.map((t) => t.name);
+      const toolNames = toolsFromServer1.map(t => t.name);
 
       // Assert that the array has the correct tools and is sorted by name
       expect(toolsFromServer1).toHaveLength(3);
@@ -292,8 +292,8 @@ describe('ToolRegistry', () => {
             Buffer.from(
               JSON.stringify([
                 { function_declarations: [unsanitizedToolDeclaration] },
-              ]),
-            ),
+              ])
+            )
           );
         }
         return mockChildProcess as any;
@@ -352,8 +352,8 @@ describe('ToolRegistry', () => {
         if (event === 'data') {
           callback(
             Buffer.from(
-              JSON.stringify([{ functionDeclarations: [toolDeclaration] }]),
-            ),
+              JSON.stringify([{ functionDeclarations: [toolDeclaration] }])
+            )
           );
         }
       });
@@ -394,7 +394,7 @@ describe('ToolRegistry', () => {
       const result = await invocation.execute(new AbortController().signal);
 
       expect(result.error?.type).toBe(
-        ToolErrorType.DISCOVERED_TOOL_EXECUTION_ERROR,
+        ToolErrorType.DISCOVERED_TOOL_EXECUTION_ERROR
       );
       expect(result.llmContent).toContain('Stderr: Something went wrong');
       expect(result.llmContent).toContain('Exit Code: 1');
@@ -403,7 +403,7 @@ describe('ToolRegistry', () => {
     it('should discover tools using MCP servers defined in getMcpServers', async () => {
       const discoverSpy = vi.spyOn(
         McpClientManager.prototype,
-        'discoverAllMcpTools',
+        'discoverAllMcpTools'
       );
       mockConfigGetToolDiscoveryCommand.mockReturnValue(undefined);
       vi.spyOn(config, 'getMcpServerCommand').mockReturnValue(undefined);

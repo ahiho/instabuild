@@ -49,7 +49,7 @@ export interface ToolInvocation<
    * @returns Confirmation details or false if no confirmation is needed.
    */
   shouldConfirmExecute(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false>;
 
   /**
@@ -61,7 +61,7 @@ export interface ToolInvocation<
   execute(
     signal: AbortSignal,
     updateOutput?: (output: string | AnsiOutput) => void,
-    shellExecutionConfig?: ShellExecutionConfig,
+    shellExecutionConfig?: ShellExecutionConfig
   ): Promise<TResult>;
 }
 
@@ -77,7 +77,7 @@ export abstract class BaseToolInvocation<
     readonly params: TParams,
     protected readonly messageBus?: MessageBus,
     readonly _toolName?: string,
-    readonly _toolDisplayName?: string,
+    readonly _toolDisplayName?: string
   ) {}
 
   abstract getDescription(): string;
@@ -87,7 +87,7 @@ export abstract class BaseToolInvocation<
   }
 
   async shouldConfirmExecute(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     if (this.messageBus) {
       const decision = await this.getMessageBusDecision(abortSignal);
@@ -99,7 +99,7 @@ export abstract class BaseToolInvocation<
         throw new Error(
           `Tool execution for "${
             this._toolDisplayName || this._toolName
-          }" denied by policy.`,
+          }" denied by policy.`
         );
       }
 
@@ -118,13 +118,13 @@ export abstract class BaseToolInvocation<
    * Only tools that need confirmation (e.g., write, execute tools) should override this.
    */
   protected async getConfirmationDetails(
-    _abortSignal: AbortSignal,
+    _abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     return false;
   }
 
   protected getMessageBusDecision(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<'ALLOW' | 'DENY' | 'ASK_USER'> {
     if (!this.messageBus) {
       // If there's no message bus, we can't make a decision, so we allow.
@@ -138,7 +138,7 @@ export abstract class BaseToolInvocation<
       args: this.params as Record<string, unknown>,
     };
 
-    return new Promise<'ALLOW' | 'DENY' | 'ASK_USER'>((resolve) => {
+    return new Promise<'ALLOW' | 'DENY' | 'ASK_USER'>(resolve => {
       if (!this.messageBus) {
         resolve('ALLOW');
         return;
@@ -154,7 +154,7 @@ export abstract class BaseToolInvocation<
         abortSignal.removeEventListener('abort', abortHandler);
         this.messageBus?.unsubscribe(
           MessageBusType.TOOL_CONFIRMATION_RESPONSE,
-          responseHandler,
+          responseHandler
         );
       };
 
@@ -190,7 +190,7 @@ export abstract class BaseToolInvocation<
 
       this.messageBus.subscribe(
         MessageBusType.TOOL_CONFIRMATION_RESPONSE,
-        responseHandler,
+        responseHandler
       );
 
       const request: ToolConfirmationRequest = {
@@ -211,7 +211,7 @@ export abstract class BaseToolInvocation<
   abstract execute(
     signal: AbortSignal,
     updateOutput?: (output: string | AnsiOutput) => void,
-    shellExecutionConfig?: ShellExecutionConfig,
+    shellExecutionConfig?: ShellExecutionConfig
   ): Promise<TResult>;
 }
 
@@ -288,7 +288,7 @@ export abstract class DeclarativeTool<
     readonly isOutputMarkdown: boolean = true,
     readonly canUpdateOutput: boolean = false,
     readonly messageBus?: MessageBus,
-    readonly extensionId?: string,
+    readonly extensionId?: string
   ) {}
 
   get schema(): FunctionDeclaration {
@@ -332,7 +332,7 @@ export abstract class DeclarativeTool<
     params: TParams,
     signal: AbortSignal,
     updateOutput?: (output: string | AnsiOutput) => void,
-    shellExecutionConfig?: ShellExecutionConfig,
+    shellExecutionConfig?: ShellExecutionConfig
   ): Promise<TResult> {
     const invocation = this.build(params);
     return invocation.execute(signal, updateOutput, shellExecutionConfig);
@@ -344,7 +344,7 @@ export abstract class DeclarativeTool<
    * @returns A `ToolInvocation` instance.
    */
   private silentBuild(
-    params: TParams,
+    params: TParams
   ): ToolInvocation<TParams, TResult> | Error {
     try {
       return this.build(params);
@@ -365,7 +365,7 @@ export abstract class DeclarativeTool<
    */
   async validateBuildAndExecute(
     params: TParams,
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<ToolResult> {
     const invocationOrError = this.silentBuild(params);
     if (invocationOrError instanceof Error) {
@@ -416,14 +416,14 @@ export abstract class BaseDeclarativeTool<
       params,
       this.messageBus,
       this.name,
-      this.displayName,
+      this.displayName
     );
   }
 
   override validateToolParams(params: TParams): string | null {
     const errors = SchemaValidator.validate(
       this.schema.parametersJsonSchema,
-      params,
+      params
     );
 
     if (errors) {
@@ -441,7 +441,7 @@ export abstract class BaseDeclarativeTool<
     params: TParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<TParams, TResult>;
 }
 
@@ -518,7 +518,7 @@ export function hasCycleInSchema(schema: object): boolean {
   function traverse(
     node: unknown,
     visitedRefs: Set<string>,
-    pathRefs: Set<string>,
+    pathRefs: Set<string>
   ): boolean {
     if (typeof node !== 'object' || node === null) {
       return false;
@@ -561,7 +561,7 @@ export function hasCycleInSchema(schema: object): boolean {
           traverse(
             (node as Record<string, unknown>)[key],
             visitedRefs,
-            pathRefs,
+            pathRefs
           )
         ) {
           return true;
@@ -612,7 +612,7 @@ export interface ToolEditConfirmationDetails {
   title: string;
   onConfirm: (
     outcome: ToolConfirmationOutcome,
-    payload?: ToolConfirmationPayload,
+    payload?: ToolConfirmationPayload
   ) => Promise<void>;
   fileName: string;
   filePath: string;

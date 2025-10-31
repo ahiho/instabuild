@@ -35,7 +35,7 @@ describe('WriteTodosTool', () => {
         todos: 'not-an-array',
       } as unknown as WriteTodosToolParams;
       await expect(tool.buildAndExecute(params, signal)).rejects.toThrow(
-        'params/todos must be array',
+        'params/todos must be array'
       );
     });
 
@@ -44,7 +44,7 @@ describe('WriteTodosTool', () => {
         todos: ['not-an-object'],
       } as unknown as WriteTodosToolParams;
       await expect(tool.buildAndExecute(params, signal)).rejects.toThrow(
-        'params/todos/0 must be object',
+        'params/todos/0 must be object'
       );
     });
 
@@ -53,7 +53,7 @@ describe('WriteTodosTool', () => {
         todos: [{ description: '  ', status: 'pending' }],
       };
       await expect(tool.buildAndExecute(params, signal)).rejects.toThrow(
-        'Each todo must have a non-empty description string',
+        'Each todo must have a non-empty description string'
       );
     });
 
@@ -62,7 +62,7 @@ describe('WriteTodosTool', () => {
         todos: [{ description: 'Task 1', status: 'invalid-status' }],
       } as unknown as WriteTodosToolParams;
       await expect(tool.buildAndExecute(params, signal)).rejects.toThrow(
-        'params/todos/0/status must be equal to one of the allowed values',
+        'params/todos/0/status must be equal to one of the allowed values'
       );
     });
 
@@ -74,7 +74,7 @@ describe('WriteTodosTool', () => {
         ],
       };
       await expect(tool.buildAndExecute(params, signal)).rejects.toThrow(
-        'Invalid parameters: Only one task can be "in_progress" at a time.',
+        'Invalid parameters: Only one task can be "in_progress" at a time.'
       );
     });
   });

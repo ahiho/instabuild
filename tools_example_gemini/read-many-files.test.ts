@@ -63,10 +63,10 @@ describe('ReadManyFilesTool', () => {
 
   beforeEach(async () => {
     tempRootDir = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'read-many-files-root-')),
+      fs.mkdtempSync(path.join(os.tmpdir(), 'read-many-files-root-'))
     );
     tempDirOutsideRoot = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'read-many-files-external-')),
+      fs.mkdtempSync(path.join(os.tmpdir(), 'read-many-files-external-'))
     );
     fs.writeFileSync(path.join(tempRootDir, '.geminiignore'), 'foo.*');
     const fileService = new FileDiscoveryService(tempRootDir);
@@ -108,7 +108,7 @@ describe('ReadManyFilesTool', () => {
 
         if (fp.endsWith('nonexistent-file.txt')) {
           const err = new Error(
-            `ENOENT: no such file or directory, open '${fp}'`,
+            `ENOENT: no such file or directory, open '${fp}'`
           );
           (err as NodeJS.ErrnoException).code = 'ENOENT';
           throw err;
@@ -125,11 +125,11 @@ describe('ReadManyFilesTool', () => {
           return Buffer.from([0x00, 0x01, 0x02, 0x00, 0x03]);
 
         const err = new Error(
-          `ENOENT: no such file or directory, open '${fp}' (unmocked path)`,
+          `ENOENT: no such file or directory, open '${fp}' (unmocked path)`
         );
         (err as NodeJS.ErrnoException).code = 'ENOENT';
         throw err;
-      },
+      }
     );
   });
 
@@ -170,7 +170,7 @@ describe('ReadManyFilesTool', () => {
     it('should throw error if paths array is empty', () => {
       const params = { paths: [] };
       expect(() => tool.build(params)).toThrow(
-        'params/paths must NOT have fewer than 1 items',
+        'params/paths must NOT have fewer than 1 items'
       );
     });
 
@@ -187,7 +187,7 @@ describe('ReadManyFilesTool', () => {
     it('should throw error if paths array contains an empty string', () => {
       const params = { paths: ['file1.txt', ''] };
       expect(() => tool.build(params)).toThrow(
-        'params/paths/1 must NOT have fewer than 1 characters',
+        'params/paths/1 must NOT have fewer than 1 characters'
       );
     });
 
@@ -197,7 +197,7 @@ describe('ReadManyFilesTool', () => {
         include: ['*.ts', 123] as string[],
       };
       expect(() => tool.build(params)).toThrow(
-        'params/include/1 must be string',
+        'params/include/1 must be string'
       );
     });
 
@@ -207,7 +207,7 @@ describe('ReadManyFilesTool', () => {
         exclude: ['*.log', {}] as string[],
       };
       expect(() => tool.build(params)).toThrow(
-        'params/exclude/1 must be string',
+        'params/exclude/1 must be string'
       );
     });
   });
@@ -235,7 +235,7 @@ describe('ReadManyFilesTool', () => {
         `\n--- End of content ---`,
       ]);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **1 file(s)**',
+        'Successfully read and concatenated content from **1 file(s)**'
       );
     });
 
@@ -249,17 +249,17 @@ describe('ReadManyFilesTool', () => {
       const expectedPath1 = path.join(tempRootDir, 'file1.txt');
       const expectedPath2 = path.join(tempRootDir, 'subdir/file2.js');
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nContent1\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath1} ---\n\nContent1\n\n`)
+        )
       ).toBe(true);
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\nContent2\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath2} ---\n\nContent2\n\n`)
+        )
       ).toBe(true);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **2 file(s)**',
+        'Successfully read and concatenated content from **2 file(s)**'
       );
     });
 
@@ -274,18 +274,18 @@ describe('ReadManyFilesTool', () => {
       const expectedPath1 = path.join(tempRootDir, 'file.txt');
       const expectedPath2 = path.join(tempRootDir, 'another.txt');
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nText file\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath1} ---\n\nText file\n\n`)
+        )
       ).toBe(true);
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\nAnother text\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath2} ---\n\nAnother text\n\n`)
+        )
       ).toBe(true);
-      expect(content.find((c) => c.includes('sub/data.json'))).toBeUndefined();
+      expect(content.find(c => c.includes('sub/data.json'))).toBeUndefined();
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **2 file(s)**',
+        'Successfully read and concatenated content from **2 file(s)**'
       );
     });
 
@@ -301,11 +301,9 @@ describe('ReadManyFilesTool', () => {
         `--- ${expectedPath} ---\n\nMain content\n\n`,
         `\n--- End of content ---`,
       ]);
-      expect(
-        content.find((c) => c.includes('src/main.test.ts')),
-      ).toBeUndefined();
+      expect(content.find(c => c.includes('src/main.test.ts'))).toBeUndefined();
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **1 file(s)**',
+        'Successfully read and concatenated content from **1 file(s)**'
       );
     });
 
@@ -317,7 +315,7 @@ describe('ReadManyFilesTool', () => {
         'No files matching the criteria were found or all were skipped.',
       ]);
       expect(result.returnDisplay).toContain(
-        'No files were read and concatenated based on the criteria.',
+        'No files were read and concatenated based on the criteria.'
       );
     });
 
@@ -334,10 +332,10 @@ describe('ReadManyFilesTool', () => {
         `\n--- End of content ---`,
       ]);
       expect(
-        content.find((c) => c.includes('node_modules/some-lib/index.js')),
+        content.find(c => c.includes('node_modules/some-lib/index.js'))
       ).toBeUndefined();
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **1 file(s)**',
+        'Successfully read and concatenated content from **1 file(s)**'
       );
     });
 
@@ -350,28 +348,28 @@ describe('ReadManyFilesTool', () => {
       const content = result.llmContent as string[];
       const expectedPath1 = path.join(
         tempRootDir,
-        'node_modules/some-lib/index.js',
+        'node_modules/some-lib/index.js'
       );
       const expectedPath2 = path.join(tempRootDir, 'src/app.js');
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nlib code\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath1} ---\n\nlib code\n\n`)
+        )
       ).toBe(true);
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\napp code\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath2} ---\n\napp code\n\n`)
+        )
       ).toBe(true);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **2 file(s)**',
+        'Successfully read and concatenated content from **2 file(s)**'
       );
     });
 
     it('should include images as inlineData parts if explicitly requested by extension', async () => {
       createBinaryFile(
         'image.png',
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       );
       const params = { paths: ['*.png'] }; // Explicitly requesting .png
       const invocation = tool.build(params);
@@ -388,14 +386,14 @@ describe('ReadManyFilesTool', () => {
         '\n--- End of content ---',
       ]);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **1 file(s)**',
+        'Successfully read and concatenated content from **1 file(s)**'
       );
     });
 
     it('should include images as inlineData parts if explicitly requested by name', async () => {
       createBinaryFile(
         'myExactImage.png',
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       );
       const params = { paths: ['myExactImage.png'] }; // Explicitly requesting by full name
       const invocation = tool.build(params);
@@ -423,14 +421,14 @@ describe('ReadManyFilesTool', () => {
       const expectedPath = path.join(tempRootDir, 'notes.txt');
       expect(
         content.some(
-          (c) =>
+          c =>
             typeof c === 'string' &&
-            c.includes(`--- ${expectedPath} ---\n\ntext notes\n\n`),
-        ),
+            c.includes(`--- ${expectedPath} ---\n\ntext notes\n\n`)
+        )
       ).toBe(true);
       expect(result.returnDisplay).toContain('**Skipped 1 item(s):**');
       expect(result.returnDisplay).toContain(
-        '- `document.pdf` (Reason: asset file (image/pdf) was not explicitly requested by name or extension)',
+        '- `document.pdf` (Reason: asset file (image/pdf) was not explicitly requested by name or extension)'
       );
     });
 
@@ -480,10 +478,10 @@ describe('ReadManyFilesTool', () => {
 
     it('should read files from multiple workspace directories', async () => {
       const tempDir1 = fs.realpathSync(
-        fs.mkdtempSync(path.join(os.tmpdir(), 'multi-dir-1-')),
+        fs.mkdtempSync(path.join(os.tmpdir(), 'multi-dir-1-'))
       );
       const tempDir2 = fs.realpathSync(
-        fs.mkdtempSync(path.join(os.tmpdir(), 'multi-dir-2-')),
+        fs.mkdtempSync(path.join(os.tmpdir(), 'multi-dir-2-'))
       );
       const fileService = new FileDiscoveryService(tempDir1);
       const mockConfig = {
@@ -519,17 +517,17 @@ describe('ReadManyFilesTool', () => {
       const expectedPath2 = path.join(tempDir2, 'file2.txt');
 
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nContent1\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath1} ---\n\nContent1\n\n`)
+        )
       ).toBe(true);
       expect(
-        content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\nContent2\n\n`),
-        ),
+        content.some(c =>
+          c.includes(`--- ${expectedPath2} ---\n\nContent2\n\n`)
+        )
       ).toBe(true);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **2 file(s)**',
+        'Successfully read and concatenated content from **2 file(s)**'
       );
 
       fs.rmSync(tempDir1, { recursive: true, force: true });
@@ -540,7 +538,7 @@ describe('ReadManyFilesTool', () => {
       createFile('file1.txt', 'Content1');
       // Create a file that will be "truncated" by making it long
       const longContent = Array.from({ length: 2500 }, (_, i) => `L${i}`).join(
-        '\n',
+        '\n'
       );
       createFile('large-file.txt', longContent);
 
@@ -549,16 +547,16 @@ describe('ReadManyFilesTool', () => {
       const result = await invocation.execute(new AbortController().signal);
       const content = result.llmContent as string[];
 
-      const normalFileContent = content.find((c) => c.includes('file1.txt'));
-      const truncatedFileContent = content.find((c) =>
-        c.includes('large-file.txt'),
+      const normalFileContent = content.find(c => c.includes('file1.txt'));
+      const truncatedFileContent = content.find(c =>
+        c.includes('large-file.txt')
       );
 
       expect(normalFileContent).not.toContain(
-        '[WARNING: This file was truncated.',
+        '[WARNING: This file was truncated.'
       );
       expect(truncatedFileContent).toContain(
-        "[WARNING: This file was truncated. To view the full content, use the 'read_file' tool on this specific file.]",
+        "[WARNING: This file was truncated. To view the full content, use the 'read_file' tool on this specific file.]"
       );
       // Check that the actual content is still there but truncated
       expect(truncatedFileContent).toContain('L200');
@@ -581,7 +579,7 @@ Content of receive-detail
         `\n--- End of content ---`,
       ]);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **1 file(s)**',
+        'Successfully read and concatenated content from **1 file(s)**'
       );
     });
 
@@ -600,7 +598,7 @@ Content of file[1]
         `\n--- End of content ---`,
       ]);
       expect(result.returnDisplay).toContain(
-        'Successfully read and concatenated content from **1 file(s)**',
+        'Successfully read and concatenated content from **1 file(s)**'
       );
     });
   });
@@ -619,7 +617,7 @@ Content of file[1]
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
       expect(result.error?.type).toBe(
-        ToolErrorType.READ_MANY_FILES_SEARCH_ERROR,
+        ToolErrorType.READ_MANY_FILES_SEARCH_ERROR
       );
       expect(result.llmContent).toBe('Error during file search: Glob failed');
       // Reset glob.
@@ -648,7 +646,7 @@ Content of file[1]
       // Mock detectFileType to add artificial delay to simulate I/O
       const detectFileTypeSpy = vi.spyOn(
         await import('../utils/fileUtils.js'),
-        'detectFileType',
+        'detectFileType'
       );
 
       // Create files
@@ -657,7 +655,7 @@ Content of file[1]
 
       // Mock with 10ms delay per file to simulate I/O operations
       detectFileTypeSpy.mockImplementation(async (_filePath: string) => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 10));
         return 'text';
       });
 
@@ -703,8 +701,8 @@ Content of file[1]
       // Verify valid files were processed
       const expectedPath1 = path.join(tempRootDir, 'valid1.txt');
       const expectedPath3 = path.join(tempRootDir, 'valid3.txt');
-      expect(content.some((c) => c.includes(expectedPath1))).toBe(true);
-      expect(content.some((c) => c.includes(expectedPath3))).toBe(true);
+      expect(content.some(c => c.includes(expectedPath1))).toBe(true);
+      expect(content.some(c => c.includes(expectedPath3))).toBe(true);
     });
 
     it('should execute file operations concurrently', async () => {
@@ -712,11 +710,11 @@ Content of file[1]
       const executionOrder: string[] = [];
       const detectFileTypeSpy = vi.spyOn(
         await import('../utils/fileUtils.js'),
-        'detectFileType',
+        'detectFileType'
       );
 
       const files = ['file1.txt', 'file2.txt', 'file3.txt'];
-      files.forEach((file) => createFile(file, 'test content'));
+      files.forEach(file => createFile(file, 'test content'));
 
       // Mock to track concurrent vs sequential execution
       detectFileTypeSpy.mockImplementation(async (filePath: string) => {
@@ -724,7 +722,7 @@ Content of file[1]
         executionOrder.push(`start:${fileName}`);
 
         // Add delay to make timing differences visible
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         executionOrder.push(`end:${fileName}`);
         return 'text';
@@ -737,15 +735,13 @@ Content of file[1]
       // In parallel execution: all "start:" events should come before all "end:" events
       // In sequential execution: "start:file1", "end:file1", "start:file2", "end:file2", etc.
 
-      const startEvents = executionOrder.filter((e) =>
-        e.startsWith('start:'),
+      const startEvents = executionOrder.filter(e =>
+        e.startsWith('start:')
       ).length;
-      const firstEndIndex = executionOrder.findIndex((e) =>
-        e.startsWith('end:'),
-      );
+      const firstEndIndex = executionOrder.findIndex(e => e.startsWith('end:'));
       const startsBeforeFirstEnd = executionOrder
         .slice(0, firstEndIndex)
-        .filter((e) => e.startsWith('start:')).length;
+        .filter(e => e.startsWith('start:')).length;
 
       // For parallel processing, ALL start events should happen before the first end event
       expect(startsBeforeFirstEnd).toBe(startEvents); // Should PASS with parallel implementation

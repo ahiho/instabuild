@@ -74,7 +74,7 @@ export class SandboxCleanupService {
           sandboxId: {
             not: null, // Has a sandbox
           },
-          sandboxStatus: 'ready', // Is currently active
+          sandboxStatus: 'READY', // Is currently active
           lastAccessedAt: {
             lt: idleThreshold, // Last accessed before threshold
           },
@@ -103,11 +103,11 @@ export class SandboxCleanupService {
             await sandboxManager.destroySandbox(conversation.sandboxId);
           }
 
-          // Mark conversation as terminated
+          // Mark conversation as failed (cleanup complete)
           await prisma.conversation.update({
             where: { id: conversation.id },
             data: {
-              sandboxStatus: 'terminated',
+              sandboxStatus: 'FAILED',
             },
           });
 
@@ -115,7 +115,9 @@ export class SandboxCleanupService {
             conversationId: conversation.id,
             sandboxId: conversation.sandboxId,
             lastAccessedAt: conversation.lastAccessedAt?.toISOString(),
-            idleMinutes: (now.getTime() - (conversation.lastAccessedAt?.getTime() || 0)) / (60 * 1000),
+            idleMinutes:
+              (now.getTime() - (conversation.lastAccessedAt?.getTime() || 0)) /
+              (60 * 1000),
           });
         } catch (error) {
           logger.error('Failed to cleanup sandbox', {

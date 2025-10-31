@@ -34,7 +34,7 @@ describe('McpClientManager', () => {
       getStatus: vi.fn(),
     };
     vi.mocked(McpClient).mockReturnValue(
-      mockedMcpClient as unknown as McpClient,
+      mockedMcpClient as unknown as McpClient
     );
     const manager = new McpClientManager({} as ToolRegistry);
     await manager.discoverAllMcpTools({
@@ -59,7 +59,7 @@ describe('McpClientManager', () => {
       getStatus: vi.fn(),
     };
     vi.mocked(McpClient).mockReturnValue(
-      mockedMcpClient as unknown as McpClient,
+      mockedMcpClient as unknown as McpClient
     );
     const manager = new McpClientManager({} as ToolRegistry);
     await manager.discoverAllMcpTools({

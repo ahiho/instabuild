@@ -82,8 +82,8 @@ export class EnhancedToolRegistry {
   ): ReturnType<typeof tool> {
     return tool({
       description: definition.description,
-      inputSchema: definition.inputSchema,
-      execute: async (input, { toolCallId }) => {
+      inputSchema: definition.inputSchema as any,
+      execute: async (input: any, { toolCallId }: any) => {
         const context: ToolExecutionContext = {
           userId: 'system', // Will be properly set when we have user context
           conversationId: 'unknown',
@@ -92,7 +92,7 @@ export class EnhancedToolRegistry {
 
         return await this.executeEnhancedTool(definition.name, input, context);
       },
-    });
+    } as any);
   }
 
   /**
@@ -383,8 +383,8 @@ export class EnhancedToolRegistry {
   ): ReturnType<typeof tool<T>> {
     return tool({
       description: aiTool.description,
-      parameters: aiTool.parameters,
-      execute: async (input, context) => {
+      inputSchema: (aiTool as any).inputSchema,
+      execute: async (input: any, context: any) => {
         const executionContext: ToolExecutionContext = {
           userId: 'system',
           conversationId: 'unknown',
@@ -416,7 +416,7 @@ export class EnhancedToolRegistry {
             );
           }
 
-          const result = await aiTool.execute(input, context);
+          const result = await (aiTool as any).execute(input, context);
 
           // Update progress to completed
           progress.status = ToolExecutionStatus.COMPLETED;
@@ -432,7 +432,7 @@ export class EnhancedToolRegistry {
           throw error;
         }
       },
-    });
+    } as any);
   }
 
   /**
@@ -498,7 +498,7 @@ export class EnhancedToolRegistry {
 
     const result = securitySystem.validateToolSafety(
       toolName,
-      toolDef.category,
+      toolDef.category as any,
       OperationType.EXECUTE,
       executionContext
     );
@@ -640,8 +640,8 @@ export class EnhancedToolRegistry {
   ): ReturnType<typeof tool> {
     return tool({
       description: definition.description,
-      inputSchema: definition.inputSchema,
-      execute: async (input, { toolCallId }) => {
+      inputSchema: definition.inputSchema as any,
+      execute: async (input: any, { toolCallId }: any) => {
         const context: ToolExecutionContext = {
           ...baseContext,
           toolCallId,
@@ -649,7 +649,7 @@ export class EnhancedToolRegistry {
 
         return await this.executeEnhancedTool(definition.name, input, context);
       },
-    });
+    } as any);
   }
 
   /**

@@ -28,8 +28,12 @@ vi.mock('../hooks/useToast', () => ({
 }));
 
 describe('ChatPanel with AI SDK Integration', () => {
-  const mockGetOrCreateConversation = vi.mocked(conversationService.getOrCreateConversation);
-  const mockGetConversationMessages = vi.mocked(conversationService.getConversationMessages);
+  const mockGetOrCreateConversation = vi.mocked(
+    conversationService.getOrCreateConversation
+  );
+  const mockGetConversationMessages = vi.mocked(
+    conversationService.getConversationMessages
+  );
 
   const defaultChatState = {
     messages: [],
@@ -42,11 +46,11 @@ describe('ChatPanel with AI SDK Integration', () => {
   beforeEach(async () => {
     // Reset all mocks
     vi.clearAllMocks();
-    
+
     // Setup default mock implementations
     mockGetOrCreateConversation.mockResolvedValue('test-conversation-id');
     mockGetConversationMessages.mockResolvedValue([]);
-    
+
     // Mock useChat from AI SDK
     const { useChat } = await import('@ai-sdk/react');
     vi.mocked(useChat).mockReturnValue(defaultChatState);
@@ -58,18 +62,20 @@ describe('ChatPanel with AI SDK Integration', () => {
 
   it('should initialize conversation and load messages on mount', async () => {
     const testPageId = 'test-page-id';
-    
+
     render(<ChatPanel pageId={testPageId} />);
 
     await waitFor(() => {
       expect(mockGetOrCreateConversation).toHaveBeenCalledWith(testPageId);
-      expect(mockGetConversationMessages).toHaveBeenCalledWith('test-conversation-id');
+      expect(mockGetConversationMessages).toHaveBeenCalledWith(
+        'test-conversation-id'
+      );
     });
   });
 
   it('should display loading state while initializing conversation', () => {
     mockGetOrCreateConversation.mockImplementation(() => new Promise(() => {})); // Never resolves
-    
+
     render(<ChatPanel pageId="test-page-id" />);
 
     expect(screen.getByText('Initializing chat...')).toBeInTheDocument();
@@ -80,7 +86,9 @@ describe('ChatPanel with AI SDK Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('AI Landing Page Editor')).toBeInTheDocument();
-      expect(screen.getByText(/Describe the changes you'd like to make/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Describe the changes you'd like to make/)
+      ).toBeInTheDocument();
     });
   });
 
@@ -108,7 +116,9 @@ describe('ChatPanel with AI SDK Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Hello, AI!')).toBeInTheDocument();
-      expect(screen.getByText('Hello! How can I help you?')).toBeInTheDocument();
+      expect(
+        screen.getByText('Hello! How can I help you?')
+      ).toBeInTheDocument();
     });
   });
 
@@ -123,7 +133,9 @@ describe('ChatPanel with AI SDK Integration', () => {
     render(<ChatPanel pageId="test-page-id" />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Ask me anything...')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Ask me anything...')
+      ).toBeInTheDocument();
     });
 
     const textarea = screen.getByPlaceholderText('Ask me anything...');
@@ -189,7 +201,7 @@ describe('ChatPanel with AI SDK Integration', () => {
     await waitFor(() => {
       const textarea = screen.getByPlaceholderText('Ask me anything...');
       const submitButton = screen.getByRole('button', { name: /submit/i });
-      
+
       expect(textarea).toBeDisabled();
       expect(submitButton).toBeDisabled();
     });
@@ -209,7 +221,7 @@ describe('ChatPanel with AI SDK Integration', () => {
     await waitFor(() => {
       const stopButton = screen.getByText('Stop');
       expect(stopButton).toBeInTheDocument();
-      
+
       fireEvent.click(stopButton);
       expect(mockStop).toHaveBeenCalled();
     });

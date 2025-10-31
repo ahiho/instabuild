@@ -59,7 +59,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
     private readonly config: Config,
     params: ShellToolParams,
     private readonly allowlist: Set<string>,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(params, messageBus);
   }
@@ -79,7 +79,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
   }
 
   protected override async getConfirmationDetails(
-    _abortSignal: AbortSignal,
+    _abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     const command = stripShellWrapper(this.params.command);
     const rootCommands = [...new Set(getCommandRoots(command))];
@@ -98,12 +98,12 @@ export class ShellToolInvocation extends BaseToolInvocation<
       }
 
       throw new Error(
-        `Command "${command}" is not in the list of allowed tools for non-interactive mode.`,
+        `Command "${command}" is not in the list of allowed tools for non-interactive mode.`
       );
     }
 
     const commandsToConfirm = rootCommands.filter(
-      (command) => !this.allowlist.has(command),
+      command => !this.allowlist.has(command)
     );
 
     if (commandsToConfirm.length === 0) {
@@ -117,7 +117,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
       rootCommand: commandsToConfirm.join(', '),
       onConfirm: async (outcome: ToolConfirmationOutcome) => {
         if (outcome === ToolConfirmationOutcome.ProceedAlways) {
-          commandsToConfirm.forEach((command) => this.allowlist.add(command));
+          commandsToConfirm.forEach(command => this.allowlist.add(command));
         }
       },
     };
@@ -128,7 +128,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
     signal: AbortSignal,
     updateOutput?: (output: string | AnsiOutput) => void,
     shellExecutionConfig?: ShellExecutionConfig,
-    setPidCallback?: (pid: number) => void,
+    setPidCallback?: (pid: number) => void
   ): Promise<ToolResult> {
     const strippedCommand = stripShellWrapper(this.params.command);
 
@@ -188,7 +188,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
               case 'binary_progress':
                 isBinaryStream = true;
                 cumulativeOutput = `[Receiving binary output... ${formatMemoryUsage(
-                  event.bytesReceived,
+                  event.bytesReceived
                 )} received]`;
                 if (Date.now() - lastUpdateTime > OUTPUT_UPDATE_INTERVAL_MS) {
                   shouldUpdate = true;
@@ -206,7 +206,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
           },
           signal,
           this.config.getEnableInteractiveShell(),
-          shellExecutionConfig ?? {},
+          shellExecutionConfig ?? {}
         );
 
       if (pid && setPidCallback) {
@@ -280,7 +280,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
             returnDisplayMessage = `Command terminated by signal: ${result.signal}`;
           } else if (result.error) {
             returnDisplayMessage = `Command failed: ${getErrorMessage(
-              result.error,
+              result.error
             )}`;
           } else if (result.exitCode !== null && result.exitCode !== 0) {
             returnDisplayMessage = `Command exited with code: ${result.exitCode}`;
@@ -304,7 +304,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
           llmContent,
           this.config.getGeminiClient(),
           signal,
-          summarizeConfig[SHELL_TOOL_NAME].tokenBudget,
+          summarizeConfig[SHELL_TOOL_NAME].tokenBudget
         );
         return {
           llmContent: summary,
@@ -376,7 +376,7 @@ export class ShellTool extends BaseDeclarativeTool<
 
   constructor(
     private readonly config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     void initializeShellParsers().catch(() => {
       // Errors are surfaced when parsing commands.
@@ -408,12 +408,12 @@ export class ShellTool extends BaseDeclarativeTool<
       },
       false, // output is not markdown
       true, // output can be updated
-      messageBus,
+      messageBus
     );
   }
 
   protected override validateToolParamValues(
-    params: ShellToolParams,
+    params: ShellToolParams
   ): string | null {
     if (!params.command.trim()) {
       return 'Command cannot be empty.';
@@ -423,7 +423,7 @@ export class ShellTool extends BaseDeclarativeTool<
     if (!commandCheck.allowed) {
       if (!commandCheck.reason) {
         console.error(
-          'Unexpected: isCommandAllowed returned false without a reason',
+          'Unexpected: isCommandAllowed returned false without a reason'
         );
         return `Command is not allowed: ${params.command}`;
       }
@@ -437,8 +437,8 @@ export class ShellTool extends BaseDeclarativeTool<
         return 'Directory must be an absolute path.';
       }
       const workspaceDirs = this.config.getWorkspaceContext().getDirectories();
-      const isWithinWorkspace = workspaceDirs.some((wsDir) =>
-        params.directory!.startsWith(wsDir),
+      const isWithinWorkspace = workspaceDirs.some(wsDir =>
+        params.directory!.startsWith(wsDir)
       );
 
       if (!isWithinWorkspace) {
@@ -450,13 +450,13 @@ export class ShellTool extends BaseDeclarativeTool<
 
   protected createInvocation(
     params: ShellToolParams,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ): ToolInvocation<ShellToolParams, ToolResult> {
     return new ShellToolInvocation(
       this.config,
       params,
       this.allowlist,
-      messageBus,
+      messageBus
     );
   }
 }

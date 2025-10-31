@@ -8,7 +8,8 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { getToolMetadata } from '../lib/tool-metadata';
 import { useToast } from '../hooks/useToast';
 import {
   getConversationMessages,
@@ -52,27 +53,90 @@ interface ChatPanelProps {
 /**
  * Renders different types of message parts from AI SDK using proper AI elements
  */
-function renderMessagePart(part: UIMessage['parts'][0], index: number) {
+function renderMessagePart(part: UIMessage['parts'][0], index: number, toolCall?: Record<string, unknown>) {
   // Handle text parts
   if (part.type === 'text') {
     return <Response key={index}>{part.text}</Response>;
   }
 
-  // Handle tool parts (tool-* types) using the Tool component
+  // Handle tool-result parts (saved from database - these are the results of executed tools)
+  if (part.type === 'tool-result') {
+    const resultPart = part as Record<string, unknown>;
+    const toolCallId = String(resultPart.toolCallId || '');
+    const toolName = String(resultPart.toolName || '');
+    const toolMetadata = getToolMetadata(toolName);
+
+    // Tool results are completed by definition
+    const displayState: 'input-streaming' | 'input-available' | 'output-available' | 'output-error' =
+      resultPart.error ? 'output-error' : 'output-available';
+
+    return (
+      <Tool key={index} isError={displayState === 'output-error'}>
+        <ToolHeader
+          title={toolMetadata.displayName}
+          type={`tool-${toolName}` as `tool-${string}`}
+          state={displayState}
+          description={toolMetadata.description}
+        />
+        <ToolContent>
+          {/* Show input parameters from the corresponding tool-call */}
+          {toolCall?.input && (
+            <ToolInput input={toolCall.input} />
+          )}
+          {/* Show output result */}
+          {!!(resultPart.output || resultPart.error) && (
+            <ToolOutput
+              output={resultPart.output}
+              errorText={resultPart.error as string | undefined}
+            />
+          )}
+        </ToolContent>
+      </Tool>
+    );
+  }
+
+  // Handle tool-call parts (tool-* types) using the Tool component
   if (part.type.startsWith('tool-')) {
     const toolPart = part as Record<string, unknown>; // Tool parts from AI SDK
+
+    // Extract tool name from either:
+    // 1. toolName property (if explicitly provided by backend)
+    // 2. type property (e.g., "tool-glob" -> "glob") from Vercel AI SDK dynamic tools
+    let toolName = String(toolPart.toolName || '');
+    if (!toolName && part.type.startsWith('tool-')) {
+      toolName = part.type.substring(5); // Remove "tool-" prefix to get the actual tool name
+    }
+
+    const toolMetadata = getToolMetadata(toolName);
+
+    // Determine the actual state based on:
+    // 1. Vercel AI SDK state property
+    // 2. Output success field (if success: false, show error even if state says output-available)
+    let displayState: 'input-streaming' | 'input-available' | 'output-available' | 'output-error' =
+      (toolPart.state as
+        | 'input-streaming'
+        | 'input-available'
+        | 'output-available'
+        | 'output-error') || 'input-available';
+
+    // Check if output indicates failure
+    const output = toolPart.output as Record<string, unknown> | undefined;
+    if (
+      displayState === 'output-available' &&
+      output &&
+      typeof output === 'object' &&
+      output.success === false
+    ) {
+      displayState = 'output-error';
+    }
+
     return (
-      <Tool key={index}>
+      <Tool key={index} isError={displayState === 'output-error'}>
         <ToolHeader
-          title={String(toolPart.toolName || '')}
+          title={toolMetadata.displayName}
           type={part.type as `tool-${string}`}
-          state={
-            (toolPart.state as
-              | 'input-streaming'
-              | 'input-available'
-              | 'output-available'
-              | 'output-error') || 'input-available'
-          }
+          state={displayState}
+          description={toolMetadata.description}
         />
         <ToolContent>
           {!!toolPart.input && <ToolInput input={toolPart.input} />}
@@ -238,30 +302,32 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
 
+  // Initialize conversation and load messages
+  const initConversation = useCallback(async () => {
+    try {
+      setIsLoadingConversation(true);
+      console.log('[ChatPanel] Getting conversation for pageId:', pageId);
+      const id = await getOrCreateConversation(pageId);
+      console.log('[ChatPanel] Got conversationId:', id);
+      setConversationId(id);
+
+      // Load previous messages
+      console.log('[ChatPanel] Loading previous messages');
+      const messages = await getConversationMessages(id);
+      console.log('[ChatPanel] Loaded messages:', messages.length);
+      setInitialMessages(messages);
+    } catch (err) {
+      console.error('Failed to initialize conversation:', err);
+      showError('Connection Error', 'Failed to initialize chat');
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  }, [pageId, showError]);
+
   // Get or create conversation and load messages on mount
   useEffect(() => {
-    const initConversation = async () => {
-      try {
-        console.log('[ChatPanel] Getting conversation for pageId:', pageId);
-        const id = await getOrCreateConversation(pageId);
-        console.log('[ChatPanel] Got conversationId:', id);
-        setConversationId(id);
-
-        // Load previous messages
-        console.log('[ChatPanel] Loading previous messages');
-        const messages = await getConversationMessages(id);
-        console.log('[ChatPanel] Loaded messages:', messages.length);
-        setInitialMessages(messages);
-      } catch (err) {
-        console.error('Failed to initialize conversation:', err);
-        showError('Connection Error', 'Failed to initialize chat');
-      } finally {
-        setIsLoadingConversation(false);
-      }
-    };
-
     initConversation();
-  }, [pageId, showError]);
+  }, [initConversation]);
 
   // Use AI SDK's useChat hook with custom transport
   const {
@@ -281,20 +347,47 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
     }),
   });
 
-  // Use initial messages if chat messages are empty (fallback for loading)
-  const messages = chatMessages.length > 0 ? chatMessages : initialMessages;
+  // Merge initial messages with chat messages
+  // useChat replaces initial messages when streaming, so we need to preserve them
+  // Only include new messages that were added by useChat (after initial load)
+  const mergedMessages = (() => {
+    if (initialMessages.length === 0) {
+      return chatMessages;
+    }
+
+    if (chatMessages.length === 0) {
+      return initialMessages;
+    }
+
+    // Find messages that are in chatMessages but not in initialMessages
+    // This represents the new messages sent in this session
+    const initialIds = new Set(initialMessages.map(m => m.id));
+    const newMessages = chatMessages.filter(m => !initialIds.has(m.id));
+
+    // If no new messages were added by useChat, just return initial (page refresh case)
+    if (newMessages.length === 0) {
+      return initialMessages;
+    }
+
+    // Return initial messages + new messages added in this session
+    return [...initialMessages, ...newMessages];
+  })();
+
+  const messages = mergedMessages;
 
   // Log message state for debugging
   useEffect(() => {
     console.log('[ChatPanel] Messages state:', {
       initialMessages: initialMessages.length,
       chatMessages: chatMessages.length,
+      mergedMessages: mergedMessages.length,
       displayedMessages: messages.length,
       conversationId,
     });
   }, [
     initialMessages.length,
     chatMessages.length,
+    mergedMessages.length,
     messages.length,
     conversationId,
   ]);
@@ -357,6 +450,32 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
                 .map(part => (part.type === 'text' ? part.text : ''))
                 .join('');
 
+              // When tool-result is in the same message as tool-call (merged from backend),
+              // skip rendering the tool-call since tool-result shows the complete execution
+              const toolResultIds = new Set(
+                message.parts
+                  .filter((part: any) => part.type === 'tool-result')
+                  .map((part: any) => part.toolCallId)
+              );
+
+              // Create a map of tool-calls by ID for reference
+              const toolCallsById = new Map(
+                message.parts
+                  .filter((part: any) => part.type === 'tool-call')
+                  .map((part: any) => [part.toolCallId, part])
+              );
+
+              const partsToRender = message.parts.filter((part: any) => {
+                // Skip tool-call if we have a corresponding tool-result (they're merged)
+                if (
+                  part.type === 'tool-call' &&
+                  toolResultIds.has(part.toolCallId)
+                ) {
+                  return false;
+                }
+                return true;
+              });
+
               return (
                 <Message key={message.id} from={message.role}>
                   <MessageAvatar
@@ -370,9 +489,14 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
                   <MessageContent variant="flat">
                     {/* Render all message parts */}
                     <div className="space-y-2">
-                      {message.parts.map((part, index) =>
-                        renderMessagePart(part, index)
-                      )}
+                      {partsToRender.map((part, index) => {
+                        // For tool-result parts, also pass the corresponding tool-call for input display
+                        if (part.type === 'tool-result') {
+                          const toolCall = toolCallsById.get((part as any).toolCallId);
+                          return renderMessagePart(part, index, toolCall);
+                        }
+                        return renderMessagePart(part, index);
+                      })}
                     </div>
 
                     {/* Message Actions (only for assistant messages with text content) */}
@@ -429,7 +553,29 @@ export function ChatPanel({ pageId }: ChatPanelProps) {
                   <p className="text-sm font-medium text-red-400 mb-1">
                     Something went wrong
                   </p>
-                  <p className="text-xs text-red-300/80">{error.message}</p>
+                  <p className="text-xs text-red-300/80 mb-3">{error.message}</p>
+                  {error.message?.toLowerCase().includes('sandbox') && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="text-xs px-3 py-1 bg-red-600/50 hover:bg-red-600 rounded text-red-200 transition-colors"
+                      >
+                        Refresh Page
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Clear conversation and retry
+                          setConversationId('');
+                          setInitialMessages([]);
+                          setIsLoadingConversation(true);
+                          initConversation();
+                        }}
+                        className="text-xs px-3 py-1 bg-red-600/50 hover:bg-red-600 rounded text-red-200 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

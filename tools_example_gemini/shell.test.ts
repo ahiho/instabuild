@@ -79,7 +79,7 @@ describe('ShellTool', () => {
     vi.mocked(os.platform).mockReturnValue('linux');
     vi.mocked(os.tmpdir).mockReturnValue('/tmp');
     (vi.mocked(crypto.randomBytes) as Mock).mockReturnValue(
-      Buffer.from('abcdef', 'hex'),
+      Buffer.from('abcdef', 'hex')
     );
     process.env['ComSpec'] =
       'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
@@ -89,7 +89,7 @@ describe('ShellTool', () => {
       mockShellOutputCallback = callback;
       return {
         pid: 12345,
-        result: new Promise((resolve) => {
+        result: new Promise(resolve => {
           resolveExecutionPromise = resolve;
         }),
       };
@@ -109,14 +109,14 @@ describe('ShellTool', () => {
       (mockConfig.getCoreTools as Mock).mockReturnValue(undefined);
       (mockConfig.getExcludeTools as Mock).mockReturnValue(undefined);
       expect(isCommandAllowed('goodCommand --safe', mockConfig).allowed).toBe(
-        true,
+        true
       );
     });
 
     it('should allow a command with command substitution using $()', () => {
       const evaluation = isCommandAllowed(
         'echo $(goodCommand --safe)',
-        mockConfig,
+        mockConfig
       );
       expect(evaluation.allowed).toBe(true);
       expect(evaluation.reason).toBeUndefined();
@@ -131,30 +131,30 @@ describe('ShellTool', () => {
 
     it('should throw an error for an empty command', () => {
       expect(() => shellTool.build({ command: ' ' })).toThrow(
-        'Command cannot be empty.',
+        'Command cannot be empty.'
       );
     });
 
     it('should throw an error for a relative directory path', () => {
       expect(() =>
-        shellTool.build({ command: 'ls', directory: 'rel/path' }),
+        shellTool.build({ command: 'ls', directory: 'rel/path' })
       ).toThrow('Directory must be an absolute path.');
     });
 
     it('should throw an error for a directory outside the workspace', () => {
       (mockConfig.getWorkspaceContext as Mock).mockReturnValue(
-        createMockWorkspaceContext('/test/dir', ['/another/workspace']),
+        createMockWorkspaceContext('/test/dir', ['/another/workspace'])
       );
       expect(() =>
-        shellTool.build({ command: 'ls', directory: '/not/in/workspace' }),
+        shellTool.build({ command: 'ls', directory: '/not/in/workspace' })
       ).toThrow(
-        "Directory '/not/in/workspace' is not within any of the registered workspace directories.",
+        "Directory '/not/in/workspace' is not within any of the registered workspace directories."
       );
     });
 
     it('should return an invocation for a valid absolute directory path', () => {
       (mockConfig.getWorkspaceContext as Mock).mockReturnValue(
-        createMockWorkspaceContext('/test/dir', ['/another/workspace']),
+        createMockWorkspaceContext('/test/dir', ['/another/workspace'])
       );
       const invocation = shellTool.build({
         command: 'ls',
@@ -168,7 +168,7 @@ describe('ShellTool', () => {
     const mockAbortSignal = new AbortController().signal;
 
     const resolveShellExecution = (
-      result: Partial<ShellExecutionResult> = {},
+      result: Partial<ShellExecutionResult> = {}
     ) => {
       const fullResult: ShellExecutionResult = {
         rawOutput: Buffer.from(result.output || ''),
@@ -202,7 +202,7 @@ describe('ShellTool', () => {
         expect.any(Function),
         mockAbortSignal,
         false,
-        {},
+        {}
       );
       expect(result.llmContent).toContain('Background PIDs: 54322');
       expect(vi.mocked(fs.unlinkSync)).toHaveBeenCalledWith(tmpFile);
@@ -210,7 +210,7 @@ describe('ShellTool', () => {
 
     it('should use the provided directory as cwd', async () => {
       (mockConfig.getWorkspaceContext as Mock).mockReturnValue(
-        createMockWorkspaceContext('/test/dir'),
+        createMockWorkspaceContext('/test/dir')
       );
       const invocation = shellTool.build({
         command: 'ls',
@@ -228,7 +228,7 @@ describe('ShellTool', () => {
         expect.any(Function),
         mockAbortSignal,
         false,
-        {},
+        {}
       );
     });
 
@@ -253,7 +253,7 @@ describe('ShellTool', () => {
         expect.any(Function),
         mockAbortSignal,
         false,
-        {},
+        {}
       );
     });
 
@@ -295,13 +295,13 @@ describe('ShellTool', () => {
 
     it('should throw an error for invalid parameters', () => {
       expect(() => shellTool.build({ command: '' })).toThrow(
-        'Command cannot be empty.',
+        'Command cannot be empty.'
       );
     });
 
     it('should throw an error for invalid directory', () => {
       expect(() =>
-        shellTool.build({ command: 'ls', directory: 'nonexistent' }),
+        shellTool.build({ command: 'ls', directory: 'nonexistent' })
       ).toThrow('Directory must be an absolute path.');
     });
 
@@ -310,7 +310,7 @@ describe('ShellTool', () => {
         [SHELL_TOOL_NAME]: { tokenBudget: 1000 },
       });
       vi.mocked(summarizer.summarizeToolOutput).mockResolvedValue(
-        'summarized output',
+        'summarized output'
       );
 
       const invocation = shellTool.build({ command: 'ls' });
@@ -332,7 +332,7 @@ describe('ShellTool', () => {
         expect.any(String),
         mockConfig.getGeminiClient(),
         mockAbortSignal,
-        1000,
+        1000
       );
       expect(result.llmContent).toBe('summarized output');
       expect(result.returnDisplay).toBe('long output');
@@ -369,7 +369,7 @@ describe('ShellTool', () => {
         mockShellOutputCallback({ type: 'binary_detected' });
         expect(updateOutputMock).toHaveBeenCalledOnce();
         expect(updateOutputMock).toHaveBeenCalledWith(
-          '[Binary output detected. Halting stream...]',
+          '[Binary output detected. Halting stream...]'
         );
 
         mockShellOutputCallback({
@@ -390,7 +390,7 @@ describe('ShellTool', () => {
         // Now it should be called a second time with the latest progress.
         expect(updateOutputMock).toHaveBeenCalledTimes(2);
         expect(updateOutputMock).toHaveBeenLastCalledWith(
-          '[Receiving binary output... 2.0 KB received]',
+          '[Receiving binary output... 2.0 KB received]'
         );
 
         resolveExecutionPromise({
@@ -413,7 +413,7 @@ describe('ShellTool', () => {
       const params = { command: 'npm install' };
       const invocation = shellTool.build(params);
       const confirmation = await invocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
 
       expect(confirmation).not.toBe(false);
@@ -421,13 +421,13 @@ describe('ShellTool', () => {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (confirmation as any).onConfirm(
-        ToolConfirmationOutcome.ProceedAlways,
+        ToolConfirmationOutcome.ProceedAlways
       );
 
       // Should now be allowlisted
       const secondInvocation = shellTool.build({ command: 'npm test' });
       const secondConfirmation = await secondInvocation.shouldConfirmExecute(
-        new AbortController().signal,
+        new AbortController().signal
       );
       expect(secondConfirmation).toBe(false);
     });
@@ -445,7 +445,7 @@ describe('ShellTool', () => {
         (mockConfig.getAllowedTools as Mock).mockReturnValue(['ShellTool(wc)']);
         const invocation = shellTool.build({ command: 'wc -l foo.txt' });
         const confirmation = await invocation.shouldConfirmExecute(
-          new AbortController().signal,
+          new AbortController().signal
         );
         expect(confirmation).toBe(false);
       });
@@ -456,7 +456,7 @@ describe('ShellTool', () => {
         ]);
         const invocation = shellTool.build({ command: 'wc -l foo.txt' });
         const confirmation = await invocation.shouldConfirmExecute(
-          new AbortController().signal,
+          new AbortController().signal
         );
         expect(confirmation).toBe(false);
       });
@@ -467,7 +467,7 @@ describe('ShellTool', () => {
         ]);
         const invocation = shellTool.build({ command: 'madeupcommand' });
         await expect(
-          invocation.shouldConfirmExecute(new AbortController().signal),
+          invocation.shouldConfirmExecute(new AbortController().signal)
         ).rejects.toThrow('madeupcommand');
       });
 
@@ -477,7 +477,7 @@ describe('ShellTool', () => {
         ]);
         const invocation = shellTool.build({ command: 'wc' });
         await expect(
-          invocation.shouldConfirmExecute(new AbortController().signal),
+          invocation.shouldConfirmExecute(new AbortController().signal)
         ).rejects.toThrow('wc');
       });
 
@@ -487,9 +487,9 @@ describe('ShellTool', () => {
         ]);
         const invocation = shellTool.build({ command: 'echo "foo" && ls -l' });
         await expect(
-          invocation.shouldConfirmExecute(new AbortController().signal),
+          invocation.shouldConfirmExecute(new AbortController().signal)
         ).rejects.toThrow(
-          'Command "echo "foo" && ls -l" is not in the list of allowed tools for non-interactive mode.',
+          'Command "echo "foo" && ls -l" is not in the list of allowed tools for non-interactive mode.'
         );
       });
     });

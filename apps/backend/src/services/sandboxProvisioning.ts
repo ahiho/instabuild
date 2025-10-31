@@ -6,7 +6,7 @@ import { prisma } from '../server';
 export interface SandboxContainer {
   id: string;
   userId: string;
-  status: 'provisioning' | 'ready' | 'running' | 'stopped' | 'failed';
+  status: 'PENDING' | 'READY' | 'FAILED';
   createdAt: Date;
   lastActivity: Date;
   resourceLimits: ResourceLimits;
@@ -33,7 +33,7 @@ export interface SandboxProvisionRequest {
 
 export interface SandboxProvisionResponse {
   containerId: string;
-  status: 'ready' | 'failed';
+  status: 'READY' | 'FAILED';
   endpoint?: string;
   port?: number;
   error?: string;
@@ -98,7 +98,7 @@ export class SandboxProvisioningService extends EventEmitter {
       const tempSandbox: SandboxContainer = {
         id: conversationId,
         userId: request.userId,
-        status: 'provisioning',
+        status: 'PENDING',
         createdAt: new Date(),
         lastActivity: new Date(),
         resourceLimits: {
@@ -115,8 +115,27 @@ export class SandboxProvisioningService extends EventEmitter {
       );
 
       // Create and start Docker container
+      logger.info('Creating Docker container', {
+        conversationId,
+        imageName: this.baseImage,
+        containerName: `agentic-sandbox-${conversationId}`,
+        port,
+      });
+
       const container = await this.docker.createContainer(containerConfig);
+
+      logger.info('Docker container created, starting container', {
+        conversationId,
+        containerId: container.id,
+      });
+
       await container.start();
+
+      logger.info('Docker container started successfully', {
+        conversationId,
+        containerId: container.id,
+        port,
+      });
 
       // Phase 3.5: Store sandbox state in Conversation via Prisma (persistent)
       const conversation = await prisma.conversation.create({
@@ -125,7 +144,7 @@ export class SandboxProvisioningService extends EventEmitter {
           userId: request.userId,
           landingPageId: request.projectId,
           sandboxId: container.id, // Docker container ID
-          sandboxStatus: 'ready',
+          sandboxStatus: 'READY',
           sandboxPort: port,
           sandboxCreatedAt: new Date(),
           sandboxPublicUrl: `http://localhost:${port}`,
@@ -143,7 +162,7 @@ export class SandboxProvisioningService extends EventEmitter {
       this.emit('sandbox-provisioned', {
         id: conversationId,
         userId: request.userId,
-        status: 'ready',
+        status: 'READY',
         createdAt: conversation.startTime,
         lastActivity: conversation.lastAccessedAt || new Date(),
         resourceLimits: tempSandbox.resourceLimits,
@@ -154,14 +173,19 @@ export class SandboxProvisioningService extends EventEmitter {
 
       return {
         containerId: conversationId,
-        status: 'ready',
+        status: 'READY',
         endpoint: `http://localhost:${port}`,
         port,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       logger.error('Failed to provision sandbox', {
         conversationId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
+        stack: errorStack,
+        fullError: JSON.stringify(error, null, 2),
       });
 
       // Phase 3.5: Mark as failed in database
@@ -172,10 +196,10 @@ export class SandboxProvisioningService extends EventEmitter {
             id: conversationId,
             userId: request.userId,
             landingPageId: request.projectId,
-            sandboxStatus: 'failed',
+            sandboxStatus: 'FAILED',
           },
           update: {
-            sandboxStatus: 'failed',
+            sandboxStatus: 'FAILED',
           },
         });
       } catch (dbError) {
@@ -186,7 +210,7 @@ export class SandboxProvisioningService extends EventEmitter {
 
       return {
         containerId: conversationId,
-        status: 'failed',
+        status: 'FAILED',
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
@@ -220,16 +244,20 @@ export class SandboxProvisioningService extends EventEmitter {
         sandboxPort: conversation.sandboxPort,
       });
 
+      // Map Prisma enum to SandboxContainer status type
+      let statusMap: 'PENDING' | 'READY' | 'FAILED' = 'FAILED';
+      if (conversation.sandboxStatus === 'PENDING') {
+        statusMap = 'PENDING';
+      } else if (conversation.sandboxStatus === 'READY') {
+        statusMap = 'READY';
+      } else if (conversation.sandboxStatus === 'FAILED' || !conversation.sandboxStatus) {
+        statusMap = 'FAILED';
+      }
+
       return {
         id: conversationId,
         userId: conversation.userId || 'unknown',
-        status:
-          (conversation.sandboxStatus as
-            | 'provisioning'
-            | 'ready'
-            | 'running'
-            | 'stopped'
-            | 'failed') || 'failed',
+        status: statusMap,
         createdAt: conversation.sandboxCreatedAt || conversation.startTime,
         lastActivity: conversation.lastAccessedAt || new Date(),
         resourceLimits: this.defaultResourceLimits,
@@ -304,11 +332,11 @@ export class SandboxProvisioningService extends EventEmitter {
         });
       }
 
-      // Phase 3.5: Mark as stopped in database
+      // Phase 3.5: Mark as failed in database
       await prisma.conversation.update({
         where: { id: conversationId },
         data: {
-          sandboxStatus: 'stopped',
+          sandboxStatus: 'FAILED',
         },
       });
 
@@ -341,7 +369,7 @@ export class SandboxProvisioningService extends EventEmitter {
         where: {
           userId,
           sandboxStatus: {
-            in: ['provisioning', 'ready', 'running'],
+            in: ['PENDING', 'READY'],
           },
         },
       });
@@ -353,11 +381,9 @@ export class SandboxProvisioningService extends EventEmitter {
           userId: conv.userId || 'unknown',
           status:
             (conv.sandboxStatus as
-              | 'provisioning'
-              | 'ready'
-              | 'running'
-              | 'stopped'
-              | 'failed') || 'failed',
+              | 'PENDING'
+              | 'READY'
+              | 'FAILED') || 'FAILED',
           createdAt: conv.sandboxCreatedAt || conv.startTime,
           lastActivity: conv.lastAccessedAt || new Date(),
           resourceLimits: this.defaultResourceLimits,
@@ -525,7 +551,7 @@ export class SandboxProvisioningService extends EventEmitter {
       const idleSandboxes = await prisma.conversation.findMany({
         where: {
           sandboxStatus: {
-            in: ['ready', 'running'],
+            in: ['READY'],
           },
           lastAccessedAt: {
             lt: idleThreshold,
@@ -574,7 +600,7 @@ export class SandboxProvisioningService extends EventEmitter {
       const activeSandboxes = await prisma.conversation.findMany({
         where: {
           sandboxStatus: {
-            in: ['provisioning', 'ready', 'running'],
+            in: ['PENDING', 'READY'],
           },
           sandboxId: {
             not: null,
@@ -623,7 +649,7 @@ export class SandboxProvisioningService extends EventEmitter {
             failedCount++;
             await prisma.conversation.update({
               where: { id: sandbox.id },
-              data: { sandboxStatus: 'stopped' },
+              data: { sandboxStatus: 'FAILED' },
             });
           }
         } catch (error) {
@@ -636,7 +662,7 @@ export class SandboxProvisioningService extends EventEmitter {
 
           await prisma.conversation.update({
             where: { id: sandbox.id },
-            data: { sandboxStatus: 'failed' },
+            data: { sandboxStatus: 'FAILED' },
           });
         }
       }
@@ -675,7 +701,7 @@ export class SandboxProvisioningService extends EventEmitter {
       const activeSandboxCount = await prisma.conversation.count({
         where: {
           sandboxStatus: {
-            in: ['ready', 'running'],
+            in: ['READY'],
           },
         },
       });

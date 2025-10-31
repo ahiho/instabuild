@@ -47,7 +47,7 @@ export function applyReplacement(
   currentContent: string | null,
   oldString: string,
   newString: string,
-  isNewFile: boolean,
+  isNewFile: boolean
 ): string {
   if (isNewFile) {
     return newString;
@@ -118,7 +118,7 @@ class EditToolInvocation
     params: EditToolParams,
     messageBus?: MessageBus,
     toolName?: string,
-    displayName?: string,
+    displayName?: string
   ) {
     super(params, messageBus, toolName, displayName);
   }
@@ -135,7 +135,7 @@ class EditToolInvocation
    */
   private async calculateEdit(
     params: EditToolParams,
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<CalculatedEdit> {
     const expectedReplacements = params.expected_replacements ?? 1;
     let currentContent: string | null = null;
@@ -181,7 +181,7 @@ class EditToolInvocation
         params,
         this.config.getGeminiClient(),
         this.config.getBaseLlmClient(),
-        abortSignal,
+        abortSignal
       );
       finalOldString = correctedEdit.params.old_string;
       finalNewString = correctedEdit.params.new_string;
@@ -230,7 +230,7 @@ class EditToolInvocation
           currentContent,
           finalOldString,
           finalNewString,
-          isNewFile,
+          isNewFile
         )
       : (currentContent ?? '');
 
@@ -257,7 +257,7 @@ class EditToolInvocation
    * It needs to calculate the diff to show the user.
    */
   protected override async getConfirmationDetails(
-    abortSignal: AbortSignal,
+    abortSignal: AbortSignal
   ): Promise<ToolCallConfirmationDetails | false> {
     if (this.config.getApprovalMode() === ApprovalMode.AUTO_EDIT) {
       return false;
@@ -287,7 +287,7 @@ class EditToolInvocation
       editData.newContent,
       'Current',
       'Proposed',
-      DEFAULT_DIFF_OPTIONS,
+      DEFAULT_DIFF_OPTIONS
     );
     const ideClient = await IdeClient.getInstance();
     const ideConfirmation =
@@ -326,7 +326,7 @@ class EditToolInvocation
   getDescription(): string {
     const relativePath = makeRelative(
       this.params.file_path,
-      this.config.getTargetDir(),
+      this.config.getTargetDir()
     );
     if (this.params.old_string === '') {
       return `Create ${shortenPath(relativePath)}`;
@@ -393,7 +393,7 @@ class EditToolInvocation
         fileName,
         editData.currentContent ?? '',
         originallyProposedContent,
-        editData.newContent,
+        editData.newContent
       );
 
       const fileDiff = Diff.createPatch(
@@ -402,7 +402,7 @@ class EditToolInvocation
         editData.newContent,
         'Current',
         'Proposed',
-        DEFAULT_DIFF_OPTIONS,
+        DEFAULT_DIFF_OPTIONS
       );
       const displayResult = {
         fileDiff,
@@ -415,7 +415,7 @@ class EditToolInvocation
       // Log file operation for telemetry (without diff_stat to avoid double-counting)
       const mimetype = getSpecificMimeType(this.params.file_path);
       const programmingLanguage = getLanguageFromFilePath(
-        this.params.file_path,
+        this.params.file_path
       );
       const extension = path.extname(this.params.file_path);
       const operation = editData.isNewFile
@@ -430,8 +430,8 @@ class EditToolInvocation
           editData.newContent.split('\n').length,
           mimetype,
           extension,
-          programmingLanguage,
-        ),
+          programmingLanguage
+        )
       );
 
       const llmSuccessMessageParts = [
@@ -441,7 +441,7 @@ class EditToolInvocation
       ];
       if (this.params.modified_by_user) {
         llmSuccessMessageParts.push(
-          `User modified the \`new_string\` content to be: ${this.params.new_string}.`,
+          `User modified the \`new_string\` content to be: ${this.params.new_string}.`
         );
       }
 
@@ -484,7 +484,7 @@ export class EditTool
 
   constructor(
     private readonly config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       EditTool.Name,
@@ -532,7 +532,7 @@ Expectation for required parameters:
       },
       true, // isOutputMarkdown
       false, // canUpdateOutput
-      messageBus,
+      messageBus
     );
   }
 
@@ -542,7 +542,7 @@ Expectation for required parameters:
    * @returns Error message string or null if valid
    */
   protected override validateToolParamValues(
-    params: EditToolParams,
+    params: EditToolParams
   ): string | null {
     if (!params.file_path) {
       return "The 'file_path' parameter must be non-empty.";
@@ -565,14 +565,14 @@ Expectation for required parameters:
     params: EditToolParams,
     messageBus?: MessageBus,
     toolName?: string,
-    displayName?: string,
+    displayName?: string
   ): ToolInvocation<EditToolParams, ToolResult> {
     return new EditToolInvocation(
       this.config,
       params,
       messageBus ?? this.messageBus,
       toolName ?? this.name,
-      displayName ?? this.displayName,
+      displayName ?? this.displayName
     );
   }
 
@@ -598,7 +598,7 @@ Expectation for required parameters:
             currentContent,
             params.old_string,
             params.new_string,
-            params.old_string === '' && currentContent === '',
+            params.old_string === '' && currentContent === ''
           );
         } catch (err) {
           if (!isNodeError(err) || err.code !== 'ENOENT') throw err;
@@ -608,7 +608,7 @@ Expectation for required parameters:
       createUpdatedParams: (
         oldContent: string,
         modifiedProposedContent: string,
-        originalParams: EditToolParams,
+        originalParams: EditToolParams
       ): EditToolParams => ({
         ...originalParams,
         ai_proposed_content: oldContent,

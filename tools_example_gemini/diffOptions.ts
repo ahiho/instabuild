@@ -16,7 +16,7 @@ export function getDiffStat(
   fileName: string,
   oldStr: string,
   aiStr: string,
-  userStr: string,
+  userStr: string
 ): DiffStat {
   const getStats = (patch: Diff.ParsedDiff) => {
     let addedLines = 0;
@@ -45,7 +45,7 @@ export function getDiffStat(
     aiStr,
     'Current',
     'Proposed',
-    DEFAULT_DIFF_OPTIONS,
+    DEFAULT_DIFF_OPTIONS
   );
   const modelStats = getStats(modelPatch);
 
@@ -56,7 +56,7 @@ export function getDiffStat(
     userStr,
     'Proposed',
     'User',
-    DEFAULT_DIFF_OPTIONS,
+    DEFAULT_DIFF_OPTIONS
   );
   const userStats = getStats(userPatch);
 

@@ -34,7 +34,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
   constructor(
     private readonly config: Config,
     private readonly toolName: string,
-    params: ToolParams,
+    params: ToolParams
   ) {
     super(params);
   }
@@ -45,7 +45,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
 
   async execute(
     _signal: AbortSignal,
-    _updateOutput?: (output: string) => void,
+    _updateOutput?: (output: string) => void
   ): Promise<ToolResult> {
     const callCommand = this.config.getToolCallCommand()!;
     const child = spawn(callCommand, [this.toolName]);
@@ -58,7 +58,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
     let code: number | null = null;
     let signal: NodeJS.Signals | null = null;
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>(resolve => {
       const onStdout = (data: Buffer) => {
         stdout += data?.toString();
       };
@@ -73,7 +73,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
 
       const onClose = (
         _code: number | null,
-        _signal: NodeJS.Signals | null,
+        _signal: NodeJS.Signals | null
       ) => {
         code = _code;
         signal = _signal;
@@ -131,7 +131,7 @@ export class DiscoveredTool extends BaseDeclarativeTool<
     private readonly config: Config,
     name: string,
     override readonly description: string,
-    override readonly parameterSchema: Record<string, unknown>,
+    override readonly parameterSchema: Record<string, unknown>
   ) {
     const discoveryCmd = config.getToolDiscoveryCommand()!;
     const callCommand = config.getToolCallCommand()!;
@@ -158,7 +158,7 @@ Signal: Signal number or \`(none)\` if no signal was received.
       Kind.Other,
       parameterSchema,
       false, // isOutputMarkdown
-      false, // canUpdateOutput
+      false // canUpdateOutput
     );
   }
 
@@ -166,7 +166,7 @@ Signal: Signal number or \`(none)\` if no signal was received.
     params: ToolParams,
     _messageBus?: MessageBus,
     _toolName?: string,
-    _displayName?: string,
+    _displayName?: string
   ): ToolInvocation<ToolParams, ToolResult> {
     return new DiscoveredToolInvocation(this.config, this.name, params);
   }
@@ -194,7 +194,7 @@ export class ToolRegistry {
       } else {
         // Decide on behavior: throw error, log warning, or allow overwrite
         debugLogger.warn(
-          `Tool with name "${tool.name}" is already registered. Overwriting.`,
+          `Tool with name "${tool.name}" is already registered. Overwriting.`
         );
       }
     }
@@ -284,7 +284,7 @@ export class ToolRegistry {
         this.config.getPromptRegistry(),
         this.config.getDebugMode(),
         this.config.getWorkspaceContext(),
-        this.config,
+        this.config
       );
     }
   }
@@ -299,7 +299,7 @@ export class ToolRegistry {
       const cmdParts = parse(discoveryCmd);
       if (cmdParts.length === 0) {
         throw new Error(
-          'Tool discovery command is empty or contains only whitespace.',
+          'Tool discovery command is empty or contains only whitespace.'
         );
       }
       const proc = spawn(cmdParts[0] as string, cmdParts.slice(1) as string[]);
@@ -314,7 +314,7 @@ export class ToolRegistry {
       let stdoutByteLength = 0;
       let stderrByteLength = 0;
 
-      proc.stdout.on('data', (data) => {
+      proc.stdout.on('data', data => {
         if (sizeLimitExceeded) return;
         if (stdoutByteLength + data.length > MAX_STDOUT_SIZE) {
           sizeLimitExceeded = true;
@@ -325,7 +325,7 @@ export class ToolRegistry {
         stdout += stdoutDecoder.write(data);
       });
 
-      proc.stderr.on('data', (data) => {
+      proc.stderr.on('data', data => {
         if (sizeLimitExceeded) return;
         if (stderrByteLength + data.length > MAX_STDERR_SIZE) {
           sizeLimitExceeded = true;
@@ -338,15 +338,15 @@ export class ToolRegistry {
 
       await new Promise<void>((resolve, reject) => {
         proc.on('error', reject);
-        proc.on('close', (code) => {
+        proc.on('close', code => {
           stdout += stdoutDecoder.end();
           stderr += stderrDecoder.end();
 
           if (sizeLimitExceeded) {
             return reject(
               new Error(
-                `Tool discovery command output exceeded size limit of ${MAX_STDOUT_SIZE} bytes.`,
-              ),
+                `Tool discovery command output exceeded size limit of ${MAX_STDOUT_SIZE} bytes.`
+              )
             );
           }
 
@@ -354,10 +354,10 @@ export class ToolRegistry {
             coreEvents.emitFeedback(
               'error',
               `Tool discovery command failed with code ${code}.`,
-              stderr,
+              stderr
             );
             return reject(
-              new Error(`Tool discovery command failed with exit code ${code}`),
+              new Error(`Tool discovery command failed with exit code ${code}`)
             );
           }
           resolve();
@@ -370,7 +370,7 @@ export class ToolRegistry {
 
       if (!discoveredItems || !Array.isArray(discoveredItems)) {
         throw new Error(
-          'Tool discovery command did not return a JSON array of tools.',
+          'Tool discovery command did not return a JSON array of tools.'
         );
       }
 
@@ -402,8 +402,8 @@ export class ToolRegistry {
             this.config,
             func.name,
             func.description ?? '',
-            parameters as Record<string, unknown>,
-          ),
+            parameters as Record<string, unknown>
+          )
         );
       }
     } catch (e) {
@@ -420,7 +420,7 @@ export class ToolRegistry {
    */
   getFunctionDeclarations(): FunctionDeclaration[] {
     const declarations: FunctionDeclaration[] = [];
-    this.tools.forEach((tool) => {
+    this.tools.forEach(tool => {
       declarations.push(tool.schema);
     });
     return declarations;
@@ -454,7 +454,7 @@ export class ToolRegistry {
    */
   getAllTools(): AnyDeclarativeTool[] {
     return Array.from(this.tools.values()).sort((a, b) =>
-      a.displayName.localeCompare(b.displayName),
+      a.displayName.localeCompare(b.displayName)
     );
   }
 

@@ -44,7 +44,7 @@ export class McpClientManager {
 
     const servers = populateMcpServerCommand(
       cliConfig.getMcpServers() || {},
-      cliConfig.getMcpServerCommand(),
+      cliConfig.getMcpServerCommand()
     );
 
     this.discoveryState = MCPDiscoveryState.IN_PROGRESS;
@@ -59,7 +59,7 @@ export class McpClientManager {
           this.toolRegistry,
           cliConfig.getPromptRegistry(),
           cliConfig.getWorkspaceContext(),
-          cliConfig.getDebugMode(),
+          cliConfig.getDebugMode()
         );
         this.clients.set(name, client);
 
@@ -74,9 +74,9 @@ export class McpClientManager {
           coreEvents.emitFeedback(
             'error',
             `Error during discovery for server '${name}': ${getErrorMessage(
-              error,
+              error
             )}`,
-            error,
+            error
           );
         }
       });
@@ -96,10 +96,10 @@ export class McpClientManager {
           await client.disconnect();
         } catch (error) {
           console.error(
-            `Error stopping client '${name}': ${getErrorMessage(error)}`,
+            `Error stopping client '${name}': ${getErrorMessage(error)}`
           );
         }
-      },
+      }
     );
 
     await Promise.all(disconnectionPromises);

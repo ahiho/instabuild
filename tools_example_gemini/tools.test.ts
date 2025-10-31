@@ -12,7 +12,7 @@ import { ToolErrorType } from './tool-error.js';
 class TestToolInvocation implements ToolInvocation<object, ToolResult> {
   constructor(
     readonly params: object,
-    private readonly executeFn: () => Promise<ToolResult>,
+    private readonly executeFn: () => Promise<ToolResult>
   ) {}
 
   getDescription(): string {

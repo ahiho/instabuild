@@ -52,20 +52,20 @@ describe('GrepTool', () => {
     // Create some test files and directories
     await fs.writeFile(
       path.join(tempRootDir, 'fileA.txt'),
-      'hello world\nsecond line with world',
+      'hello world\nsecond line with world'
     );
     await fs.writeFile(
       path.join(tempRootDir, 'fileB.js'),
-      'const foo = "bar";\nfunction baz() { return "hello"; }',
+      'const foo = "bar";\nfunction baz() { return "hello"; }'
     );
     await fs.mkdir(path.join(tempRootDir, 'sub'));
     await fs.writeFile(
       path.join(tempRootDir, 'sub', 'fileC.txt'),
-      'another world in sub dir',
+      'another world in sub dir'
     );
     await fs.writeFile(
       path.join(tempRootDir, 'sub', 'fileD.md'),
-      '# Markdown file\nThis is a test.',
+      '# Markdown file\nThis is a test.'
     );
   });
 
@@ -96,14 +96,14 @@ describe('GrepTool', () => {
     it('should return error if pattern is missing', () => {
       const params = { path: '.' } as unknown as GrepToolParams;
       expect(grepTool.validateToolParams(params)).toBe(
-        `params must have required property 'pattern'`,
+        `params must have required property 'pattern'`
       );
     });
 
     it('should return error for invalid regex pattern', () => {
       const params: GrepToolParams = { pattern: '[[' };
       expect(grepTool.validateToolParams(params)).toContain(
-        'Invalid regular expression pattern',
+        'Invalid regular expression pattern'
       );
     });
 
@@ -111,7 +111,7 @@ describe('GrepTool', () => {
       const params: GrepToolParams = { pattern: 'hello', path: 'nonexistent' };
       // Check for the core error message, as the full path might vary
       expect(grepTool.validateToolParams(params)).toContain(
-        'Failed to access path stats for',
+        'Failed to access path stats for'
       );
       expect(grepTool.validateToolParams(params)).toContain('nonexistent');
     });
@@ -120,7 +120,7 @@ describe('GrepTool', () => {
       const filePath = path.join(tempRootDir, 'fileA.txt');
       const params: GrepToolParams = { pattern: 'hello', path: filePath };
       expect(grepTool.validateToolParams(params)).toContain(
-        `Path is not a directory: ${filePath}`,
+        `Path is not a directory: ${filePath}`
       );
     });
   });
@@ -131,13 +131,13 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 3 matches for pattern "world" in the workspace directory',
+        'Found 3 matches for pattern "world" in the workspace directory'
       );
       expect(result.llmContent).toContain('File: fileA.txt');
       expect(result.llmContent).toContain('L1: hello world');
       expect(result.llmContent).toContain('L2: second line with world');
       expect(result.llmContent).toContain(
-        `File: ${path.join('sub', 'fileC.txt')}`,
+        `File: ${path.join('sub', 'fileC.txt')}`
       );
       expect(result.llmContent).toContain('L1: another world in sub dir');
       expect(result.returnDisplay).toBe('Found 3 matches');
@@ -148,7 +148,7 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "world" in path "sub"',
+        'Found 1 match for pattern "world" in path "sub"'
       );
       expect(result.llmContent).toContain('File: fileC.txt'); // Path relative to 'sub'
       expect(result.llmContent).toContain('L1: another world in sub dir');
@@ -160,11 +160,11 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "hello" in the workspace directory (filter: "*.js"):',
+        'Found 1 match for pattern "hello" in the workspace directory (filter: "*.js"):'
       );
       expect(result.llmContent).toContain('File: fileB.js');
       expect(result.llmContent).toContain(
-        'L2: function baz() { return "hello"; }',
+        'L2: function baz() { return "hello"; }'
       );
       expect(result.returnDisplay).toBe('Found 1 match');
     });
@@ -172,7 +172,7 @@ describe('GrepTool', () => {
     it('should find matches with an include glob and path', async () => {
       await fs.writeFile(
         path.join(tempRootDir, 'sub', 'another.js'),
-        'const greeting = "hello";',
+        'const greeting = "hello";'
       );
       const params: GrepToolParams = {
         pattern: 'hello',
@@ -182,7 +182,7 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "hello" in path "sub" (filter: "*.js")',
+        'Found 1 match for pattern "hello" in path "sub" (filter: "*.js")'
       );
       expect(result.llmContent).toContain('File: another.js');
       expect(result.llmContent).toContain('L1: const greeting = "hello";');
@@ -194,7 +194,7 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'No matches found for pattern "nonexistentpattern" in the workspace directory.',
+        'No matches found for pattern "nonexistentpattern" in the workspace directory.'
       );
       expect(result.returnDisplay).toBe('No matches found');
     });
@@ -204,7 +204,7 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "foo.*bar" in the workspace directory:',
+        'Found 1 match for pattern "foo.*bar" in the workspace directory:'
       );
       expect(result.llmContent).toContain('File: fileB.js');
       expect(result.llmContent).toContain('L1: const foo = "bar";');
@@ -215,20 +215,20 @@ describe('GrepTool', () => {
       const invocation = grepTool.build(params);
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Found 2 matches for pattern "HELLO" in the workspace directory:',
+        'Found 2 matches for pattern "HELLO" in the workspace directory:'
       );
       expect(result.llmContent).toContain('File: fileA.txt');
       expect(result.llmContent).toContain('L1: hello world');
       expect(result.llmContent).toContain('File: fileB.js');
       expect(result.llmContent).toContain(
-        'L2: function baz() { return "hello"; }',
+        'L2: function baz() { return "hello"; }'
       );
     });
 
     it('should throw an error if params are invalid', async () => {
       const params = { path: '.' } as unknown as GrepToolParams; // Invalid: pattern missing
       expect(() => grepTool.build(params)).toThrow(
-        /params must have required property 'pattern'/,
+        /params must have required property 'pattern'/
       );
     });
 
@@ -246,15 +246,15 @@ describe('GrepTool', () => {
     it('should search across all workspace directories when no path is specified', async () => {
       // Create additional directory with test files
       const secondDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'grep-tool-second-'),
+        path.join(os.tmpdir(), 'grep-tool-second-')
       );
       await fs.writeFile(
         path.join(secondDir, 'other.txt'),
-        'hello from second directory\nworld in second',
+        'hello from second directory\nworld in second'
       );
       await fs.writeFile(
         path.join(secondDir, 'another.js'),
-        'function world() { return "test"; }',
+        'function world() { return "test"; }'
       );
 
       // Create a mock config with multiple directories
@@ -274,7 +274,7 @@ describe('GrepTool', () => {
 
       // Should find matches in both directories
       expect(result.llmContent).toContain(
-        'Found 5 matches for pattern "world"',
+        'Found 5 matches for pattern "world"'
       );
 
       // Matches from first directory
@@ -287,11 +287,11 @@ describe('GrepTool', () => {
       // Matches from second directory (with directory name prefix)
       const secondDirName = path.basename(secondDir);
       expect(result.llmContent).toContain(
-        `File: ${path.join(secondDirName, 'other.txt')}`,
+        `File: ${path.join(secondDirName, 'other.txt')}`
       );
       expect(result.llmContent).toContain('L2: world in second');
       expect(result.llmContent).toContain(
-        `File: ${path.join(secondDirName, 'another.js')}`,
+        `File: ${path.join(secondDirName, 'another.js')}`
       );
       expect(result.llmContent).toContain('L1: function world()');
 
@@ -302,12 +302,12 @@ describe('GrepTool', () => {
     it('should search only specified path within workspace directories', async () => {
       // Create additional directory
       const secondDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'grep-tool-second-'),
+        path.join(os.tmpdir(), 'grep-tool-second-')
       );
       await fs.mkdir(path.join(secondDir, 'sub'));
       await fs.writeFile(
         path.join(secondDir, 'sub', 'test.txt'),
-        'hello from second sub directory',
+        'hello from second sub directory'
       );
 
       // Create a mock config with multiple directories
@@ -329,7 +329,7 @@ describe('GrepTool', () => {
 
       // Should only find matches in the specified sub directory
       expect(result.llmContent).toContain(
-        'Found 1 match for pattern "world" in path "sub"',
+        'Found 1 match for pattern "world" in path "sub"'
       );
       expect(result.llmContent).toContain('File: fileC.txt');
       expect(result.llmContent).toContain('L1: another world in sub dir');
@@ -386,7 +386,7 @@ describe('GrepTool', () => {
       const params: GrepToolParams = { pattern: 'testPattern' };
       const invocation = multiDirGrepTool.build(params);
       expect(invocation.getDescription()).toBe(
-        "'testPattern' across all workspace directories",
+        "'testPattern' across all workspace directories"
       );
     });
 
@@ -400,7 +400,7 @@ describe('GrepTool', () => {
       };
       const invocation = grepTool.build(params);
       expect(invocation.getDescription()).toContain(
-        "'testPattern' in *.ts within",
+        "'testPattern' in *.ts within"
       );
       expect(invocation.getDescription()).toContain(path.join('src', 'app'));
     });

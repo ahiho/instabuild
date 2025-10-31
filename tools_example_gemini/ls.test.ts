@@ -24,7 +24,7 @@ describe('LSTool', () => {
   beforeEach(async () => {
     tempRootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ls-tool-root-'));
     tempSecondaryDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'ls-tool-secondary-'),
+      path.join(os.tmpdir(), 'ls-tool-secondary-')
     );
 
     const mockWorkspaceContext = createMockWorkspaceContext(tempRootDir, [
@@ -61,13 +61,13 @@ describe('LSTool', () => {
 
     it('should reject relative paths', () => {
       expect(() => lsTool.build({ path: './src' })).toThrow(
-        'Path must be absolute: ./src',
+        'Path must be absolute: ./src'
       );
     });
 
     it('should reject paths outside workspace with clear error message', () => {
       expect(() => lsTool.build({ path: '/etc/passwd' })).toThrow(
-        `Path must be within one of the workspace directories: ${tempRootDir}, ${tempSecondaryDir}`,
+        `Path must be within one of the workspace directories: ${tempRootDir}, ${tempSecondaryDir}`
       );
     });
 
@@ -87,7 +87,7 @@ describe('LSTool', () => {
       await fs.mkdir(path.join(tempRootDir, 'subdir'));
       await fs.writeFile(
         path.join(tempSecondaryDir, 'secondary-file.txt'),
-        'secondary',
+        'secondary'
       );
 
       const invocation = lsTool.build({ path: tempRootDir });
@@ -103,7 +103,7 @@ describe('LSTool', () => {
       await fs.mkdir(path.join(tempRootDir, 'subdir'));
       await fs.writeFile(
         path.join(tempSecondaryDir, 'secondary-file.txt'),
-        'secondary',
+        'secondary'
       );
 
       const invocation = lsTool.build({ path: tempSecondaryDir });
@@ -228,7 +228,7 @@ describe('LSTool', () => {
 
     it('should throw for invalid params at build time', () => {
       expect(() => lsTool.build({ path: '../outside' })).toThrow(
-        'Path must be absolute: ../outside',
+        'Path must be absolute: ../outside'
       );
     });
 
@@ -241,7 +241,7 @@ describe('LSTool', () => {
       // we mock fs.stat to throw for a specific file. This avoids
       // platform-specific behavior with things like dangling symlinks.
       const originalStat = fs.stat;
-      const statSpy = vi.spyOn(fs, 'stat').mockImplementation(async (p) => {
+      const statSpy = vi.spyOn(fs, 'stat').mockImplementation(async p => {
         if (p.toString() === problematicFile) {
           throw new Error('Simulated stat error');
         }
@@ -300,14 +300,14 @@ describe('LSTool', () => {
     it('should reject paths outside all workspace directories', () => {
       const params = { path: '/etc/passwd' };
       expect(() => lsTool.build(params)).toThrow(
-        'Path must be within one of the workspace directories',
+        'Path must be within one of the workspace directories'
       );
     });
 
     it('should list files from secondary workspace directory', async () => {
       await fs.writeFile(
         path.join(tempSecondaryDir, 'secondary-file.txt'),
-        'secondary',
+        'secondary'
       );
 
       const invocation = lsTool.build({ path: tempSecondaryDir });

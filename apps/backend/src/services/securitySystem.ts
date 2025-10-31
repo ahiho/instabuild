@@ -500,8 +500,8 @@ export class SecuritySystem {
    * Validate custom rules
    */
   private validateCustom(
-    parameters: Record<string, any>,
-    context: ExecutionContext
+    _parameters: Record<string, any>,
+    _context: ExecutionContext
   ): { allowed: boolean; suggestion?: string } {
     // Custom validation logic would be implemented here
     // For now, return allowed

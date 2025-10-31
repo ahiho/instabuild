@@ -114,7 +114,7 @@ class GrepToolInvocation extends BaseToolInvocation<
     params: RipGrepToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ) {
     super(params, messageBus, _toolName, _toolDisplayName);
   }
@@ -138,7 +138,7 @@ class GrepToolInvocation extends BaseToolInvocation<
     if (!workspaceContext.isPathWithinWorkspace(targetPath)) {
       const directories = workspaceContext.getDirectories();
       throw new Error(
-        `Path validation failed: Attempted path "${relativePath}" resolves outside the allowed workspace directories: ${directories.join(', ')}`,
+        `Path validation failed: Attempted path "${relativePath}" resolves outside the allowed workspace directories: ${directories.join(', ')}`
       );
     }
 
@@ -153,7 +153,7 @@ class GrepToolInvocation extends BaseToolInvocation<
         throw new Error(`Path does not exist: ${targetPath}`);
       }
       throw new Error(
-        `Failed to access path stats for ${targetPath}: ${error}`,
+        `Failed to access path stats for ${targetPath}: ${error}`
       );
     }
 
@@ -193,7 +193,7 @@ class GrepToolInvocation extends BaseToolInvocation<
 
         if (searchDirectories.length > 1) {
           const dirName = path.basename(searchDir);
-          searchResult.forEach((match) => {
+          searchResult.forEach(match => {
             match.filePath = path.join(dirName, match.filePath);
           });
         }
@@ -234,7 +234,7 @@ class GrepToolInvocation extends BaseToolInvocation<
           acc[fileKey].sort((a, b) => a.lineNumber - b.lineNumber);
           return acc;
         },
-        {} as Record<string, GrepMatch[]>,
+        {} as Record<string, GrepMatch[]>
       );
 
       const matchCount = allMatches.length;
@@ -250,7 +250,7 @@ class GrepToolInvocation extends BaseToolInvocation<
 
       for (const filePath in matchesByFile) {
         llmContent += `File: ${filePath}\n`;
-        matchesByFile[filePath].forEach((match) => {
+        matchesByFile[filePath].forEach(match => {
           const trimmedLine = match.line.trim();
           llmContent += `L${match.lineNumber}: ${trimmedLine}\n`;
         });
@@ -294,7 +294,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       const filePathRaw = line.substring(0, firstColonIndex);
       const lineNumberStr = line.substring(
         firstColonIndex + 1,
-        secondColonIndex,
+        secondColonIndex
       );
       const lineContent = line.substring(secondColonIndex + 1);
 
@@ -345,7 +345,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       'dist',
       'coverage',
     ];
-    excludes.forEach((exclude) => {
+    excludes.forEach(exclude => {
       rgArgs.push('--glob', `!${exclude}`);
     });
 
@@ -370,19 +370,19 @@ class GrepToolInvocation extends BaseToolInvocation<
 
         options.signal.addEventListener('abort', cleanup, { once: true });
 
-        child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
-        child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
+        child.stdout.on('data', chunk => stdoutChunks.push(chunk));
+        child.stderr.on('data', chunk => stderrChunks.push(chunk));
 
-        child.on('error', (err) => {
+        child.on('error', err => {
           options.signal.removeEventListener('abort', cleanup);
           reject(
             new Error(
-              `Failed to start ripgrep: ${err.message}. Please ensure @lvce-editor/ripgrep is properly installed.`,
-            ),
+              `Failed to start ripgrep: ${err.message}. Please ensure @lvce-editor/ripgrep is properly installed.`
+            )
           );
         });
 
-        child.on('close', (code) => {
+        child.on('close', code => {
           options.signal.removeEventListener('abort', cleanup);
           const stdoutData = Buffer.concat(stdoutChunks).toString('utf8');
           const stderrData = Buffer.concat(stderrChunks).toString('utf8');
@@ -393,7 +393,7 @@ class GrepToolInvocation extends BaseToolInvocation<
             resolve(''); // No matches found
           } else {
             reject(
-              new Error(`ripgrep exited with code ${code}: ${stderrData}`),
+              new Error(`ripgrep exited with code ${code}: ${stderrData}`)
             );
           }
         });
@@ -419,7 +419,7 @@ class GrepToolInvocation extends BaseToolInvocation<
     if (this.params.path) {
       const resolvedPath = path.resolve(
         this.config.getTargetDir(),
-        this.params.path,
+        this.params.path
       );
       if (
         resolvedPath === this.config.getTargetDir() ||
@@ -429,7 +429,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       } else {
         const relativePath = makeRelative(
           resolvedPath,
-          this.config.getTargetDir(),
+          this.config.getTargetDir()
         );
         description += ` within ${shortenPath(relativePath)}`;
       }
@@ -456,7 +456,7 @@ export class RipGrepTool extends BaseDeclarativeTool<
 
   constructor(
     private readonly config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       RipGrepTool.Name,
@@ -486,7 +486,7 @@ export class RipGrepTool extends BaseDeclarativeTool<
       },
       true, // isOutputMarkdown
       false, // canUpdateOutput
-      messageBus,
+      messageBus
     );
   }
 
@@ -509,7 +509,7 @@ export class RipGrepTool extends BaseDeclarativeTool<
     if (!workspaceContext.isPathWithinWorkspace(targetPath)) {
       const directories = workspaceContext.getDirectories();
       throw new Error(
-        `Path validation failed: Attempted path "${relativePath}" resolves outside the allowed workspace directories: ${directories.join(', ')}`,
+        `Path validation failed: Attempted path "${relativePath}" resolves outside the allowed workspace directories: ${directories.join(', ')}`
       );
     }
 
@@ -524,7 +524,7 @@ export class RipGrepTool extends BaseDeclarativeTool<
         throw new Error(`Path does not exist: ${targetPath}`);
       }
       throw new Error(
-        `Failed to access path stats for ${targetPath}: ${error}`,
+        `Failed to access path stats for ${targetPath}: ${error}`
       );
     }
 
@@ -539,7 +539,7 @@ export class RipGrepTool extends BaseDeclarativeTool<
   override validateToolParams(params: RipGrepToolParams): string | null {
     const errors = SchemaValidator.validate(
       this.schema.parametersJsonSchema,
-      params,
+      params
     );
     if (errors) {
       return errors;
@@ -561,14 +561,14 @@ export class RipGrepTool extends BaseDeclarativeTool<
     params: RipGrepToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<RipGrepToolParams, ToolResult> {
     return new GrepToolInvocation(
       this.config,
       params,
       messageBus,
       _toolName,
-      _toolDisplayName,
+      _toolDisplayName
     );
   }
 }

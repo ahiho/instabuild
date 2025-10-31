@@ -67,7 +67,7 @@ class WebSearchToolInvocation extends BaseToolInvocation<
     params: WebSearchToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ) {
     super(params, messageBus, _toolName, _toolDisplayName);
   }
@@ -84,7 +84,7 @@ class WebSearchToolInvocation extends BaseToolInvocation<
         [{ role: 'user', parts: [{ text: this.params.query }] }],
         { tools: [{ googleSearch: {} }] },
         signal,
-        DEFAULT_GEMINI_FLASH_MODEL,
+        DEFAULT_GEMINI_FLASH_MODEL
       );
 
       const responseText = getResponseText(response);
@@ -193,7 +193,7 @@ export class WebSearchTool extends BaseDeclarativeTool<
 
   constructor(
     private readonly config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       WebSearchTool.Name,
@@ -212,7 +212,7 @@ export class WebSearchTool extends BaseDeclarativeTool<
       },
       true, // isOutputMarkdown
       false, // canUpdateOutput
-      messageBus,
+      messageBus
     );
   }
 
@@ -222,7 +222,7 @@ export class WebSearchTool extends BaseDeclarativeTool<
    * @returns An error message string if validation fails, null if valid
    */
   protected override validateToolParamValues(
-    params: WebSearchToolParams,
+    params: WebSearchToolParams
   ): string | null {
     if (!params.query || params.query.trim() === '') {
       return "The 'query' parameter cannot be empty.";
@@ -234,14 +234,14 @@ export class WebSearchTool extends BaseDeclarativeTool<
     params: WebSearchToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<WebSearchToolParams, WebSearchToolResult> {
     return new WebSearchToolInvocation(
       this.config,
       params,
       messageBus,
       _toolName,
-      _toolDisplayName,
+      _toolDisplayName
     );
   }
 }

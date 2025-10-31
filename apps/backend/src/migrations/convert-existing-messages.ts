@@ -16,7 +16,7 @@ export async function convertExistingMessagesToAISDKFormat() {
     // Get all messages that don't have parts yet
     const messagesWithoutParts = await prisma.chatMessage.findMany({
       where: {
-        parts: null,
+        parts: undefined,
       },
     });
 
@@ -57,7 +57,7 @@ export async function convertExistingMessagesToAISDKFormat() {
       `Migration completed: Converted ${convertedCount} messages to AI SDK format`
     );
   } catch (error) {
-    logger.error('Migration failed:', error);
+    logger.error('Migration failed:', error as Record<string, any>);
     throw error;
   } finally {
     await prisma.$disconnect();

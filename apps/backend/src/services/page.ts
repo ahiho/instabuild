@@ -66,7 +66,7 @@ export class PageService {
       const existingConversation = await prisma.conversation.findFirst({
         where: {
           landingPageId: page.id,
-          sandboxStatus: 'ready',
+          sandboxStatus: 'READY',
         },
         orderBy: { startTime: 'desc' },
       });
@@ -89,7 +89,7 @@ export class PageService {
             startTime: new Date(),
             lastUpdateTime: new Date(),
             lastAccessedAt: new Date(),
-            sandboxStatus: 'pending',
+            sandboxStatus: 'PENDING',
           },
         });
 
@@ -104,9 +104,10 @@ export class PageService {
           projectId: conversation.id,
         };
 
-        const sandboxResponse = await sandboxManager.createSandbox(sandboxRequest);
+        const sandboxResponse =
+          await sandboxManager.createSandbox(sandboxRequest);
 
-        if (sandboxResponse && sandboxResponse.status === 'ready') {
+        if (sandboxResponse && sandboxResponse.status === 'READY') {
           sandboxPort = sandboxResponse.port;
 
           // Generate preview URL using actual allocated port
@@ -119,10 +120,10 @@ export class PageService {
             where: { id: conversation.id },
             data: {
               sandboxId: sandboxResponse.containerId,
-              sandboxPort: sandboxPort,
-              sandboxStatus: 'ready',
+              sandboxPort,
+              sandboxStatus: 'READY',
               sandboxCreatedAt: new Date(),
-              sandboxPublicUrl: sandboxPublicUrl,
+              sandboxPublicUrl,
             },
           });
 
@@ -133,17 +134,20 @@ export class PageService {
             previewUrl: sandboxPublicUrl,
           });
         } else {
-          logger.warn('Sandbox provisioning returned non-ready status for page', {
-            pageId: page.id,
-            status: sandboxResponse?.status,
-            error: sandboxResponse?.error,
-          });
+          logger.warn(
+            'Sandbox provisioning returned non-ready status for page',
+            {
+              pageId: page.id,
+              status: sandboxResponse?.status,
+              error: sandboxResponse?.error,
+            }
+          );
 
           // Update conversation to mark sandbox as failed
           await prisma.conversation.update({
             where: { id: conversation.id },
             data: {
-              sandboxStatus: 'failed',
+              sandboxStatus: 'FAILED',
             },
           });
         }
@@ -184,7 +188,7 @@ export class PageService {
     let conversation = await prisma.conversation.findFirst({
       where: {
         landingPageId: id,
-        sandboxStatus: 'ready',
+        sandboxStatus: 'READY',
       },
       orderBy: { startTime: 'desc' },
       take: 1,

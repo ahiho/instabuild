@@ -32,7 +32,7 @@ export interface GlobPath {
 export function sortFileEntries(
   entries: GlobPath[],
   nowTimestamp: number,
-  recencyThresholdMs: number,
+  recencyThresholdMs: number
 ): GlobPath[] {
   const sortedEntries = [...entries];
   sortedEntries.sort((a, b) => {
@@ -93,7 +93,7 @@ class GlobToolInvocation extends BaseToolInvocation<
     params: GlobToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ) {
     super(params, messageBus, _toolName, _toolDisplayName);
   }
@@ -103,7 +103,7 @@ class GlobToolInvocation extends BaseToolInvocation<
     if (this.params.path) {
       const searchDir = path.resolve(
         this.config.getTargetDir(),
-        this.params.path || '.',
+        this.params.path || '.'
       );
       const relativePath = makeRelative(searchDir, this.config.getTargetDir());
       description += ` within ${shortenPath(relativePath)}`;
@@ -121,7 +121,7 @@ class GlobToolInvocation extends BaseToolInvocation<
       if (this.params.path) {
         const searchDirAbsolute = path.resolve(
           this.config.getTargetDir(),
-          this.params.path,
+          this.params.path
         );
         if (!workspaceContext.isPathWithinWorkspace(searchDirAbsolute)) {
           const rawError = `Error: Path "${this.params.path}" is not within any workspace directory`;
@@ -167,8 +167,8 @@ class GlobToolInvocation extends BaseToolInvocation<
         allEntries.push(...entries);
       }
 
-      const relativePaths = allEntries.map((p) =>
-        path.relative(this.config.getTargetDir(), p.fullpath()),
+      const relativePaths = allEntries.map(p =>
+        path.relative(this.config.getTargetDir(), p.fullpath())
       );
 
       const { filteredPaths, ignoredCount } =
@@ -184,11 +184,11 @@ class GlobToolInvocation extends BaseToolInvocation<
         });
 
       const filteredAbsolutePaths = new Set(
-        filteredPaths.map((p) => path.resolve(this.config.getTargetDir(), p)),
+        filteredPaths.map(p => path.resolve(this.config.getTargetDir(), p))
       );
 
-      const filteredEntries = allEntries.filter((entry) =>
-        filteredAbsolutePaths.has(entry.fullpath()),
+      const filteredEntries = allEntries.filter(entry =>
+        filteredAbsolutePaths.has(entry.fullpath())
       );
 
       if (!filteredEntries || filteredEntries.length === 0) {
@@ -215,12 +215,10 @@ class GlobToolInvocation extends BaseToolInvocation<
       const sortedEntries = sortFileEntries(
         filteredEntries,
         nowTimestamp,
-        oneDayInMs,
+        oneDayInMs
       );
 
-      const sortedAbsolutePaths = sortedEntries.map((entry) =>
-        entry.fullpath(),
-      );
+      const sortedAbsolutePaths = sortedEntries.map(entry => entry.fullpath());
       const fileListDescription = sortedAbsolutePaths.join('\n');
       const fileCount = sortedAbsolutePaths.length;
 
@@ -262,7 +260,7 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
   static readonly Name = GLOB_TOOL_NAME;
   constructor(
     private config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       GlobTool.Name,
@@ -302,7 +300,7 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
       },
       true,
       false,
-      messageBus,
+      messageBus
     );
   }
 
@@ -310,11 +308,11 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
    * Validates the parameters for the tool.
    */
   protected override validateToolParamValues(
-    params: GlobToolParams,
+    params: GlobToolParams
   ): string | null {
     const searchDirAbsolute = path.resolve(
       this.config.getTargetDir(),
-      params.path || '.',
+      params.path || '.'
     );
 
     const workspaceContext = this.config.getWorkspaceContext();
@@ -350,14 +348,14 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
     params: GlobToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<GlobToolParams, ToolResult> {
     return new GlobToolInvocation(
       this.config,
       params,
       messageBus,
       _toolName,
-      _toolDisplayName,
+      _toolDisplayName
     );
   }
 }

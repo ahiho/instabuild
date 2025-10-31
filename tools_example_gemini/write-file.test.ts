@@ -59,10 +59,10 @@ const mockIdeClient = {
 // Wire up the mocked functions to be used by the actual module imports
 vi.mocked(ensureCorrectEdit).mockImplementation(mockEnsureCorrectEdit);
 vi.mocked(ensureCorrectFileContent).mockImplementation(
-  mockEnsureCorrectFileContent,
+  mockEnsureCorrectFileContent
 );
 vi.mocked(IdeClient.getInstance).mockResolvedValue(
-  mockIdeClient as unknown as IdeClient,
+  mockIdeClient as unknown as IdeClient
 );
 
 // Mock Config
@@ -113,7 +113,7 @@ describe('WriteFileTool', () => {
     vi.clearAllMocks();
     // Create a unique temporary directory for files created outside the root
     tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'write-file-test-external-'),
+      path.join(os.tmpdir(), 'write-file-test-external-')
     );
     // Ensure the rootDir for the tool exists
     if (!fs.existsSync(rootDir)) {
@@ -122,7 +122,7 @@ describe('WriteFileTool', () => {
 
     // Setup GeminiClient mock
     mockGeminiClientInstance = new (vi.mocked(GeminiClient))(
-      mockConfig,
+      mockConfig
     ) as Mocked<GeminiClient>;
     vi.mocked(GeminiClient).mockImplementation(() => mockGeminiClientInstance);
 
@@ -133,15 +133,15 @@ describe('WriteFileTool', () => {
 
     vi.mocked(ensureCorrectEdit).mockImplementation(mockEnsureCorrectEdit);
     vi.mocked(ensureCorrectFileContent).mockImplementation(
-      mockEnsureCorrectFileContent,
+      mockEnsureCorrectFileContent
     );
 
     // Now that mock instances are initialized, set the mock implementations for config getters
     mockConfigInternal.getGeminiClient.mockReturnValue(
-      mockGeminiClientInstance,
+      mockGeminiClientInstance
     );
     mockConfigInternal.getBaseLlmClient.mockReturnValue(
-      mockBaseLlmClientInstance,
+      mockBaseLlmClientInstance
     );
 
     tool = new WriteFileTool(mockConfig);
@@ -160,7 +160,7 @@ describe('WriteFileTool', () => {
         params: EditToolParams,
         _client: GeminiClient,
         _baseClient: BaseLlmClient,
-        signal?: AbortSignal,
+        signal?: AbortSignal
       ): Promise<CorrectedEditResult> => {
         if (signal?.aborted) {
           return Promise.reject(new Error('Aborted'));
@@ -169,19 +169,19 @@ describe('WriteFileTool', () => {
           params: { ...params, new_string: params.new_string ?? '' },
           occurrences: 1,
         });
-      },
+      }
     );
     mockEnsureCorrectFileContent.mockImplementation(
       async (
         content: string,
         _baseClient: BaseLlmClient,
-        signal?: AbortSignal,
+        signal?: AbortSignal
       ): Promise<string> => {
         if (signal?.aborted) {
           return Promise.reject(new Error('Aborted'));
         }
         return Promise.resolve(content ?? '');
-      },
+      }
     );
   });
 
@@ -219,7 +219,7 @@ describe('WriteFileTool', () => {
         content: 'hello',
       };
       expect(() => tool.build(params)).toThrow(
-        /File path must be within one of the workspace directories/,
+        /File path must be within one of the workspace directories/
       );
     });
 
@@ -231,7 +231,7 @@ describe('WriteFileTool', () => {
         content: 'hello',
       };
       expect(() => tool.build(params)).toThrow(
-        `Path is a directory, not a file: ${dirAsFilePath}`,
+        `Path is a directory, not a file: ${dirAsFilePath}`
       );
     });
 
@@ -269,13 +269,13 @@ describe('WriteFileTool', () => {
         mockConfig,
         filePath,
         proposedContent,
-        abortSignal,
+        abortSignal
       );
 
       expect(mockEnsureCorrectFileContent).toHaveBeenCalledWith(
         proposedContent,
         mockBaseLlmClientInstance,
-        abortSignal,
+        abortSignal
       );
       expect(mockEnsureCorrectEdit).not.toHaveBeenCalled();
       expect(result.correctedContent).toBe(correctedContent);
@@ -306,7 +306,7 @@ describe('WriteFileTool', () => {
         mockConfig,
         filePath,
         proposedContent,
-        abortSignal,
+        abortSignal
       );
 
       expect(mockEnsureCorrectEdit).toHaveBeenCalledWith(
@@ -319,7 +319,7 @@ describe('WriteFileTool', () => {
         },
         mockGeminiClientInstance,
         mockBaseLlmClientInstance,
-        abortSignal,
+        abortSignal
       );
       expect(mockEnsureCorrectFileContent).not.toHaveBeenCalled();
       expect(result.correctedContent).toBe(correctedProposedContent);
@@ -336,14 +336,14 @@ describe('WriteFileTool', () => {
 
       const readError = new Error('Permission denied');
       vi.spyOn(fsService, 'readTextFile').mockImplementationOnce(() =>
-        Promise.reject(readError),
+        Promise.reject(readError)
       );
 
       const result = await getCorrectedFileContent(
         mockConfig,
         filePath,
         proposedContent,
-        abortSignal,
+        abortSignal
       );
 
       expect(fsService.readTextFile).toHaveBeenCalledWith(filePath);
@@ -371,7 +371,7 @@ describe('WriteFileTool', () => {
 
       const readError = new Error('Simulated read error for confirmation');
       vi.spyOn(fsService, 'readTextFile').mockImplementationOnce(() =>
-        Promise.reject(readError),
+        Promise.reject(readError)
       );
 
       const invocation = tool.build(params);
@@ -390,26 +390,26 @@ describe('WriteFileTool', () => {
       const params = { file_path: filePath, content: proposedContent };
       const invocation = tool.build(params);
       const confirmation = (await invocation.shouldConfirmExecute(
-        abortSignal,
+        abortSignal
       )) as ToolEditConfirmationDetails;
 
       expect(mockEnsureCorrectFileContent).toHaveBeenCalledWith(
         proposedContent,
         mockBaseLlmClientInstance,
-        abortSignal,
+        abortSignal
       );
       expect(confirmation).toEqual(
         expect.objectContaining({
           title: `Confirm Write: ${path.basename(filePath)}`,
           fileName: 'confirm_new_file.txt',
           fileDiff: expect.stringContaining(correctedContent),
-        }),
+        })
       );
       expect(confirmation.fileDiff).toMatch(
-        /--- confirm_new_file.txt\tCurrent/,
+        /--- confirm_new_file.txt\tCurrent/
       );
       expect(confirmation.fileDiff).toMatch(
-        /\+\+\+ confirm_new_file.txt\tProposed/,
+        /\+\+\+ confirm_new_file.txt\tProposed/
       );
     });
 
@@ -433,7 +433,7 @@ describe('WriteFileTool', () => {
       const params = { file_path: filePath, content: proposedContent };
       const invocation = tool.build(params);
       const confirmation = (await invocation.shouldConfirmExecute(
-        abortSignal,
+        abortSignal
       )) as ToolEditConfirmationDetails;
 
       expect(mockEnsureCorrectEdit).toHaveBeenCalledWith(
@@ -446,17 +446,17 @@ describe('WriteFileTool', () => {
         },
         mockGeminiClientInstance,
         mockBaseLlmClientInstance,
-        abortSignal,
+        abortSignal
       );
       expect(confirmation).toEqual(
         expect.objectContaining({
           title: `Confirm Write: ${path.basename(filePath)}`,
           fileName: 'confirm_existing_file.txt',
           fileDiff: expect.stringContaining(correctedProposedContent),
-        }),
+        })
       );
       expect(confirmation.fileDiff).toMatch(
-        originalContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+        originalContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
       );
     });
 
@@ -477,12 +477,12 @@ describe('WriteFileTool', () => {
         const invocation = tool.build(params);
 
         const confirmation = (await invocation.shouldConfirmExecute(
-          abortSignal,
+          abortSignal
         )) as ToolEditConfirmationDetails;
 
         expect(mockIdeClient.openDiff).toHaveBeenCalledWith(
           filePath,
-          'test', // The corrected content
+          'test' // The corrected content
         );
         // Ensure the promise is awaited by checking the result
         expect(confirmation.ideConfirmation).toBeDefined();
@@ -518,7 +518,7 @@ describe('WriteFileTool', () => {
 
         // This is the key part: get the confirmation details
         const confirmation = (await invocation.shouldConfirmExecute(
-          abortSignal,
+          abortSignal
         )) as ToolEditConfirmationDetails;
 
         // The `onConfirm` function should exist on the details object
@@ -537,7 +537,7 @@ describe('WriteFileTool', () => {
         const invocation = tool.build(params);
 
         let diffPromiseResolved = false;
-        const diffPromise = new Promise<DiffUpdateResult>((resolve) => {
+        const diffPromise = new Promise<DiffUpdateResult>(resolve => {
           setTimeout(() => {
             diffPromiseResolved = true;
             resolve({ status: 'accepted', content: 'ide-modified-content' });
@@ -546,7 +546,7 @@ describe('WriteFileTool', () => {
         mockIdeClient.openDiff.mockReturnValue(diffPromise);
 
         const confirmation = (await invocation.shouldConfirmExecute(
-          abortSignal,
+          abortSignal
         )) as ToolEditConfirmationDetails;
 
         // This is the key check: the confirmation details should be returned
@@ -579,7 +579,7 @@ describe('WriteFileTool', () => {
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain('Error checking existing file');
       expect(result.returnDisplay).toMatch(
-        /Error checking existing file: Simulated read error for execute/,
+        /Error checking existing file: Simulated read error for execute/
       );
       expect(result.error).toEqual({
         message:
@@ -613,10 +613,10 @@ describe('WriteFileTool', () => {
       expect(mockEnsureCorrectFileContent).toHaveBeenCalledWith(
         proposedContent,
         mockBaseLlmClientInstance,
-        abortSignal,
+        abortSignal
       );
       expect(result.llmContent).toMatch(
-        /Successfully created and wrote to new file/,
+        /Successfully created and wrote to new file/
       );
       expect(fs.existsSync(filePath)).toBe(true);
       const writtenContent = await fsService.readTextFile(filePath);
@@ -624,20 +624,20 @@ describe('WriteFileTool', () => {
       const display = result.returnDisplay as FileDiff;
       expect(display.fileName).toBe('execute_new_corrected_file.txt');
       expect(display.fileDiff).toMatch(
-        /--- execute_new_corrected_file.txt\tOriginal/,
+        /--- execute_new_corrected_file.txt\tOriginal/
       );
       expect(display.fileDiff).toMatch(
-        /\+\+\+ execute_new_corrected_file.txt\tWritten/,
+        /\+\+\+ execute_new_corrected_file.txt\tWritten/
       );
       expect(display.fileDiff).toMatch(
-        correctedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+        correctedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
       );
     });
 
     it('should overwrite an existing file with corrected content and return diff', async () => {
       const filePath = path.join(
         rootDir,
-        'execute_existing_corrected_file.txt',
+        'execute_existing_corrected_file.txt'
       );
       const initialContent = 'Initial content for execute.';
       const proposedContent = 'Proposed overwrite for execute.';
@@ -677,7 +677,7 @@ describe('WriteFileTool', () => {
         },
         mockGeminiClientInstance,
         mockBaseLlmClientInstance,
-        abortSignal,
+        abortSignal
       );
       expect(result.llmContent).toMatch(/Successfully overwrote file/);
       const writtenContent = await fsService.readTextFile(filePath);
@@ -685,10 +685,10 @@ describe('WriteFileTool', () => {
       const display = result.returnDisplay as FileDiff;
       expect(display.fileName).toBe('execute_existing_corrected_file.txt');
       expect(display.fileDiff).toMatch(
-        initialContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+        initialContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
       );
       expect(display.fileDiff).toMatch(
-        correctedProposedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+        correctedProposedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
       );
     });
 
@@ -781,7 +781,7 @@ describe('WriteFileTool', () => {
         content: 'malicious',
       };
       expect(() => tool.build(params)).toThrow(
-        /File path must be within one of the workspace directories/,
+        /File path must be within one of the workspace directories/
       );
     });
   });
@@ -806,10 +806,10 @@ describe('WriteFileTool', () => {
 
       expect(result.error?.type).toBe(ToolErrorType.PERMISSION_DENIED);
       expect(result.llmContent).toContain(
-        `Permission denied writing to file: ${filePath} (EACCES)`,
+        `Permission denied writing to file: ${filePath} (EACCES)`
       );
       expect(result.returnDisplay).toContain(
-        `Permission denied writing to file: ${filePath} (EACCES)`,
+        `Permission denied writing to file: ${filePath} (EACCES)`
       );
     });
 
@@ -820,7 +820,7 @@ describe('WriteFileTool', () => {
       // Mock FileSystemService writeTextFile to throw ENOSPC error
       vi.spyOn(fsService, 'writeTextFile').mockImplementationOnce(() => {
         const error = new Error(
-          'No space left on device',
+          'No space left on device'
         ) as NodeJS.ErrnoException;
         error.code = 'ENOSPC';
         return Promise.reject(error);
@@ -832,10 +832,10 @@ describe('WriteFileTool', () => {
 
       expect(result.error?.type).toBe(ToolErrorType.NO_SPACE_LEFT);
       expect(result.llmContent).toContain(
-        `No space left on device: ${filePath} (ENOSPC)`,
+        `No space left on device: ${filePath} (ENOSPC)`
       );
       expect(result.returnDisplay).toContain(
-        `No space left on device: ${filePath} (ENOSPC)`,
+        `No space left on device: ${filePath} (ENOSPC)`
       );
     });
 
@@ -845,7 +845,7 @@ describe('WriteFileTool', () => {
 
       // Mock fs.existsSync to return false to bypass validation
       const originalExistsSync = fs.existsSync;
-      vi.spyOn(fs, 'existsSync').mockImplementation((path) => {
+      vi.spyOn(fs, 'existsSync').mockImplementation(path => {
         if (path === dirPath) {
           return false; // Pretend directory doesn't exist to bypass validation
         }
@@ -865,10 +865,10 @@ describe('WriteFileTool', () => {
 
       expect(result.error?.type).toBe(ToolErrorType.TARGET_IS_DIRECTORY);
       expect(result.llmContent).toContain(
-        `Target is a directory, not a file: ${dirPath} (EISDIR)`,
+        `Target is a directory, not a file: ${dirPath} (EISDIR)`
       );
       expect(result.returnDisplay).toContain(
-        `Target is a directory, not a file: ${dirPath} (EISDIR)`,
+        `Target is a directory, not a file: ${dirPath} (EISDIR)`
       );
 
       vi.spyOn(fs, 'existsSync').mockImplementation(originalExistsSync);
@@ -883,7 +883,7 @@ describe('WriteFileTool', () => {
 
       // Mock FileSystemService writeTextFile to throw generic error
       vi.spyOn(fsService, 'writeTextFile').mockImplementationOnce(() =>
-        Promise.reject(new Error('Generic write error')),
+        Promise.reject(new Error('Generic write error'))
       );
 
       const params = { file_path: filePath, content };
@@ -892,10 +892,10 @@ describe('WriteFileTool', () => {
 
       expect(result.error?.type).toBe(ToolErrorType.FILE_WRITE_FAILURE);
       expect(result.llmContent).toContain(
-        'Error writing to file: Generic write error',
+        'Error writing to file: Generic write error'
       );
       expect(result.returnDisplay).toContain(
-        'Error writing to file: Generic write error',
+        'Error writing to file: Generic write error'
       );
     });
   });

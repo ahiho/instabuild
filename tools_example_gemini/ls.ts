@@ -75,7 +75,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
     params: LSToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ) {
     super(params, messageBus, _toolName, _toolDisplayName);
   }
@@ -111,7 +111,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
   getDescription(): string {
     const relativePath = makeRelative(
       this.params.path,
-      this.config.getTargetDir(),
+      this.config.getTargetDir()
     );
     return shortenPath(relativePath);
   }
@@ -120,7 +120,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
   private errorResult(
     llmContent: string,
     returnDisplay: string,
-    type: ToolErrorType,
+    type: ToolErrorType
   ): ToolResult {
     return {
       llmContent,
@@ -146,14 +146,14 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
         return this.errorResult(
           `Error: Directory not found or inaccessible: ${this.params.path}`,
           `Directory not found or inaccessible.`,
-          ToolErrorType.FILE_NOT_FOUND,
+          ToolErrorType.FILE_NOT_FOUND
         );
       }
       if (!stats.isDirectory()) {
         return this.errorResult(
           `Error: Path is not a directory: ${this.params.path}`,
           `Path is not a directory.`,
-          ToolErrorType.PATH_IS_NOT_A_DIRECTORY,
+          ToolErrorType.PATH_IS_NOT_A_DIRECTORY
         );
       }
 
@@ -166,11 +166,11 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
         };
       }
 
-      const relativePaths = files.map((file) =>
+      const relativePaths = files.map(file =>
         path.relative(
           this.config.getTargetDir(),
-          path.join(this.params.path, file),
-        ),
+          path.join(this.params.path, file)
+        )
       );
 
       const fileDiscovery = this.config.getFileService();
@@ -219,7 +219,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
 
       // Create formatted content for LLM
       const directoryContent = entries
-        .map((entry) => `${entry.isDirectory ? '[DIR] ' : ''}${entry.name}`)
+        .map(entry => `${entry.isDirectory ? '[DIR] ' : ''}${entry.name}`)
         .join('\n');
 
       let resultMessage = `Directory listing for ${this.params.path}:\n${directoryContent}`;
@@ -241,7 +241,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
       return this.errorResult(
         errorMsg,
         'Failed to list directory.',
-        ToolErrorType.LS_EXECUTION_ERROR,
+        ToolErrorType.LS_EXECUTION_ERROR
       );
     }
   }
@@ -255,7 +255,7 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
 
   constructor(
     private config: Config,
-    messageBus?: MessageBus,
+    messageBus?: MessageBus
   ) {
     super(
       LSTool.Name,
@@ -299,7 +299,7 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
       },
       true,
       false,
-      messageBus,
+      messageBus
     );
   }
 
@@ -309,7 +309,7 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
    * @returns An error message string if invalid, null otherwise
    */
   protected override validateToolParamValues(
-    params: LSToolParams,
+    params: LSToolParams
   ): string | null {
     if (!path.isAbsolute(params.path)) {
       return `Path must be absolute: ${params.path}`;
@@ -319,7 +319,7 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
     if (!workspaceContext.isPathWithinWorkspace(params.path)) {
       const directories = workspaceContext.getDirectories();
       return `Path must be within one of the workspace directories: ${directories.join(
-        ', ',
+        ', '
       )}`;
     }
     return null;
@@ -329,14 +329,14 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
     params: LSToolParams,
     messageBus?: MessageBus,
     _toolName?: string,
-    _toolDisplayName?: string,
+    _toolDisplayName?: string
   ): ToolInvocation<LSToolParams, ToolResult> {
     return new LSToolInvocation(
       this.config,
       params,
       messageBus,
       _toolName,
-      _toolDisplayName,
+      _toolDisplayName
     );
   }
 }

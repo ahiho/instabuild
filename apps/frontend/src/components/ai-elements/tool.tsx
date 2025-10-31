@@ -20,11 +20,17 @@ import {
 } from '../ui/collapsible';
 import { CodeBlock } from './code-block';
 
-export type ToolProps = ComponentProps<typeof Collapsible>;
+export type ToolProps = ComponentProps<typeof Collapsible> & {
+  isError?: boolean; // Whether the tool execution failed
+};
 
-export const Tool = ({ className, ...props }: ToolProps) => (
+export const Tool = ({ className, isError, ...props }: ToolProps) => (
   <Collapsible
-    className={cn('not-prose mb-4 w-full rounded-md border', className)}
+    className={cn(
+      'not-prose mb-4 w-full rounded-md border',
+      isError ? 'border-destructive/50 bg-destructive/5' : '',
+      className
+    )}
     {...props}
   />
 );
@@ -33,6 +39,7 @@ export type ToolHeaderProps = {
   title?: string;
   type: ToolUIPart['type'];
   state: ToolUIPart['state'];
+  description?: string; // User-friendly description of what the tool does
   className?: string;
 };
 
@@ -64,23 +71,33 @@ export const ToolHeader = ({
   title,
   type,
   state,
+  description,
   ...props
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
     className={cn(
-      'flex w-full items-center justify-between gap-4 p-3',
+      'flex w-full items-center justify-between gap-4 p-3 hover:bg-muted/30 transition-colors',
       className
     )}
     {...props}
   >
-    <div className="flex items-center gap-2">
-      <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">
-        {title ?? type.split('-').slice(1).join('-')}
-      </span>
-      {getStatusBadge(state)}
+    <div className="flex flex-1 items-start gap-2 min-w-0">
+      <WrenchIcon className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm">
+            {title ?? type.split('-').slice(1).join('-')}
+          </span>
+          {getStatusBadge(state)}
+        </div>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {description}
+          </p>
+        )}
+      </div>
     </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 flex-shrink-0" />
   </CollapsibleTrigger>
 );
 

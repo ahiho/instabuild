@@ -35,7 +35,11 @@ export class ContainerFilesystem {
     filePath: string,
     encoding: 'utf8' | 'base64' = 'utf8'
   ): Promise<string> {
-    logger.info('Reading file from container', { sandboxId, filePath, encoding });
+    logger.info('Reading file from container', {
+      sandboxId,
+      filePath,
+      encoding,
+    });
 
     if (encoding === 'base64') {
       // Use base64 encoding for binary files
@@ -61,7 +65,9 @@ export class ContainerFilesystem {
       });
 
       if (!result.success) {
-        throw new Error(`Failed to read file: ${result.error || result.stderr}`);
+        throw new Error(
+          `Failed to read file: ${result.error || result.stderr}`
+        );
       }
 
       return result.stdout;
@@ -199,10 +205,13 @@ export class ContainerFilesystem {
   async getFileSize(sandboxId: string, filePath: string): Promise<number> {
     logger.info('Getting file size from container', { sandboxId, filePath });
 
+    // Use 'wc -c' instead of 'stat' for BusyBox compatibility
+    // stat has different syntax across platforms (macOS, GNU, BusyBox)
+    // wc -c works consistently across all Unix-like systems
     const result = await sandboxManager.executeCommand({
       sandboxId,
-      command: 'stat',
-      args: ['-f%z', filePath], // macOS; use '-c%s' for Linux
+      command: 'wc',
+      args: ['-c', filePath],
     });
 
     if (!result.success) {
@@ -211,7 +220,10 @@ export class ContainerFilesystem {
       );
     }
 
-    return parseInt(result.stdout.trim(), 10);
+    // wc output format: "number filename"
+    // Extract just the number (first field)
+    const sizeStr = result.stdout.trim().split(/\s+/)[0];
+    return parseInt(sizeStr, 10);
   }
 
   /**

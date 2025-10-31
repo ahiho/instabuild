@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { logger } from '../lib/logger.js';
 import { generateSandboxPreviewUrl } from '../lib/preview-url.js';
 import { prisma } from '../server.js';
-import { agenticAIService } from '../services/agenticAIService.js';
+import { agenticAIService } from '../services/agentic/index.js';
 import { sandboxManager } from '../services/sandboxManager.js';
 
 export async function chatRoutes(fastify: FastifyInstance) {
@@ -33,7 +33,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
           startTime: new Date(),
           lastUpdateTime: new Date(),
           lastAccessedAt: new Date(), // Phase 2: Initialize for cleanup tracking
-          sandboxStatus: 'pending', // Phase 2: Sandbox provisioning
+          sandboxStatus: 'PENDING', // Phase 2: Sandbox provisioning
         },
       });
 
@@ -47,7 +47,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         const sandboxResponse =
           await sandboxManager.createSandbox(sandboxRequest);
 
-        if (sandboxResponse && sandboxResponse.status === 'ready') {
+        if (sandboxResponse && sandboxResponse.status === 'READY') {
           // Phase 3.5: Store allocated port for reverse proxy routing
           const sandboxPort = sandboxResponse.port;
 
@@ -62,7 +62,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
             data: {
               sandboxId: sandboxResponse.containerId,
               sandboxPort, // Phase 3.5: Store for reverse proxy
-              sandboxStatus: 'ready',
+              sandboxStatus: 'READY',
               sandboxCreatedAt: new Date(),
               sandboxPublicUrl: previewUrl,
             },
@@ -84,7 +84,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
           await prisma.conversation.update({
             where: { id: conversation.id },
             data: {
-              sandboxStatus: 'failed',
+              sandboxStatus: 'FAILED',
             },
           });
 
@@ -103,7 +103,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         await prisma.conversation.update({
           where: { id: conversation.id },
           data: {
-            sandboxStatus: 'failed',
+            sandboxStatus: 'FAILED',
           },
         });
 
@@ -119,19 +119,97 @@ export async function chatRoutes(fastify: FastifyInstance) {
     }
 
     // Phase 3.5: Validate sandbox is ready before executing agent tools
-    if (conversation.sandboxStatus !== 'ready') {
+    // If sandbox failed or is in an unknown state, attempt to recover it
+    if (conversation.sandboxStatus !== 'READY') {
       logger.warn('Chat request received but sandbox not ready', {
         conversationId: conversation.id,
         sandboxStatus: conversation.sandboxStatus,
+        isNull: conversation.sandboxStatus === null,
       });
 
-      return reply.code(503).send({
-        error: 'Sandbox not ready',
-        message:
-          conversation.sandboxStatus === 'pending'
-            ? 'Sandbox is provisioning. Please wait a moment and try again.'
-            : 'Sandbox failed to initialize. Please create a new page.',
-      });
+      // If sandbox is in a failed state, null, or unknown, attempt to initialize/reinitialize it
+      if (
+        conversation.sandboxStatus === 'FAILED' ||
+        conversation.sandboxStatus === null ||
+        conversation.sandboxStatus === undefined
+      ) {
+        logger.info('Attempting to recover failed sandbox', {
+          conversationId: conversation.id,
+          currentStatus: conversation.sandboxStatus,
+        });
+
+        try {
+          const sandboxRequest = {
+            userId: conversation.userId || 'system',
+            projectId: conversation.id,
+          };
+
+          const sandboxResponse =
+            await sandboxManager.createSandbox(sandboxRequest);
+
+          if (sandboxResponse && sandboxResponse.status === 'READY') {
+            const sandboxPort = sandboxResponse.port;
+            const previewUrl = sandboxPort
+              ? `http://localhost:${sandboxPort}`
+              : generateSandboxPreviewUrl(conversation.id);
+
+            // Update conversation with recovered sandbox info
+            conversation = await prisma.conversation.update({
+              where: { id: conversation.id },
+              data: {
+                sandboxId: sandboxResponse.containerId,
+                sandboxPort,
+                sandboxStatus: 'READY',
+                sandboxCreatedAt: new Date(),
+                sandboxPublicUrl: previewUrl,
+              },
+            });
+
+            logger.info('Sandbox successfully recovered', {
+              conversationId: conversation.id,
+              sandboxId: sandboxResponse.containerId,
+            });
+
+            // Continue with chat execution
+          } else {
+            logger.warn('Sandbox recovery failed - non-ready status', {
+              conversationId: conversation.id,
+              status: sandboxResponse?.status,
+              error: sandboxResponse?.error,
+            });
+
+            return reply.code(503).send({
+              error: 'Sandbox not ready',
+              message:
+                'Sandbox initialization is in progress. Please wait a moment and try again.',
+            });
+          }
+        } catch (error) {
+          logger.error('Error attempting to recover sandbox', {
+            conversationId: conversation.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          return reply.code(503).send({
+            error: 'Sandbox not ready',
+            message:
+              'Unable to initialize sandbox environment. Please refresh the page and try again.',
+          });
+        }
+      } else if (conversation.sandboxStatus === 'PENDING') {
+        // Sandbox is still provisioning
+        return reply.code(503).send({
+          error: 'Sandbox not ready',
+          message:
+            'Sandbox is provisioning. Please wait a moment and try again.',
+        });
+      } else {
+        // Unknown state
+        return reply.code(503).send({
+          error: 'Sandbox not ready',
+          message: 'Sandbox status is unknown. Please refresh the page.',
+        });
+      }
     }
 
     // Log all messages for debugging
@@ -177,9 +255,13 @@ export async function chatRoutes(fastify: FastifyInstance) {
           data: {
             conversationId: conversation.id,
             landingPageId: conversation.landingPageId,
-            senderType: 'User',
             role: 'user',
-            content: messageContent,
+            parts: [
+              {
+                type: 'text',
+                text: messageContent,
+              },
+            ],
             metadata: {
               messageId: latestUserMessage.id,
             },

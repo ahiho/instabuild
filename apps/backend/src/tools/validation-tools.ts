@@ -390,7 +390,7 @@ function validateJavaScript(
 async function validateFileReferences(
   content: string,
   filePath: string,
-  projectRoot: string
+  _projectRoot: string
 ): Promise<ValidationError[]> {
   const errors: ValidationError[] = [];
   const lines = content.split('\n');
@@ -484,13 +484,13 @@ const validateCodeTool: EnhancedToolDefinition = {
     try {
       const {
         file_path: filePath,
-        check_references = true,
-        project_root,
+        check_references: checkReferences = true,
+        project_root: projectRoot,
       } = input;
 
       logger.info('Code validation requested', {
         path: filePath,
-        checkReferences: check_references,
+        checkReferences,
         toolCallId: context.toolCallId,
       });
 
@@ -567,12 +567,12 @@ const validateCodeTool: EnhancedToolDefinition = {
       }
 
       // Check file references if requested
-      if (check_references) {
-        const projectRoot = project_root || process.cwd();
+      if (checkReferences) {
+        const computedProjectRoot = projectRoot || process.cwd();
         const referenceErrors = await validateFileReferences(
           content,
           filePath,
-          projectRoot
+          computedProjectRoot
         );
         validationResult.errors.push(...referenceErrors);
         validationResult.isValid =
@@ -702,14 +702,14 @@ const fixCodeTool: EnhancedToolDefinition = {
     try {
       const {
         file_path: filePath,
-        create_backup = true,
-        fix_types = ['syntax', 'style'],
+        create_backup: createBackup = true,
+        fix_types: fixTypes = ['syntax', 'style'],
       } = input;
 
       logger.info('Code fixing requested', {
         path: filePath,
-        createBackup: create_backup,
-        fixTypes: fix_types,
+        createBackup,
+        fixTypes,
         toolCallId: context.toolCallId,
       });
 
@@ -734,14 +734,14 @@ const fixCodeTool: EnhancedToolDefinition = {
       const fileExtension = path.extname(filePath).toLowerCase();
 
       // Create backup if requested
-      if (create_backup) {
+      if (createBackup) {
         const backupPath = `${filePath}.backup`;
         await fs.writeFile(backupPath, originalContent, 'utf8');
         fixes.push(`Created backup at ${backupPath}`);
       }
 
       // Apply fixes based on file type and requested fix types
-      if (fix_types.includes('style')) {
+      if (fixTypes.includes('style')) {
         if (fileExtension === '.css') {
           // Fix missing semicolons in CSS
           fixedContent = fixedContent.replace(
@@ -770,7 +770,7 @@ const fixCodeTool: EnhancedToolDefinition = {
         }
       }
 
-      if (fix_types.includes('syntax')) {
+      if (fixTypes.includes('syntax')) {
         if (fileExtension === '.html') {
           // Add missing alt attributes to images
           const imgMatches = fixedContent.match(/<img[^>]*>/g);
@@ -790,7 +790,7 @@ const fixCodeTool: EnhancedToolDefinition = {
       if (fixedContent !== originalContent) {
         await fs.writeFile(filePath, fixedContent, 'utf8');
 
-        const fixCount = fixes.length - (create_backup ? 1 : 0);
+        const fixCount = fixes.length - (createBackup ? 1 : 0);
         const userMessage = `Applied ${fixCount} fix(es) to ${path.basename(filePath)}`;
 
         return {
@@ -798,7 +798,7 @@ const fixCodeTool: EnhancedToolDefinition = {
           data: {
             fixes,
             fixCount,
-            hasBackup: create_backup,
+            hasBackup: createBackup,
             originalLength: originalContent.length,
             fixedLength: fixedContent.length,
           },
@@ -809,7 +809,7 @@ const fixCodeTool: EnhancedToolDefinition = {
             path: filePath,
             fixes,
             fixCount,
-            hasBackup: create_backup,
+            hasBackup: createBackup,
           },
         };
       } else {
@@ -818,7 +818,7 @@ const fixCodeTool: EnhancedToolDefinition = {
           data: {
             fixes: [],
             fixCount: 0,
-            hasBackup: create_backup,
+            hasBackup: createBackup,
             originalLength: originalContent.length,
             fixedLength: fixedContent.length,
           },
