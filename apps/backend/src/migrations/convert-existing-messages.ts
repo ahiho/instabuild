@@ -29,7 +29,7 @@ export async function convertExistingMessagesToAISDKFormat() {
       const parts = [
         {
           type: 'text',
-          text: message.content,
+          text: (message as any).content || 'No content',
         },
       ];
 

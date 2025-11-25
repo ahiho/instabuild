@@ -3,26 +3,45 @@ import type {
   ToolExecutionContext,
 } from '@instabuild/shared/types';
 import { ToolCategory } from '@instabuild/shared/types';
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
 import { logger } from '../lib/logger.js';
 import { toolRegistry } from '../services/toolRegistry.js';
+import { containerFilesystem } from './container-filesystem.js';
+import { sandboxManager } from '../services/sandboxManager.js';
 
 /**
- * Validation result for a single file
+ * Enforce sandbox context requirement
+ * ALL validation tools MUST execute within isolated containers.
  */
-interface ValidationResult {
-  filePath: string;
-  isValid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationWarning[];
+function validateSandboxContext(context: ToolExecutionContext): {
+  success: false;
+  userFeedback: string;
+  previewRefreshNeeded: false;
+  technicalDetails: { error: string };
+} | null {
+  if (!context.sandboxId) {
+    logger.warn('Tool execution attempted without sandbox context', {
+      toolCallId: context.toolCallId,
+    });
+    return {
+      success: false,
+      userFeedback:
+        'This operation requires a sandbox environment. Sandbox is not available for this conversation.',
+      previewRefreshNeeded: false,
+      technicalDetails: {
+        error: 'Sandbox context required - sandboxId is missing',
+      },
+    };
+  }
+  return null;
 }
 
 /**
  * Validation error details
  */
 interface ValidationError {
+  file?: string;
   line?: number;
   column?: number;
   message: string;
@@ -31,421 +50,92 @@ interface ValidationError {
 }
 
 /**
- * Validation warning details
+ * Parse TypeScript compiler (tsc) output
+ * Handles two different error formats:
+ * 1. TSC direct output: filename(line,col): error TSxxxx: message
+ * 2. Build tools output: filename:line:col - error TSxxxx: message
  */
-interface ValidationWarning {
-  line?: number;
-  column?: number;
-  message: string;
-  type: 'style' | 'best-practice' | 'performance';
-}
-
-/**
- * HTML validation using basic syntax checking
- */
-function validateHTML(content: string, filePath: string): ValidationResult {
+function parseTscOutput(output: string): ValidationError[] {
   const errors: ValidationError[] = [];
-  const warnings: ValidationWarning[] = [];
-  const lines = content.split('\n');
+  const lines = output.split('\n');
 
-  // Basic HTML validation
-  const tagStack: Array<{ tag: string; line: number }> = [];
-  const selfClosingTags = new Set([
-    'area',
-    'base',
-    'br',
-    'col',
-    'embed',
-    'hr',
-    'img',
-    'input',
-    'link',
-    'meta',
-    'param',
-    'source',
-    'track',
-    'wbr',
-  ]);
+  // Format 1 - TSC direct output: filename(line,col): error TSxxxx: message
+  const tscFormatRegex =
+    /([^(]+)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)/;
 
-  lines.forEach((line, index) => {
-    const lineNumber = index + 1;
+  // Format 2 - Build tools output: filename:line:col - error TSxxxx: message
+  const buildFormatRegex =
+    /([^:]+):(\d+):(\d+)\s+-\s+(error|warning)\s+TS(\d+):\s+(.+)/;
 
-    // Check for unclosed tags
-    const tagMatches = line.match(/<\/?[^>]+>/g);
-    if (tagMatches) {
-      tagMatches.forEach(tag => {
-        const isClosing = tag.startsWith('</');
-        const isSelfClosing =
-          tag.endsWith('/>') ||
-          selfClosingTags.has(tag.match(/<\/?(\w+)/)?.[1] || '');
-        const tagName = tag.match(/<\/?(\w+)/)?.[1];
-
-        if (!tagName) return;
-
-        if (isClosing) {
-          const lastOpen = tagStack.pop();
-          if (!lastOpen || lastOpen.tag !== tagName) {
-            errors.push({
-              line: lineNumber,
-              message: `Mismatched closing tag: ${tag}`,
-              type: 'syntax',
-              severity: 'error',
-            });
-          }
-        } else if (!isSelfClosing) {
-          tagStack.push({ tag: tagName, line: lineNumber });
-        }
+  lines.forEach(line => {
+    // Try tsc format first (more common for direct tsc execution)
+    let match = line.match(tscFormatRegex);
+    if (match) {
+      const [, file, lineStr, columnStr, severity, , message] = match;
+      errors.push({
+        file,
+        line: parseInt(lineStr, 10),
+        column: parseInt(columnStr, 10),
+        message,
+        type: 'syntax',
+        severity: severity === 'error' ? 'error' : 'warning',
       });
+      return;
     }
 
-    // Check for common HTML issues
-    if (line.includes('onclick=') || line.includes('onload=')) {
-      warnings.push({
-        line: lineNumber,
-        message:
-          'Inline event handlers should be avoided for security and maintainability',
-        type: 'best-practice',
-      });
-    }
-
-    if (line.includes('<img') && !line.includes('alt=')) {
-      warnings.push({
-        line: lineNumber,
-        message: 'Image tags should include alt attributes for accessibility',
-        type: 'best-practice',
+    // Try build format (used by vite build and other build tools)
+    match = line.match(buildFormatRegex);
+    if (match) {
+      const [, file, lineStr, columnStr, severity, , message] = match;
+      errors.push({
+        file,
+        line: parseInt(lineStr, 10),
+        column: parseInt(columnStr, 10),
+        message,
+        type: 'syntax',
+        severity: severity === 'error' ? 'error' : 'warning',
       });
     }
   });
 
-  // Check for unclosed tags
-  tagStack.forEach(openTag => {
-    errors.push({
-      line: openTag.line,
-      message: `Unclosed tag: <${openTag.tag}>`,
-      type: 'syntax',
-      severity: 'error',
-    });
-  });
-
-  return {
-    filePath,
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
+  return errors;
 }
 
 /**
- * CSS validation using basic syntax checking
+ * Parse Vite build output for errors
  */
-function validateCSS(content: string, filePath: string): ValidationResult {
+function parseBuildOutput(output: string): ValidationError[] {
   const errors: ValidationError[] = [];
-  const warnings: ValidationWarning[] = [];
-  const lines = content.split('\n');
+  const lines = output.split('\n');
 
-  let braceCount = 0;
-  let inComment = false;
+  // Match common error patterns from Vite/esbuild
+  // Pattern: Error: message at file.tsx:line:column
+  const buildErrorRegex = /error\s+(\w+):\s+(.+?)\s+at\s+(.+?):(\d+):(\d+)/i;
+  // Pattern: ✖ [ERROR] message
+  const viteErrorRegex = /✖\s+\[ERROR\]\s+(.+)/;
 
-  lines.forEach((line, index) => {
-    const lineNumber = index + 1;
-    let processedLine = line;
-
-    // Handle comments
-    if (inComment) {
-      const commentEnd = processedLine.indexOf('*/');
-      if (commentEnd !== -1) {
-        inComment = false;
-        processedLine = processedLine.substring(commentEnd + 2);
-      } else {
-        return; // Skip lines inside comments
-      }
-    }
-
-    const commentStart = processedLine.indexOf('/*');
-    if (commentStart !== -1) {
-      const commentEnd = processedLine.indexOf('*/', commentStart);
-      if (commentEnd !== -1) {
-        processedLine =
-          processedLine.substring(0, commentStart) +
-          processedLine.substring(commentEnd + 2);
-      } else {
-        inComment = true;
-        processedLine = processedLine.substring(0, commentStart);
-      }
-    }
-
-    // Remove single-line comments
-    const singleCommentIndex = processedLine.indexOf('//');
-    if (singleCommentIndex !== -1) {
-      processedLine = processedLine.substring(0, singleCommentIndex);
-    }
-
-    // Count braces
-    const openBraces = (processedLine.match(/\{/g) || []).length;
-    const closeBraces = (processedLine.match(/\}/g) || []).length;
-    braceCount += openBraces - closeBraces;
-
-    // Check for basic syntax errors
-    if (
-      processedLine.includes(':') &&
-      !processedLine.includes(';') &&
-      processedLine.trim() &&
-      !processedLine.includes('{') &&
-      !processedLine.includes('}')
-    ) {
-      const trimmed = processedLine.trim();
-      if (!trimmed.endsWith(',') && !trimmed.startsWith('@')) {
-        warnings.push({
-          line: lineNumber,
-          message: 'CSS property should end with semicolon',
-          type: 'style',
-        });
-      }
-    }
-
-    // Check for vendor prefixes without standard property
-    if (
-      processedLine.includes('-webkit-') ||
-      processedLine.includes('-moz-') ||
-      processedLine.includes('-ms-')
-    ) {
-      warnings.push({
-        line: lineNumber,
-        message:
-          'Consider using autoprefixer instead of manual vendor prefixes',
-        type: 'best-practice',
+  lines.forEach(line => {
+    const buildMatch = line.match(buildErrorRegex);
+    if (buildMatch) {
+      const [, type, message, , lineNum, colNum] = buildMatch;
+      errors.push({
+        line: parseInt(lineNum, 10),
+        column: parseInt(colNum, 10),
+        message: `[${type}] ${message}`,
+        type: 'syntax',
+        severity: 'error',
       });
     }
 
-    // Check for !important usage
-    if (processedLine.includes('!important')) {
-      warnings.push({
-        line: lineNumber,
-        message:
-          'Avoid using !important, consider improving CSS specificity instead',
-        type: 'best-practice',
+    const viteMatch = line.match(viteErrorRegex);
+    if (viteMatch) {
+      errors.push({
+        message: viteMatch[1],
+        type: 'syntax',
+        severity: 'error',
       });
     }
   });
-
-  if (braceCount !== 0) {
-    errors.push({
-      message: `Mismatched braces: ${braceCount > 0 ? 'missing closing' : 'extra closing'} braces`,
-      type: 'syntax',
-      severity: 'error',
-    });
-  }
-
-  return {
-    filePath,
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
-}
-
-/**
- * JavaScript/TypeScript validation using basic syntax checking
- */
-function validateJavaScript(
-  content: string,
-  filePath: string
-): ValidationResult {
-  const errors: ValidationError[] = [];
-  const warnings: ValidationWarning[] = [];
-  const lines = content.split('\n');
-
-  let braceCount = 0;
-  let parenCount = 0;
-  let bracketCount = 0;
-  let inString = false;
-  let stringChar = '';
-  let inComment = false;
-
-  lines.forEach((line, index) => {
-    const lineNumber = index + 1;
-    let i = 0;
-
-    while (i < line.length) {
-      const char = line[i];
-      const nextChar = line[i + 1];
-
-      // Handle multi-line comments
-      if (!inString && char === '/' && nextChar === '*') {
-        inComment = true;
-        i += 2;
-        continue;
-      }
-      if (inComment && char === '*' && nextChar === '/') {
-        inComment = false;
-        i += 2;
-        continue;
-      }
-      if (inComment) {
-        i++;
-        continue;
-      }
-
-      // Handle single-line comments
-      if (!inString && char === '/' && nextChar === '/') {
-        break; // Rest of line is comment
-      }
-
-      // Handle strings
-      if (!inString && (char === '"' || char === "'" || char === '`')) {
-        inString = true;
-        stringChar = char;
-      } else if (inString && char === stringChar && line[i - 1] !== '\\') {
-        inString = false;
-        stringChar = '';
-      }
-
-      if (!inString) {
-        // Count brackets and braces
-        if (char === '{') braceCount++;
-        if (char === '}') braceCount--;
-        if (char === '(') parenCount++;
-        if (char === ')') parenCount--;
-        if (char === '[') bracketCount++;
-        if (char === ']') bracketCount--;
-      }
-
-      i++;
-    }
-
-    // Check for common issues
-    const trimmedLine = line.trim();
-
-    // Check for console.log in production code
-    if (
-      trimmedLine.includes('console.log') &&
-      !filePath.includes('test') &&
-      !filePath.includes('spec')
-    ) {
-      warnings.push({
-        line: lineNumber,
-        message:
-          'console.log statements should be removed from production code',
-        type: 'best-practice',
-      });
-    }
-
-    // Check for var usage
-    if (trimmedLine.includes('var ')) {
-      warnings.push({
-        line: lineNumber,
-        message: 'Use let or const instead of var',
-        type: 'best-practice',
-      });
-    }
-
-    // Check for == usage
-    if (
-      trimmedLine.includes('==') &&
-      !trimmedLine.includes('===') &&
-      !trimmedLine.includes('!==')
-    ) {
-      warnings.push({
-        line: lineNumber,
-        message: 'Use === instead of == for strict equality',
-        type: 'best-practice',
-      });
-    }
-  });
-
-  // Check for unmatched brackets
-  if (braceCount !== 0) {
-    errors.push({
-      message: `Mismatched braces: ${braceCount > 0 ? 'missing closing' : 'extra closing'} braces`,
-      type: 'syntax',
-      severity: 'error',
-    });
-  }
-  if (parenCount !== 0) {
-    errors.push({
-      message: `Mismatched parentheses: ${parenCount > 0 ? 'missing closing' : 'extra closing'} parentheses`,
-      type: 'syntax',
-      severity: 'error',
-    });
-  }
-  if (bracketCount !== 0) {
-    errors.push({
-      message: `Mismatched brackets: ${bracketCount > 0 ? 'missing closing' : 'extra closing'} brackets`,
-      type: 'syntax',
-      severity: 'error',
-    });
-  }
-
-  return {
-    filePath,
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
-}
-
-/**
- * Check file references across the project
- */
-async function validateFileReferences(
-  content: string,
-  filePath: string,
-  _projectRoot: string
-): Promise<ValidationError[]> {
-  const errors: ValidationError[] = [];
-  const lines = content.split('\n');
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineNumber = i + 1;
-
-    // Check for various types of file references
-    const patterns = [
-      // CSS/HTML: url(), src="", href=""
-      /(?:url\(|src="|href="|@import\s+")([^"')]+)["')]/g,
-      // JavaScript/TypeScript: import/require statements
-      /(?:import.*from\s+['"]|require\(['"])([^'"]+)['"]/g,
-      // HTML: script src, link href
-      /<(?:script|link|img)[^>]*(?:src|href)=["']([^"']+)["']/g,
-    ];
-
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(line)) !== null) {
-        const referencedPath = match[1];
-
-        // Skip external URLs and data URLs
-        if (
-          referencedPath.startsWith('http') ||
-          referencedPath.startsWith('//') ||
-          referencedPath.startsWith('data:') ||
-          referencedPath.startsWith('#')
-        ) {
-          continue;
-        }
-
-        // Resolve relative path
-        let resolvedPath: string;
-        if (path.isAbsolute(referencedPath)) {
-          resolvedPath = referencedPath;
-        } else {
-          resolvedPath = path.resolve(path.dirname(filePath), referencedPath);
-        }
-
-        // Check if file exists
-        try {
-          await fs.access(resolvedPath);
-        } catch {
-          errors.push({
-            line: lineNumber,
-            message: `Referenced file not found: ${referencedPath}`,
-            type: 'reference',
-            severity: 'error',
-          });
-        }
-      }
-    }
-  }
 
   return errors;
 }
@@ -457,174 +147,197 @@ const validateCodeTool: EnhancedToolDefinition = {
   name: 'validate_code',
   displayName: 'ValidateCode',
   description:
-    'Validates HTML, CSS, and JavaScript/TypeScript files for syntax errors, checks file references, and provides suggestions for code improvements. Helps ensure code quality and catch common issues before deployment.',
-  userDescription: 'validate code syntax and check file references for errors',
+    'Validates the entire TypeScript/JavaScript project using type checking and build. Runs full TypeScript type check (tsc --noEmit) using project tsconfig.json settings, then runs Vite build to ensure the project compiles successfully. This validates all files in the project with proper JSX configuration, strict mode, and import path validation.',
+  userDescription:
+    'validate entire project with TypeScript type checking and build',
   category: ToolCategory.VALIDATION,
   safetyLevel: 'safe',
-  inputSchema: z.object({
-    file_path: z.string().describe('The absolute path to the file to validate'),
-    check_references: z
-      .boolean()
-      .optional()
-      .describe('Whether to check file references (default: true)'),
-    project_root: z
-      .string()
-      .optional()
-      .describe('The project root directory for resolving relative references'),
-  }),
+  inputSchema: z.object({}),
 
-  async execute(
-    input: {
-      file_path: string;
-      check_references?: boolean;
-      project_root?: string;
-    },
-    context: ToolExecutionContext
-  ) {
+  async execute(_input: Record<string, never>, context: ToolExecutionContext) {
     try {
-      const {
-        file_path: filePath,
-        check_references: checkReferences = true,
-        project_root: projectRoot,
-      } = input;
+      // Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
 
-      logger.info('Code validation requested', {
-        path: filePath,
-        checkReferences,
+      logger.info('Project-wide validation requested', {
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
-      // Validate path is absolute
-      if (!path.isAbsolute(filePath)) {
-        return {
-          success: false,
-          userFeedback: `File path must be absolute: ${filePath}`,
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'Path must be absolute',
-            providedPath: filePath,
-          },
-        };
-      }
+      const errors: ValidationError[] = [];
+      let buildOutput = '';
+      let tscOutput = '';
+      let buildSuccess = false;
 
-      // Check if file exists
+      // Stage 1: Run TypeScript compiler
+      logger.info('Running TypeScript compiler', {
+        mode: 'project-wide',
+        sandboxId: context.sandboxId,
+      });
+
       try {
-        const stats = await fs.stat(filePath);
-        if (!stats.isFile()) {
-          return {
-            success: false,
-            userFeedback: `Path is not a file: ${filePath}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'Path is not a file',
-              path: filePath,
-            },
-          };
+        // Use --project flag to ensure tsconfig.json is respected
+        // This ensures proper JSX configuration, strict mode, and import path validation
+        const tscArgs = [
+          'tsc',
+          '--noEmit',
+          '--project',
+          '/workspace/tsconfig.json',
+        ];
+
+        const tscResult = await sandboxManager.executeCommand({
+          sandboxId: context.sandboxId!,
+          command: 'npx',
+          args: tscArgs,
+          workingDir: '/workspace',
+          timeout: 300000, // 5 minutes for type checking
+          userId: context.userId,
+        });
+
+        // Combine stdout and stderr for error parsing
+        tscOutput = tscResult.stdout + (tscResult.stderr || '');
+
+        // Parse tsc output for errors
+        const tscErrors = parseTscOutput(tscOutput);
+
+        if (tscErrors.length > 0) {
+          errors.push(...tscErrors);
+          logger.info('TypeScript compilation errors found', {
+            errorCount: tscErrors.length,
+          });
+        } else {
+          logger.info('TypeScript compilation passed');
         }
-      } catch (error) {
-        return {
-          success: false,
-          userFeedback: `File not found: ${filePath}`,
-          previewRefreshNeeded: false,
-          technicalDetails: {
-            error: 'File not found',
-            path: filePath,
-          },
-        };
+      } catch (tscError) {
+        // tsc errors are expected if there are type issues
+        // Continue to parse output
+        tscOutput =
+          tscError instanceof Error ? tscError.message : String(tscError);
+        const tscErrors = parseTscOutput(tscOutput);
+        if (tscErrors.length > 0) {
+          errors.push(...tscErrors);
+          logger.info('TypeScript compilation errors found', {
+            errorCount: tscErrors.length,
+          });
+        }
       }
 
-      // Read file content
-      const content = await fs.readFile(filePath, 'utf8');
-      const fileExtension = path.extname(filePath).toLowerCase();
+      // Stage 2: Run build if tsc passed
+      if (errors.length === 0) {
+        logger.info('tsc passed, proceeding to build', {
+          sandboxId: context.sandboxId,
+        });
 
-      let validationResult: ValidationResult;
+        try {
+          const buildResult = await sandboxManager.executeCommand({
+            sandboxId: context.sandboxId!,
+            command: 'npm',
+            args: ['run', 'build'],
+            workingDir: '/workspace',
+            timeout: 300000, // 5 minutes for build
+            userId: context.userId,
+          });
 
-      // Validate based on file type
-      switch (fileExtension) {
-        case '.html':
-        case '.htm':
-          validationResult = validateHTML(content, filePath);
-          break;
-        case '.css':
-          validationResult = validateCSS(content, filePath);
-          break;
-        case '.js':
-        case '.jsx':
-        case '.ts':
-        case '.tsx':
-          validationResult = validateJavaScript(content, filePath);
-          break;
-        default:
-          return {
-            success: false,
-            userFeedback: `Unsupported file type: ${fileExtension}`,
-            previewRefreshNeeded: false,
-            technicalDetails: {
-              error: 'Unsupported file type',
-              extension: fileExtension,
-            },
-          };
-      }
+          buildOutput = buildResult.stdout + (buildResult.stderr || '');
+          buildSuccess = buildResult.success;
 
-      // Check file references if requested
-      if (checkReferences) {
-        const computedProjectRoot = projectRoot || process.cwd();
-        const referenceErrors = await validateFileReferences(
-          content,
-          filePath,
-          computedProjectRoot
-        );
-        validationResult.errors.push(...referenceErrors);
-        validationResult.isValid =
-          validationResult.isValid && referenceErrors.length === 0;
+          if (!buildSuccess) {
+            const buildErrors = parseBuildOutput(buildOutput);
+            if (buildErrors.length > 0) {
+              errors.push(...buildErrors);
+              logger.info('Build errors found', {
+                errorCount: buildErrors.length,
+              });
+            } else {
+              // If we couldn't parse specific errors, return generic build error
+              errors.push({
+                message: 'Build failed - check output for details',
+                type: 'syntax',
+                severity: 'error',
+              });
+            }
+          } else {
+            logger.info('Build completed successfully');
+          }
+        } catch (buildError) {
+          // Build may have failed, parse the output
+          buildOutput =
+            buildError instanceof Error
+              ? buildError.message
+              : String(buildError);
+          const buildErrors = parseBuildOutput(buildOutput);
+          if (buildErrors.length > 0) {
+            errors.push(...buildErrors);
+            logger.info('Build errors found', {
+              errorCount: buildErrors.length,
+            });
+          } else {
+            // If we couldn't parse specific errors, return generic build error
+            errors.push({
+              message: 'Build failed - check output for details',
+              type: 'syntax',
+              severity: 'error',
+            });
+          }
+        }
       }
 
       // Format results
-      const errorCount = validationResult.errors.length;
-      const warningCount = validationResult.warnings.length;
+      const isValid = errors.length === 0;
 
-      let resultMessage = `Validation complete for ${path.basename(filePath)}:\n`;
+      let resultMessage = 'Full project validation complete:\n';
 
-      if (validationResult.isValid && warningCount === 0) {
-        resultMessage += '✅ No issues found';
-      } else {
-        if (errorCount > 0) {
-          resultMessage += `❌ ${errorCount} error(s) found:\n`;
-          validationResult.errors.forEach(error => {
-            const location = error.line ? ` (line ${error.line})` : '';
-            resultMessage += `  • ${error.message}${location}\n`;
-          });
-        }
-
-        if (warningCount > 0) {
-          resultMessage += `⚠️  ${warningCount} warning(s) found:\n`;
-          validationResult.warnings.forEach(warning => {
-            const location = warning.line ? ` (line ${warning.line})` : '';
-            resultMessage += `  • ${warning.message}${location}\n`;
-          });
-        }
+      if (isValid && buildSuccess) {
+        resultMessage +=
+          '✅ All checks passed: TypeScript compilation and build succeeded';
+      } else if (errors.length > 0) {
+        resultMessage += `❌ ${errors.length} error(s) found:\n`;
+        errors.forEach(error => {
+          const fileInfo = error.file ? `${error.file}` : '';
+          const location = error.line ? `:${error.line}:${error.column}` : '';
+          const fullLocation = fileInfo + location;
+          resultMessage += `  • ${fullLocation ? `${fullLocation} - ` : ''}${error.message}\n`;
+        });
       }
 
-      const userMessage = validationResult.isValid
-        ? `File is valid${warningCount > 0 ? ` (${warningCount} warnings)` : ''}`
-        : `Found ${errorCount} error(s)${warningCount > 0 ? ` and ${warningCount} warning(s)` : ''}`;
+      const userMessage = isValid
+        ? 'Full project validation passed - TypeScript and build succeeded'
+        : `Found ${errors.length} validation error(s)`;
 
       return {
-        success: true,
+        success: isValid,
         data: {
-          validation: validationResult,
+          validation: {
+            isValid,
+            errors,
+            warnings: [],
+            scope: 'project',
+          },
           summary: {
-            isValid: validationResult.isValid,
-            errorCount,
-            warningCount,
-            fileType: fileExtension,
+            isValid,
+            errorCount: errors.length,
+            warningCount: 0,
+            tscPassed:
+              errors.filter(
+                e => e.type === 'syntax' && !e.message.includes('Build')
+              ).length === 0,
+            buildPassed: buildSuccess,
+          },
+          output: {
+            tsc: tscOutput.substring(0, 1000), // Truncate to 1000 chars
+            build: buildOutput.substring(0, 1000),
           },
         },
         userFeedback: userMessage,
         previewRefreshNeeded: false,
         technicalDetails: {
-          path: filePath,
-          validation: validationResult,
+          scope: 'project',
+          isValid,
+          errorCount: errors.length,
+          errors,
           formattedResults: resultMessage.trim(),
         },
       };
@@ -645,24 +358,23 @@ const validateCodeTool: EnhancedToolDefinition = {
     }
   },
 
-  estimatedDuration: 3000,
+  estimatedDuration: 30000,
+  timeout: 480000, // 8 minutes total (5min tsc + 5min build, running sequentially)
   metadata: {
-    version: '1.0.0',
-    tags: ['validation', 'syntax', 'code-quality', 'linting'],
+    version: '5.0.0',
+    tags: [
+      'validation',
+      'typescript',
+      'build',
+      'code-quality',
+      'tsc',
+      'vite',
+      'project-wide',
+    ],
     examples: [
       {
-        description: 'Validate an HTML file',
-        input: {
-          file_path: '/home/user/project/index.html',
-          check_references: true,
-        },
-      },
-      {
-        description: 'Validate a CSS file without reference checking',
-        input: {
-          file_path: '/home/user/project/styles.css',
-          check_references: false,
-        },
+        description: 'Validate entire project with full type check and build',
+        input: {},
       },
     ],
   },
@@ -700,6 +412,12 @@ const fixCodeTool: EnhancedToolDefinition = {
     context: ToolExecutionContext
   ) {
     try {
+      // Validate sandbox context
+      const sandboxError = validateSandboxContext(context);
+      if (sandboxError) {
+        return sandboxError;
+      }
+
       const {
         file_path: filePath,
         create_backup: createBackup = true,
@@ -711,13 +429,14 @@ const fixCodeTool: EnhancedToolDefinition = {
         createBackup,
         fixTypes,
         toolCallId: context.toolCallId,
+        sandboxId: context.sandboxId,
       });
 
       // Validate path is absolute
       if (!path.isAbsolute(filePath)) {
         return {
           success: false,
-          userFeedback: `File path must be absolute: ${filePath}`,
+          userFeedback: `Path must be absolute: ${filePath}`,
           previewRefreshNeeded: false,
           technicalDetails: {
             error: 'Path must be absolute',
@@ -726,8 +445,31 @@ const fixCodeTool: EnhancedToolDefinition = {
         };
       }
 
-      // Read original content
-      const originalContent = await fs.readFile(filePath, 'utf8');
+      // Check if file exists in container
+      const exists = await containerFilesystem.exists(
+        context.sandboxId!,
+        filePath,
+        context.userId
+      );
+      if (!exists) {
+        return {
+          success: false,
+          userFeedback: `File not found: ${filePath}`,
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: 'File not found',
+            path: filePath,
+          },
+        };
+      }
+
+      // Read original content from container
+      const originalContent = await containerFilesystem.readFile(
+        context.sandboxId!,
+        filePath,
+        'utf8',
+        context.userId
+      );
       let fixedContent = originalContent;
       const fixes: string[] = [];
 
@@ -736,7 +478,12 @@ const fixCodeTool: EnhancedToolDefinition = {
       // Create backup if requested
       if (createBackup) {
         const backupPath = `${filePath}.backup`;
-        await fs.writeFile(backupPath, originalContent, 'utf8');
+        await containerFilesystem.writeFile(
+          context.sandboxId!,
+          backupPath,
+          originalContent,
+          context.userId
+        );
         fixes.push(`Created backup at ${backupPath}`);
       }
 
@@ -788,7 +535,12 @@ const fixCodeTool: EnhancedToolDefinition = {
 
       // Write fixed content if changes were made
       if (fixedContent !== originalContent) {
-        await fs.writeFile(filePath, fixedContent, 'utf8');
+        await containerFilesystem.writeFile(
+          context.sandboxId!,
+          filePath,
+          fixedContent,
+          context.userId
+        );
 
         const fixCount = fixes.length - (createBackup ? 1 : 0);
         const userMessage = `Applied ${fixCount} fix(es) to ${path.basename(filePath)}`;

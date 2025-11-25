@@ -649,6 +649,71 @@ export class ToolRegistry implements IToolRegistry {
   }
 
   /**
+   * Get available tools with dynamic filtering based on task complexity
+   * Reduces token usage by limiting tool schema size for simple tasks
+   */
+  getAvailableToolsFiltered(
+    context: ToolExecutionContext,
+    complexity: any, // TaskComplexity from types.js
+    messageContent: string
+  ): Record<string, any> {
+    const allTools = this.getAvailableTools(context);
+
+    logger.debug('[TOOL REGISTRY] Filter request received', {
+      conversationId: context.conversationId,
+      complexity,
+      totalToolsAvailable: Object.keys(allTools).length,
+      messagePreview: messageContent.substring(0, 100),
+    });
+
+    // For simple tasks, return only core tools to reduce token usage
+    // Simple tasks typically only need basic file operations and validation
+    if (complexity === 'simple') {
+      const coreTools = [
+        'read_file',
+        'write_file',
+        'replace',
+        'list_directory',
+        'think',
+        'validate_code',
+        'read_guidelines',
+        'execute_command',
+      ];
+
+      const filtered = Object.fromEntries(
+        Object.entries(allTools).filter(([name]) => coreTools.includes(name))
+      );
+
+      logger.debug('[TOOL REGISTRY] Tools filtered for simple task', {
+        conversationId: context.conversationId,
+        complexity,
+        beforeCount: Object.keys(allTools).length,
+        afterCount: Object.keys(filtered).length,
+        removedCount:
+          Object.keys(allTools).length - Object.keys(filtered).length,
+        percentReduction: (
+          ((Object.keys(allTools).length - Object.keys(filtered).length) /
+            Object.keys(allTools).length) *
+          100
+        ).toFixed(1),
+        includedTools: Object.keys(filtered),
+      });
+
+      return filtered;
+    }
+
+    // For moderate/complex/advanced tasks, return all tools
+    logger.debug('[TOOL REGISTRY] No filtering applied', {
+      conversationId: context.conversationId,
+      complexity,
+      toolCount: Object.keys(allTools).length,
+      reason: 'Task complexity requires full tool set',
+    });
+
+    return allTools;
+  }
+
+  /**
    * Create an AI SDK tool with proper context injection
    */
   private createAISDKToolWithContext(

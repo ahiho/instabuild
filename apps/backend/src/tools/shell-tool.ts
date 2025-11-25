@@ -7,6 +7,66 @@ import { z } from 'zod';
 import { logger } from '../lib/logger.js';
 import { toolRegistry } from '../services/toolRegistry.js';
 import { sandboxManager } from '../services/sandboxManager.js';
+import {
+  ALLOWED_SANDBOX_COMMANDS,
+  SAFE_PACKAGE_SUBCOMMANDS,
+  DANGEROUS_FLAGS,
+  ALLOWED_GIT_SUBCOMMANDS,
+} from '../config/sandboxSecurity.js';
+
+/**
+ * Validate command and arguments for security
+ */
+function validateCommand(
+  command: string,
+  args: string[]
+): { valid: boolean; error?: string } {
+  // Check if command is allowed
+  if (!ALLOWED_SANDBOX_COMMANDS.has(command)) {
+    return {
+      valid: false,
+      error: `Command '${command}' is not allowed. Allowed commands: ${Array.from(ALLOWED_SANDBOX_COMMANDS).join(', ')}`,
+    };
+  }
+
+  // For pnpm, npm, and yarn, validate the subcommand and arguments
+  if (['pnpm', 'npm', 'yarn'].includes(command) && args.length > 0) {
+    const firstArg = args[0];
+
+    // If first arg is not a subcommand (doesn't start with -), validate it
+    if (!firstArg.startsWith('-')) {
+      if (!SAFE_PACKAGE_SUBCOMMANDS.has(firstArg)) {
+        return {
+          valid: false,
+          error: `Subcommand '${firstArg}' is not allowed. Allowed subcommands: ${Array.from(SAFE_PACKAGE_SUBCOMMANDS).join(', ')}`,
+        };
+      }
+    }
+
+    // Check for dangerous flags
+    for (const arg of args) {
+      if (DANGEROUS_FLAGS.has(arg)) {
+        return {
+          valid: false,
+          error: `Flag '${arg}' is not allowed for security reasons`,
+        };
+      }
+    }
+  }
+
+  // For git, validate subcommands
+  if (command === 'git' && args.length > 0) {
+    const firstArg = args[0];
+    if (!firstArg.startsWith('-') && !ALLOWED_GIT_SUBCOMMANDS.has(firstArg)) {
+      return {
+        valid: false,
+        error: `Git subcommand '${firstArg}' is not allowed`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
 
 /**
  * Tool for executing shell commands in sandbox
@@ -16,14 +76,15 @@ const shellTool: EnhancedToolDefinition = {
   displayName: 'Shell',
   description:
     'Executes a shell command in the secure sandbox environment. Use this to run build scripts, tests, package installations, git commands, and other development tools. Commands are validated for security and executed with proper isolation. IMPORTANT: This project uses pnpm as the package manager. Always use "pnpm" instead of "npm" or "yarn" for package management commands (e.g., "pnpm install", "pnpm dev", "pnpm build").',
-  userDescription: 'run shell commands like pnpm install, pnpm test, git status',
+  userDescription:
+    'run shell commands like pnpm install, pnpm test, git status',
   category: ToolCategory.UTILITY,
   safetyLevel: 'potentially_destructive', // Commands can modify files
   inputSchema: z.object({
     command: z
       .string()
       .describe(
-        'The shell command to execute (e.g., "npm", "git", "ls", "cat"). Only approved commands are allowed for security.'
+        'The shell command to execute (e.g., "pnpm", "git", "ls", "cat"). Only approved commands are allowed for security. IMPORTANT: Use "pnpm" not "npm" for package management.'
       ),
     args: z
       .array(z.string())
@@ -71,19 +132,44 @@ const shellTool: EnhancedToolDefinition = {
         };
       }
 
+      // eslint-disable-next-line camelcase
       const { command, args = [], working_dir, timeout = 60 } = input;
 
       // Build command string for logging
-      const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      const fullCommand =
+        args.length > 0 ? `${command} ${args.join(' ')}` : command;
 
       logger.info('Shell command requested', {
         command,
         args,
+        // eslint-disable-next-line camelcase
         workingDir: working_dir,
         timeout,
         toolCallId: context.toolCallId,
         sandboxId: context.sandboxId,
       });
+
+      // Validate command and arguments
+      const validation = validateCommand(command, args);
+      if (!validation.valid) {
+        logger.warn('Command validation failed', {
+          command,
+          args,
+          error: validation.error,
+          toolCallId: context.toolCallId,
+        });
+
+        return {
+          success: false,
+          userFeedback: `Command blocked: ${validation.error}`,
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: validation.error,
+            command,
+            args,
+          },
+        };
+      }
 
       // Execute command in sandbox
       const startTime = Date.now();
@@ -91,8 +177,10 @@ const shellTool: EnhancedToolDefinition = {
         sandboxId: context.sandboxId,
         command,
         args,
+        // eslint-disable-next-line camelcase
         workingDir: working_dir || '/workspace',
         timeout,
+        userId: context.userId,
       });
 
       const executionTime = Date.now() - startTime;

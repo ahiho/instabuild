@@ -64,6 +64,18 @@ export class SandboxManager {
       await this.initialize();
     }
 
+    // Validate user authentication for sandbox creation
+    if (!request.userId || request.userId === 'system') {
+      throw new Error(
+        'Valid user authentication required for sandbox creation'
+      );
+    }
+
+    logger.info('Creating sandbox for authenticated user', {
+      userId: request.userId,
+      projectId: request.projectId,
+    });
+
     return this.provisioningService.provisionSandbox(request);
   }
 
@@ -77,10 +89,18 @@ export class SandboxManager {
       await this.initialize();
     }
 
+    // Validate user context for command execution
+    if (!request.userId) {
+      throw new Error(
+        'User authentication required for sandbox command execution'
+      );
+    }
+
     logger.info('SandboxManager.executeCommand - delegating to shellRunner', {
       sandboxId: request.sandboxId,
       command: request.command,
       args: request.args,
+      userId: request.userId,
     });
 
     const result = await this.shellRunner.executeCommand(request);
@@ -100,7 +120,15 @@ export class SandboxManager {
   }
 
   /**
-   * Get sandbox information from database
+   * Get sandbox information from database by projectId
+   * Used by health checks and other services that work at the project level
+   */
+  async getSandboxInfoByProjectId(projectId: string) {
+    return this.provisioningService.getSandboxByProjectId(projectId);
+  }
+
+  /**
+   * Get sandbox information from database by conversationId
    * Phase 3.5: Now async - queries from Conversation model
    */
   async getSandboxInfo(sandboxId: string) {
@@ -110,7 +138,10 @@ export class SandboxManager {
   /**
    * Destroy a sandbox
    */
-  async destroySandbox(sandboxId: string): Promise<boolean> {
+  async destroySandbox(sandboxId: string, userId?: string): Promise<boolean> {
+    if (userId) {
+      logger.info('Destroying sandbox for user', { sandboxId, userId });
+    }
     return this.provisioningService.destroySandbox(sandboxId);
   }
 
@@ -118,6 +149,11 @@ export class SandboxManager {
    * Get all sandboxes for a user
    */
   getUserSandboxes(userId: string) {
+    if (!userId) {
+      throw new Error('User ID required to retrieve sandboxes');
+    }
+
+    logger.info('Retrieving sandboxes for user', { userId });
     return this.provisioningService.getUserSandboxes(userId);
   }
 
@@ -140,6 +176,20 @@ export class SandboxManager {
    */
   async killProcess(sandboxId: string, pid: number) {
     return this.shellRunner.killProcess(sandboxId, pid);
+  }
+
+  /**
+   * Get container logs using Docker API
+   */
+  async getContainerLogs(
+    sandboxId: string,
+    options?: {
+      tail?: number;
+      since?: number;
+      timestamps?: boolean;
+    }
+  ) {
+    return this.provisioningService.getContainerLogs(sandboxId, options);
   }
 
   /**

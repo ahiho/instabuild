@@ -3,3 +3,6 @@ node_modules
 .env
 
 /../../generated/prisma
+
+# Tool loop debug logs
+logs/

@@ -172,21 +172,6 @@ export const TOOL_METADATA: Record<string, ToolMetadata> = {
     description: 'Checking code for errors and issues',
     category: 'Validation',
   },
-  run_build_tool: {
-    displayName: '🔨 Run Build',
-    description: 'Running build or compilation tools',
-    category: 'Utility',
-  },
-  optimize_image: {
-    displayName: '🖼️ Optimize Image',
-    description: 'Optimizing image files for web',
-    category: 'Asset Management',
-  },
-  organize_assets: {
-    displayName: '📦 Organize Assets',
-    description: 'Organizing and managing project assets',
-    category: 'Asset Management',
-  },
 };
 
 /**

@@ -154,5 +154,4 @@ export class ErrorRecoveryStrategyManager {
   }
 }
 
-export const errorRecoveryStrategyManager =
-  new ErrorRecoveryStrategyManager();
+export const errorRecoveryStrategyManager = new ErrorRecoveryStrategyManager();

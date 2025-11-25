@@ -1,4 +1,3 @@
-import { openai } from '@ai-sdk/openai';
 import type { LanguageModel } from 'ai';
 import type {
   AIModelConfig,
@@ -10,6 +9,7 @@ import {
   analyzeTaskComplexity,
   defaultConfig,
   validateConfig,
+  openaiWithLogging,
 } from '../lib/ai-config.js';
 import { logger } from '../lib/logger.js';
 
@@ -26,8 +26,14 @@ export class ModelSelectorService {
     logger.info('Model selector initialized', { config: this.config });
   }
 
-  selectModel(context: ModelSelectionContext): ModelSelectionResult {
-    const complexity = analyzeTaskComplexity(context.message, context);
+  async selectModel(
+    context: ModelSelectionContext
+  ): Promise<ModelSelectionResult> {
+    const complexity = await analyzeTaskComplexity(
+      context.message,
+      context,
+      this.config
+    );
 
     let selectedModel: string;
     let modelType: ModelType;
@@ -63,6 +69,7 @@ export class ModelSelectorService {
       modelType,
       complexity: complexity.score,
       factors: complexity.factors,
+      classificationMethod: complexity.classificationMethod,
       reasoning,
       message: context.message.substring(0, 100), // First 100 chars for privacy
     });
@@ -71,20 +78,20 @@ export class ModelSelectorService {
     return result;
   }
 
-  getModel(context: ModelSelectionContext): {
+  async getModel(context: ModelSelectionContext): Promise<{
     model: LanguageModel;
     selection: ModelSelectionResult;
-  } {
-    const selection = this.selectModel(context);
+  }> {
+    const selection = await this.selectModel(context);
     return {
-      model: openai(selection.selectedModel),
+      model: openaiWithLogging(selection.selectedModel),
       selection,
     };
   }
 
   getFallbackModel(): LanguageModel {
     logger.warn('Using fallback model', { model: this.config.fallbackModel });
-    return openai(this.config.fallbackModel);
+    return openaiWithLogging(this.config.fallbackModel);
   }
 
   private recordUsage(modelName: string, modelType: ModelType) {

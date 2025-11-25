@@ -109,6 +109,14 @@ export class AnalyticsCollector {
     context: ToolExecutionContext,
     input?: any
   ): void {
+    // Validate user context for analytics tracking
+    if (!context.userId) {
+      logger.warn('Tool execution started without user context', {
+        toolName,
+        toolCallId,
+      });
+      return;
+    }
     const metrics: ToolExecutionMetrics = {
       toolName,
       toolCallId,
@@ -126,6 +134,7 @@ export class AnalyticsCollector {
       toolCallId,
       userId: context.userId,
       conversationId: context.conversationId,
+      sandboxId: context.sandboxId,
     });
   }
 
@@ -163,6 +172,8 @@ export class AnalyticsCollector {
       executionTimeMs,
       inputSize: metrics.inputSize,
       outputSize: metrics.outputSize,
+      userId: metrics.userId,
+      conversationId: metrics.conversationId,
     });
   }
 
@@ -202,6 +213,8 @@ export class AnalyticsCollector {
       errorType,
       errorMessage,
       errorDetails,
+      userId: metrics.userId,
+      conversationId: metrics.conversationId,
     });
   }
 
@@ -236,6 +249,8 @@ export class AnalyticsCollector {
    * Get analytics for multiple tools
    */
   getAnalytics(options: AnalyticsQueryOptions = {}): ToolAnalytics[] {
+    // Note: In a production system, this would filter by user permissions
+    // For now, we return all analytics but this should be secured
     let analytics = Array.from(this.aggregatedAnalytics.values());
 
     // Filter by tool names if specified
@@ -294,7 +309,7 @@ export class AnalyticsCollector {
   }
 
   /**
-   * Get overall system analytics
+   * Get overall system analytics (admin only)
    */
   getSystemAnalytics(): {
     totalExecutions: number;
@@ -511,6 +526,155 @@ export class AnalyticsCollector {
   }
 
   /**
+   * Get user-specific analytics
+   */
+  getUserAnalytics(
+    userId: string,
+    _options: AnalyticsQueryOptions = {}
+  ): ToolAnalytics[] {
+    if (!userId) {
+      return [];
+    }
+
+    // Filter analytics by user ID
+    const userMetrics = Array.from(this.executionMetrics.values()).filter(
+      metric => metric.userId === userId
+    );
+
+    // Build user-specific analytics
+    const userAnalytics = new Map<string, ToolAnalytics>();
+
+    for (const metric of userMetrics) {
+      const toolName = metric.toolName;
+      let analytics = userAnalytics.get(toolName);
+
+      if (!analytics) {
+        analytics = {
+          toolName,
+          totalExecutions: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          successRate: 0,
+          averageExecutionTime: 0,
+          totalExecutionTime: 0,
+          errorPatterns: [],
+          usagePatterns: [],
+          performanceMetrics: {
+            minExecutionTime: 0,
+            maxExecutionTime: 0,
+            p50ExecutionTime: 0,
+            p95ExecutionTime: 0,
+            p99ExecutionTime: 0,
+          },
+        };
+        userAnalytics.set(toolName, analytics);
+      }
+
+      analytics.totalExecutions++;
+      if (metric.success) {
+        analytics.successfulExecutions++;
+      } else {
+        analytics.failedExecutions++;
+      }
+
+      if (metric.executionTimeMs !== undefined) {
+        analytics.totalExecutionTime += metric.executionTimeMs;
+      }
+    }
+
+    // Calculate derived metrics
+    for (const analytics of userAnalytics.values()) {
+      analytics.successRate =
+        analytics.totalExecutions > 0
+          ? (analytics.successfulExecutions / analytics.totalExecutions) * 100
+          : 0;
+      analytics.averageExecutionTime =
+        analytics.totalExecutions > 0
+          ? analytics.totalExecutionTime / analytics.totalExecutions
+          : 0;
+    }
+
+    return Array.from(userAnalytics.values());
+  }
+
+  /**
+   * Get user usage statistics
+   */
+  getUserUsageStats(userId: string): {
+    totalToolExecutions: number;
+    successfulExecutions: number;
+    failedExecutions: number;
+    averageExecutionTime: number;
+    mostUsedTools: Array<{ toolName: string; count: number }>;
+    recentActivity: Array<{ date: string; executionCount: number }>;
+  } {
+    if (!userId) {
+      return {
+        totalToolExecutions: 0,
+        successfulExecutions: 0,
+        failedExecutions: 0,
+        averageExecutionTime: 0,
+        mostUsedTools: [],
+        recentActivity: [],
+      };
+    }
+
+    const userMetrics = Array.from(this.executionMetrics.values()).filter(
+      metric => metric.userId === userId
+    );
+
+    const totalExecutions = userMetrics.length;
+    const successfulExecutions = userMetrics.filter(m => m.success).length;
+    const failedExecutions = totalExecutions - successfulExecutions;
+
+    const totalTime = userMetrics.reduce(
+      (sum, m) => sum + (m.executionTimeMs || 0),
+      0
+    );
+    const averageExecutionTime =
+      totalExecutions > 0 ? totalTime / totalExecutions : 0;
+
+    // Calculate most used tools
+    const toolCounts = new Map<string, number>();
+    for (const metric of userMetrics) {
+      toolCounts.set(
+        metric.toolName,
+        (toolCounts.get(metric.toolName) || 0) + 1
+      );
+    }
+
+    const mostUsedTools = Array.from(toolCounts.entries())
+      .map(([toolName, count]) => ({ toolName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // Calculate recent activity (last 7 days)
+    const recentActivity: Array<{ date: string; executionCount: number }> = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const dayExecutions = userMetrics.filter(m => {
+        const metricDate = m.startTime.toISOString().split('T')[0];
+        return metricDate === dateStr;
+      }).length;
+
+      recentActivity.push({ date: dateStr, executionCount: dayExecutions });
+    }
+
+    return {
+      totalToolExecutions: totalExecutions,
+      successfulExecutions,
+      failedExecutions,
+      averageExecutionTime,
+      mostUsedTools,
+      recentActivity,
+    };
+  }
+
+  /**
    * Clear all analytics data (for testing)
    */
   clearAnalytics(): void {
@@ -521,7 +685,7 @@ export class AnalyticsCollector {
   }
 
   /**
-   * Get analytics statistics
+   * Get analytics statistics (admin only)
    */
   getStats(): {
     activeExecutions: number;

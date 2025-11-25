@@ -2,14 +2,20 @@ import Docker from 'dockerode';
 import { PassThrough } from 'stream';
 import { logger } from '../lib/logger';
 import { SandboxProvisioningService } from './sandboxProvisioning';
+import {
+  ALLOWED_SANDBOX_COMMANDS,
+  BLOCKED_COMMAND_PATTERNS,
+} from '../config/sandboxSecurity.js';
 
 export interface ShellCommandRequest {
   sandboxId: string;
   command: string;
   args?: string[];
+  stdin?: string; // Input stream for the command
   workingDir?: string;
   timeout?: number; // seconds
   env?: Record<string, string>;
+  userId?: string; // For authentication and logging
 }
 
 export interface ShellCommandResponse {
@@ -31,101 +37,6 @@ export interface CommandValidationResult {
 export class SandboxShellRunner {
   private docker: Docker;
   private sandboxService: SandboxProvisioningService;
-
-  // Security: Allowed commands for sandbox execution
-  private readonly allowedCommands = new Set([
-    // File operations
-    'ls',
-    'cat',
-    'head',
-    'tail',
-    'find',
-    'grep',
-    'wc',
-    'sort',
-    'uniq',
-    'mkdir',
-    'rmdir',
-    'rm',
-    'cp',
-    'mv',
-    'touch',
-    'chmod',
-    'chown',
-    'test', // Phase 3.5: File/directory existence checks
-    'stat', // Phase 3.5: File metadata
-    'tee', // Phase 3.5: Write files (for containerFilesystem)
-
-    // Text processing and search
-    'sed',
-    'awk',
-    'cut',
-    'tr',
-    'diff',
-    'patch',
-    'rg', // ripgrep - for fast file searching and globbing
-
-    // Development tools
-    'npm',
-    'node',
-    'git',
-    'curl',
-    'wget',
-
-    // Build tools
-    'vite',
-    'tsc',
-    'eslint',
-    'prettier',
-
-    // System info (safe)
-    'pwd',
-    'whoami',
-    'id',
-    'uname',
-    'date',
-    'echo',
-
-    // Process management (limited)
-    'ps',
-    'kill',
-    'killall',
-  ]);
-
-  // Security: Dangerous command patterns to block
-  private readonly blockedPatterns = [
-    /sudo/i,
-    /^su\s/i, // Only block 'su ' at start of command
-    /\ssu\s/i, // Or 'su ' in the middle (not in file paths)
-    /passwd/i,
-    /adduser/i,
-    /deluser/i,
-    /mount/i,
-    /umount/i,
-    /iptables/i,
-    /netstat/i,
-    /^ss\s/i, // Only block 'ss ' at start of command (the network tool)
-    /^nc\s/i, // Only block 'nc ' at start
-    /\snc\s/i, // Or 'nc ' in the middle
-    /netcat/i,
-    /telnet/i,
-    /ssh/i,
-    /scp/i,
-    /rsync/i,
-    /docker/i,
-    /systemctl/i,
-    /service/i,
-    /crontab/i,
-    /^at\s/i, // Only block 'at ' at start
-    /batch/i,
-    /nohup/i,
-    /screen/i,
-    /tmux/i,
-    />&/, // Redirection that could be dangerous
-    /\|&/, // Pipe with stderr
-    /;.*rm\s+-rf/i, // Dangerous rm commands
-    /rm\s+-rf\s+\//i, // Root deletion attempts
-  ];
 
   private readonly defaultTimeout = 30; // 30 seconds
   private readonly maxTimeout = 300; // 5 minutes
@@ -201,8 +112,9 @@ export class SandboxShellRunner {
         ],
         AttachStdout: true,
         AttachStderr: true,
-        AttachStdin: false,
+        AttachStdin: !!request.stdin, // Enable stdin only if provided
         Tty: false,
+        User: '1000:1000', // Match container user for consistency
         WorkingDir: workingDir,
         Env: request.env
           ? Object.entries(request.env).map(([k, v]) => `${k}=${v}`)
@@ -215,6 +127,7 @@ export class SandboxShellRunner {
           cmd: execOptions.Cmd,
           workingDir: execOptions.WorkingDir,
           timeout,
+          hasStdin: !!request.stdin,
         }
       );
 
@@ -229,10 +142,15 @@ export class SandboxShellRunner {
         'SandboxShellRunner.executeCommand - Executing with timeout',
         {
           timeout,
+          hasStdin: !!request.stdin,
         }
       );
 
-      const result = await this.executeWithTimeout(exec, timeout);
+      const result = await this.executeWithTimeout(
+        exec,
+        timeout,
+        request.stdin
+      );
 
       const executionTime = Date.now() - startTime;
 
@@ -286,7 +204,7 @@ export class SandboxShellRunner {
     args?: string[]
   ): CommandValidationResult {
     // Check if command is in allowed list
-    if (!this.allowedCommands.has(command)) {
+    if (!ALLOWED_SANDBOX_COMMANDS.has(command)) {
       return {
         allowed: false,
         reason: `Command '${command}' is not in the allowed list`,
@@ -295,7 +213,7 @@ export class SandboxShellRunner {
 
     // Check for dangerous patterns in command
     const fullCommand = `${command} ${(args || []).join(' ')}`;
-    for (const pattern of this.blockedPatterns) {
+    for (const pattern of BLOCKED_COMMAND_PATTERNS) {
       if (pattern.test(fullCommand)) {
         return {
           allowed: false,
@@ -308,14 +226,31 @@ export class SandboxShellRunner {
     const sanitizedArgs = args?.map(arg => this.sanitizeArgument(arg)) || [];
 
     // Additional validation for specific commands
-    if (
-      command === 'rm' &&
-      sanitizedArgs.some(arg => arg.includes('-rf') && arg.includes('/'))
-    ) {
-      return {
-        allowed: false,
-        reason: 'Dangerous rm command detected',
-      };
+    if (command === 'rm') {
+      // Check for dangerous rm operations
+      const hasRf = sanitizedArgs.some(
+        arg => arg.includes('-rf') || arg.includes('-fr')
+      );
+      const paths = sanitizedArgs.filter(arg => !arg.startsWith('-'));
+
+      // Block rm -rf / or rm -rf /* or any root-level deletion
+      if (
+        hasRf &&
+        paths.some(p => p === '/' || p.startsWith('/*') || p === '/*')
+      ) {
+        return {
+          allowed: false,
+          reason: 'Dangerous rm command: Cannot delete root directory',
+        };
+      }
+
+      // Block rm outside /workspace
+      if (paths.some(p => p.startsWith('/') && !p.startsWith('/workspace'))) {
+        return {
+          allowed: false,
+          reason: 'rm operations are only allowed within /workspace directory',
+        };
+      }
     }
 
     if (command === 'chmod' && sanitizedArgs.some(arg => arg.includes('777'))) {
@@ -348,18 +283,26 @@ export class SandboxShellRunner {
    */
   private async executeWithTimeout(
     exec: Docker.Exec,
-    timeoutSeconds: number
+    timeoutSeconds: number,
+    stdin?: string
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       let stdout = '';
       let stderr = '';
       let exitCode = 0;
       let finished = false;
+      const commandStartTime = Date.now(); // Track when command actually starts
 
       // Set up timeout
       const timeoutHandle = setTimeout(() => {
         if (!finished) {
           finished = true;
+          logger.warn('SandboxShellRunner - Command timed out', {
+            timeoutSeconds,
+            bytesReceived: stdout.length + stderr.length,
+            stdoutPreview: stdout.substring(0, 500),
+            stderrPreview: stderr.substring(0, 500),
+          });
           reject(
             new Error(`Command timed out after ${timeoutSeconds} seconds`)
           );
@@ -367,7 +310,7 @@ export class SandboxShellRunner {
       }, timeoutSeconds * 1000);
 
       // Start execution
-      exec.start({ hijack: true, stdin: false }, (err, stream) => {
+      exec.start({ hijack: true, stdin: !!stdin }, (err, stream) => {
         if (err) {
           clearTimeout(timeoutHandle);
           if (!finished) {
@@ -386,20 +329,58 @@ export class SandboxShellRunner {
           return;
         }
 
+        // If stdin is provided, write it to the stream
+        if (stdin) {
+          stream.write(stdin);
+          stream.end();
+        }
+
         // Demultiplex stdout and stderr
         const stdoutStream = new PassThrough();
         const stderrStream = new PassThrough();
 
         this.docker.modem.demuxStream(stream, stdoutStream, stderrStream);
 
+        // Track progress for long-running commands
+        let lastLogTime = Date.now();
+        let totalBytesReceived = 0;
+        const logInterval = 5000; // Log every 5 seconds
+
         // Collect stdout
         stdoutStream.on('data', (chunk: Buffer) => {
           stdout += chunk.toString();
+          totalBytesReceived += chunk.length;
+
+          // Log progress every 5 seconds to show command is still running
+          const now = Date.now();
+          if (now - lastLogTime > logInterval) {
+            const elapsedSeconds = Math.floor((now - commandStartTime) / 1000);
+            logger.info('SandboxShellRunner - Command progress', {
+              elapsedSeconds,
+              timeoutSeconds,
+              percentComplete: Math.floor(
+                (elapsedSeconds / timeoutSeconds) * 100
+              ),
+              bytesReceived: totalBytesReceived,
+              stdoutLines: stdout.split('\n').length,
+              lastOutput: chunk.toString().substring(0, 200),
+            });
+            lastLogTime = now;
+          }
         });
 
         // Collect stderr
         stderrStream.on('data', (chunk: Buffer) => {
           stderr += chunk.toString();
+          totalBytesReceived += chunk.length;
+
+          // Log stderr output immediately as it often contains progress info
+          const stderrChunk = chunk.toString();
+          if (stderrChunk.trim().length > 0) {
+            logger.info('SandboxShellRunner - stderr output', {
+              output: stderrChunk.substring(0, 300),
+            });
+          }
         });
 
         // Handle stream end
@@ -413,6 +394,16 @@ export class SandboxShellRunner {
                 reject(err);
               } else {
                 exitCode = data?.ExitCode || 0;
+                const totalElapsedSeconds = Math.floor(
+                  (Date.now() - commandStartTime) / 1000
+                );
+                logger.info('SandboxShellRunner - Command completed', {
+                  exitCode,
+                  totalElapsedSeconds,
+                  totalBytesReceived,
+                  stdoutLines: stdout.split('\n').length,
+                  stderrLines: stderr.split('\n').length,
+                });
                 resolve({ stdout, stderr, exitCode });
               }
             }

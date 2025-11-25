@@ -7,12 +7,30 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { logger } from '../lib/logger.js';
 import { toolRegistry } from '../services/toolRegistry.js';
+import { conversationStateManager } from '../services/agentic/index.js';
 import { containerFilesystem } from './container-filesystem.js';
 import { calculateReplacement } from './utils/text-replacement.js';
-import {
-  isBinaryFile,
-  processFileContent,
-} from './utils/file-reading.js';
+import { isBinaryFile, processFileContent } from './utils/file-reading.js';
+import { normalizeEscapeSequences } from './utils/content-normalizer.js';
+import { checkContentStaleness, hashContent } from './utils/content-hash.js';
+
+// Import GitHub sync service for auto-commit functionality
+let githubSyncService: any = null;
+async function getGitHubSyncService() {
+  if (!githubSyncService) {
+    try {
+      const { getGitHubSyncService: getService } = await import(
+        '../services/githubSync.js'
+      );
+      githubSyncService = getService();
+    } catch (error) {
+      logger.warn('GitHub sync service not available', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return githubSyncService;
+}
 
 /**
  * File entry returned by list_directory tool
@@ -139,12 +157,14 @@ const listDirectoryTool: EnhancedToolDefinition = {
       // Phase 3.5: Check if directory exists INSIDE CONTAINER
       const isDir = await containerFilesystem.isDirectory(
         context.sandboxId!,
-        dirPath
+        dirPath,
+        context.userId
       );
       if (!isDir) {
         const exists = await containerFilesystem.exists(
           context.sandboxId!,
-          dirPath
+          dirPath,
+          context.userId
         );
         if (!exists) {
           return {
@@ -171,7 +191,8 @@ const listDirectoryTool: EnhancedToolDefinition = {
       // Phase 3.5: Read directory contents from container
       const containerEntries = await containerFilesystem.listDirectory(
         context.sandboxId!,
-        dirPath
+        dirPath,
+        context.userId
       );
 
       if (containerEntries.length === 0) {
@@ -385,13 +406,15 @@ const readFileTool: EnhancedToolDefinition = {
       // Phase 3.5: Check if file exists INSIDE CONTAINER
       const isFile = !(await containerFilesystem.isDirectory(
         context.sandboxId!,
-        filePath
+        filePath,
+        context.userId
       ));
 
       if (!isFile) {
         const exists = await containerFilesystem.exists(
           context.sandboxId!,
-          filePath
+          filePath,
+          context.userId
         );
         if (!exists) {
           return {
@@ -418,7 +441,8 @@ const readFileTool: EnhancedToolDefinition = {
       // Get file information
       const fileSize = await containerFilesystem.getFileSize(
         context.sandboxId!,
-        filePath
+        filePath,
+        context.userId
       );
       const isBinary = isBinaryFile(filePath);
 
@@ -430,7 +454,8 @@ const readFileTool: EnhancedToolDefinition = {
         fileContent = await containerFilesystem.readFile(
           context.sandboxId!,
           filePath,
-          encoding
+          encoding,
+          context.userId
         );
       } catch (error) {
         return {
@@ -480,6 +505,34 @@ const readFileTool: EnhancedToolDefinition = {
         userMessage = `File content truncated. Showing lines ${start}-${end} of ${result.totalLines} total lines.`;
       } else {
         userMessage = `Successfully read file: ${fileName} (${result.totalLines} lines, ${fileSize} bytes)`;
+      }
+
+      // Track file hash for read-before-edit enforcement
+      if (!isBinary && context.conversationId) {
+        try {
+          const fileHash = hashContent(fileContent);
+          const state = conversationStateManager.getConversationState(
+            context.conversationId
+          );
+          const readFiles = state?.readFiles || {};
+          readFiles[filePath] = fileHash;
+          await conversationStateManager.updateConversationState(
+            context.conversationId,
+            { readFiles }
+          );
+
+          logger.debug('Tracked file hash for read-before-edit', {
+            filePath,
+            hash: fileHash.substring(0, 16) + '...',
+            conversationId: context.conversationId,
+          });
+        } catch (error) {
+          // Don't fail the read operation if hash tracking fails
+          logger.warn('Failed to track file hash', {
+            error: error instanceof Error ? error.message : String(error),
+            filePath,
+          });
+        }
       }
 
       return {
@@ -590,9 +643,9 @@ const writeFileTool: EnhancedToolDefinition = {
   name: 'write_file',
   displayName: 'WriteFile',
   description:
-    'Writes content to a specified file in the local filesystem. The user has the ability to modify content. If modified, this will be stated in the response.',
+    'Writes content to a specified file in the local filesystem. By default, this tool will FAIL if the file already exists to prevent accidental overwrites. Use the replace tool for editing existing files, or set allow_overwrite=true to explicitly overwrite. The user has the ability to modify content. If modified, this will be stated in the response.',
   userDescription:
-    'create a new file or completely replace the contents of an existing file',
+    'create a new file (fails if file exists unless allow_overwrite is true)',
   category: ToolCategory.FILE_SYSTEM,
   safetyLevel: 'potentially_destructive', // Writing files can overwrite existing content
   inputSchema: z.object({
@@ -601,13 +654,24 @@ const writeFileTool: EnhancedToolDefinition = {
       .describe(
         "The absolute path to the file to write to (e.g., '/home/user/project/file.txt'). Relative paths are not supported."
       ),
-    content: z.string().describe('The content to write to the file.'),
+    content: z
+      .string()
+      .describe(
+        'The content to write to the file. IMPORTANT: Write properly formatted code with actual newlines, not \\n escape sequences. Code should be formatted as it would appear in a code editor with proper indentation.'
+      ),
+    allow_overwrite: z
+      .boolean()
+      .optional()
+      .describe(
+        'Optional: Set to true to allow overwriting an existing file. Defaults to false. If false and file exists, the tool will fail with an error. Use the replace tool for precise edits instead of overwriting.'
+      ),
   }),
 
   async execute(
     input: {
       file_path: string;
       content: string;
+      allow_overwrite?: boolean;
     },
     context: ToolExecutionContext
   ) {
@@ -618,11 +682,29 @@ const writeFileTool: EnhancedToolDefinition = {
         return sandboxError;
       }
 
-      const { file_path: filePath, content } = input;
+      // eslint-disable-next-line camelcase
+      const { file_path: filePath, content, allow_overwrite = false } = input;
+
+      // Validate content is not null/undefined
+      if (content === null || content === undefined) {
+        return {
+          success: false,
+          userFeedback:
+            'Content cannot be null or undefined. Please provide valid file content.',
+          previewRefreshNeeded: false,
+          technicalDetails: {
+            error: 'Invalid content parameter',
+            receivedType: typeof content,
+            receivedValue: content,
+          },
+        };
+      }
 
       logger.info('File write requested', {
         path: filePath,
         contentLength: content.length,
+        // eslint-disable-next-line camelcase
+        allowOverwrite: allow_overwrite,
         toolCallId: context.toolCallId,
         sandboxId: context.sandboxId,
       });
@@ -646,7 +728,8 @@ const writeFileTool: EnhancedToolDefinition = {
 
       const isDir = await containerFilesystem.isDirectory(
         context.sandboxId!,
-        filePath
+        filePath,
+        context.userId
       );
 
       if (isDir) {
@@ -661,19 +744,38 @@ const writeFileTool: EnhancedToolDefinition = {
         };
       }
 
-      // File exists check
+      // Phase 3.5: ALWAYS read file before writing to check existence
+      // This implements the "read before write" pattern from Gemini's edit.ts
       const fileExists = await containerFilesystem.exists(
         context.sandboxId!,
-        filePath
+        filePath,
+        context.userId
       );
 
       if (fileExists) {
-        // File exists, read current content for diff
+        // File exists - check if overwrite is allowed
+        // eslint-disable-next-line camelcase
+        if (!allow_overwrite) {
+          return {
+            success: false,
+            userFeedback: `File already exists: ${filePath}. Cannot overwrite without allow_overwrite=true. Use the replace tool for precise edits instead.`,
+            previewRefreshNeeded: false,
+            technicalDetails: {
+              error: 'File already exists, cannot overwrite',
+              path: filePath,
+              suggestion:
+                'Use the replace tool for editing existing files, or set allow_overwrite=true to explicitly overwrite',
+            },
+          };
+        }
+
+        // File exists and overwrite is allowed - read current content for diff
         try {
           originalContent = await containerFilesystem.readFile(
             context.sandboxId!,
             filePath,
-            'utf8'
+            'utf8',
+            context.userId
           );
         } catch (readError) {
           // File exists but can't read it (binary file or permission issue)
@@ -687,7 +789,12 @@ const writeFileTool: EnhancedToolDefinition = {
       // Phase 3.5: Create directory if it doesn't exist INSIDE CONTAINER
       const dirName = path.dirname(filePath);
       try {
-        await containerFilesystem.mkdir(context.sandboxId!, dirName);
+        await containerFilesystem.mkdir(
+          context.sandboxId!,
+          dirName,
+          true,
+          context.userId
+        );
       } catch (error) {
         return {
           success: false,
@@ -700,12 +807,57 @@ const writeFileTool: EnhancedToolDefinition = {
         };
       }
 
+      // Normalize escape sequences from LLM-generated content
+      const normalizedContent = normalizeEscapeSequences(content, {
+        toolName: 'write_file',
+        filePath,
+      });
+
+      // Phase 4: CRITICAL - Check if file content is still fresh before overwriting
+      // Only check for overwrites (not new files)
+      // This prevents race conditions where file is modified between read and write
+      if (!isNewFile && originalContent !== '[Binary or unreadable content]') {
+        const staleCheck = await checkContentStaleness(
+          originalContent,
+          async () =>
+            containerFilesystem.readFile(
+              context.sandboxId!,
+              filePath,
+              'utf8',
+              context.userId
+            )
+        );
+
+        if (staleCheck.isStale) {
+          const errorMessage = staleCheck.error
+            ? `File cannot be overwritten because it could not be re-read: ${staleCheck.error}`
+            : 'File has been modified since it was read. The content has changed and overwriting it would lose those changes. Please use read_file to review the latest content first.';
+
+          return {
+            success: false,
+            userFeedback: errorMessage,
+            previewRefreshNeeded: false,
+            technicalDetails: {
+              error: 'File content is stale',
+              path: filePath,
+              initialHash: staleCheck.initialHash,
+              currentHash: staleCheck.currentHash,
+              message:
+                'File was modified between read and write operations. Overwriting would cause data loss.',
+              suggestion:
+                'Use read_file to get the latest content, review changes, then decide to overwrite or use replace tool for precise edits.',
+            },
+          };
+        }
+      }
+
       // Phase 3.5: Write the file INSIDE CONTAINER
       try {
         await containerFilesystem.writeFile(
           context.sandboxId!,
           filePath,
-          content
+          normalizedContent,
+          context.userId
         );
       } catch (error) {
         return {
@@ -721,15 +873,61 @@ const writeFileTool: EnhancedToolDefinition = {
 
       // Generate diff for display
       const fileName = path.basename(filePath);
-      const fileDiff = createSimpleDiff(originalContent, content, fileName);
+      const fileDiff = createSimpleDiff(
+        originalContent,
+        normalizedContent,
+        fileName
+      );
 
       const successMessage = isNewFile
         ? `Successfully created and wrote to new file: ${filePath}.`
         : `Successfully overwrote file: ${filePath}.`;
 
       const userMessage = isNewFile
-        ? `Created new file: ${fileName} with ${content.split('\n').length} lines`
-        : `Updated file: ${fileName} with ${content.split('\n').length} lines`;
+        ? `Created new file: ${fileName} with ${normalizedContent.split('\n').length} lines`
+        : `Overwrote file: ${fileName} with ${normalizedContent.split('\n').length} lines (allow_overwrite=true)`;
+
+      // Trigger auto-commit to GitHub (non-blocking, background operation)
+      logger.info('Checking GitHub auto-commit conditions', {
+        hasLandingPageId: !!context.landingPageId,
+        landingPageId: context.landingPageId,
+        userId: context.userId,
+        filePath,
+      });
+
+      if (context.landingPageId) {
+        try {
+          logger.info('Attempting to get GitHub sync service', {
+            landingPageId: context.landingPageId,
+          });
+          const githubSync = await getGitHubSyncService();
+          if (githubSync) {
+            logger.info('GitHub sync service obtained, calling autoCommit', {
+              landingPageId: context.landingPageId,
+              filePath,
+            });
+            // Fire-and-forget: auto-commit in background
+            githubSync
+              .autoCommit(
+                context.landingPageId,
+                context.userId,
+                filePath,
+                normalizedContent
+              )
+              .catch((error: Error) => {
+                logger.warn('Failed to auto-commit file changes', {
+                  landingPageId: context.landingPageId,
+                  filePath,
+                  error: error.message,
+                });
+              });
+          }
+        } catch (error) {
+          logger.debug('GitHub sync not available for auto-commit', {
+            landingPageId: context.landingPageId,
+          });
+        }
+      }
 
       return {
         success: true,
@@ -800,8 +998,41 @@ const writeFileTool: EnhancedToolDefinition = {
 const replaceTool: EnhancedToolDefinition = {
   name: 'replace',
   displayName: 'Edit',
-  description:
-    "Replaces text within a file. By default, replaces a single occurrence, but can replace multiple occurrences when expected_replacements is specified. This tool requires providing significant context around the change to ensure precise targeting. Always use the read_file tool to examine the file's current content before attempting a text replacement.",
+  description: `Replaces text within a file. By default, replaces a single occurrence, but can replace multiple occurrences when expected_replacements is specified. This tool requires providing significant context around the change to ensure precise targeting. Always use the read_file tool to examine the file's current content before attempting a text replacement.
+
+Expectations for required parameters:
+1. file_path MUST be an absolute path; otherwise an error will be thrown.
+2. old_string MUST be the exact literal text to replace (including all whitespace, indentation, newlines, and surrounding code). The tool automatically normalizes escape sequences (\\n → newline, \\t → tab), so you can use either escaped or unescaped strings.
+3. new_string MUST be the exact literal text to replace old_string with (also including all whitespace, indentation, newlines, and surrounding code). Ensure the resulting code is correct and idiomatic.
+
+**Important:** If the above are not satisfied, the tool will fail. CRITICAL for old_string: Must uniquely identify the text to change. For single replacements, include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. If this string matches multiple locations or does not match exactly, the tool will fail with a detailed error message.
+
+**Multiple replacements:** Set expected_replacements to the number of occurrences you want to replace. The tool will replace ALL occurrences that match old_string exactly. The number of actual occurrences must match your expectation or the tool will fail.
+
+**JSX/HTML Structure Guidelines:**
+When replacing JSX/HTML content, ensure no orphaned tags remain after replacement.
+
+✅ SAFE partial edits:
+- Attribute updates: <div className="old"> → <div className="new">
+- Single-line elements: <h1>Old Title</h1> → <h1>New Title</h1>
+- Tag name changes (same line): <div>content</div> → <section>content</section>
+
+⚠️ REQUIRES complete structure (opening to closing tag):
+- Multi-line elements where opening and closing tags are separated
+- Replacing an opening tag with a different structure/nesting
+- When old_string opens tags but doesn't close them
+
+**Key principle:** If old_string contains an opening tag (e.g., <div>) but NOT its closing tag (</div>), ensure the file remains valid after replacement.
+
+**Example - WRONG (creates orphaned tags):**
+old_string: '<div className="hero">'  // Opens but doesn't close
+new_string: '<section className="hero">\\n  <NewComponent />\\n</section>'
+Result: Original content and </div> become orphaned
+
+**Example - RIGHT (complete structure):**
+old_string: '<div className="hero">\\n  <h1>Title</h1>\\n</div>'
+new_string: '<section className="hero">\\n  <NewComponent />\\n</section>'
+Result: Clean replacement, no orphaned tags`,
   userDescription:
     'make precise edits to existing files by replacing specific text',
   category: ToolCategory.FILE_SYSTEM,
@@ -847,12 +1078,17 @@ const replaceTool: EnhancedToolDefinition = {
         return sandboxError;
       }
 
-      const {
-        file_path: filePath,
-        old_string: oldString,
-        new_string: newString,
-        expectedReplacements = 1,
-      } = input;
+      const { file_path: filePath, expectedReplacements = 1 } = input;
+
+      // Normalize escape sequences in both old and new strings
+      const oldString = normalizeEscapeSequences(input.old_string, {
+        toolName: 'replace',
+        filePath,
+      });
+      const newString = normalizeEscapeSequences(input.new_string, {
+        toolName: 'replace',
+        filePath,
+      });
 
       logger.info('Text replacement requested', {
         path: filePath,
@@ -884,17 +1120,60 @@ const replaceTool: EnhancedToolDefinition = {
       try {
         fileExists = await containerFilesystem.exists(
           context.sandboxId!,
-          filePath
+          filePath,
+          context.userId
         );
 
         if (fileExists) {
           currentContent = await containerFilesystem.readFile(
             context.sandboxId!,
             filePath,
-            'utf8'
+            'utf8',
+            context.userId
           );
           // Normalize line endings to LF for consistent processing
           currentContent = currentContent.replace(/\r\n/g, '\n');
+
+          // ✅ VALIDATION: Enforce read-before-edit pattern
+          if (context.conversationId) {
+            const state = conversationStateManager.getConversationState(
+              context.conversationId
+            );
+            const readFiles = state?.readFiles;
+
+            // Check if file was read before attempting edit
+            if (!readFiles || !(filePath in readFiles)) {
+              return {
+                success: false,
+                userFeedback: `Failed to edit ${path.basename(filePath)}. You must read the file first with read_file before making edits. This ensures you're working with current content.`,
+                previewRefreshNeeded: false,
+                technicalDetails: {
+                  error: 'File not read before edit',
+                  path: filePath,
+                  suggestion: `Use read_file with path: ${filePath}`,
+                },
+              };
+            }
+
+            // Check if file content has changed since it was read
+            const previousHash = readFiles[filePath];
+            const currentHash = hashContent(currentContent);
+
+            if (previousHash !== currentHash) {
+              return {
+                success: false,
+                userFeedback: `Failed to edit ${path.basename(filePath)}. The file has been modified since you last read it. Please re-read the file with read_file to get the latest content before editing.`,
+                previewRefreshNeeded: false,
+                technicalDetails: {
+                  error: 'File content changed since read',
+                  path: filePath,
+                  previousHash: previousHash?.substring(0, 16) + '...',
+                  currentHash: currentHash.substring(0, 16) + '...',
+                  suggestion: `Re-read file with read_file: ${filePath}`,
+                },
+              };
+            }
+          }
         } else {
           // File doesn't exist - check if this is a new file creation
           isNewFile = oldString === '';
@@ -937,10 +1216,10 @@ const replaceTool: EnhancedToolDefinition = {
       if (!replacementResult.success) {
         return {
           success: false,
-          userFeedback: replacementResult.error!.message,
+          userFeedback: replacementResult.error!.display,
           previewRefreshNeeded: false,
           technicalDetails: {
-            error: replacementResult.error!.message,
+            error: replacementResult.error!.raw,
             errorCode: replacementResult.error!.code,
             path: filePath,
             ...replacementResult.error!.details,
@@ -951,10 +1230,53 @@ const replaceTool: EnhancedToolDefinition = {
       // Validation succeeded - safe to proceed with file write
       const { newContent, occurrences } = replacementResult;
 
+      // Phase 4: CRITICAL - Check if file content is still fresh before writing
+      // This prevents race conditions where file is modified between read and write
+      // Inspired by Gemini's smart-edit.ts (lines 404-415)
+      if (fileExists && currentContent !== null) {
+        const staleCheck = await checkContentStaleness(
+          currentContent,
+          async () =>
+            containerFilesystem.readFile(
+              context.sandboxId!,
+              filePath,
+              'utf8',
+              context.userId
+            )
+        );
+
+        if (staleCheck.isStale) {
+          const errorMessage = staleCheck.error
+            ? `File cannot be modified because it could not be re-read: ${staleCheck.error}`
+            : 'File has been modified since it was read. The content has changed and your edits may be based on outdated information. Please use read_file to get the latest content and try again.';
+
+          return {
+            success: false,
+            userFeedback: errorMessage,
+            previewRefreshNeeded: false,
+            technicalDetails: {
+              error: 'File content is stale',
+              path: filePath,
+              initialHash: staleCheck.initialHash,
+              currentHash: staleCheck.currentHash,
+              message:
+                'File was modified between read and write operations. This prevents potential data loss.',
+              suggestion:
+                'Use read_file to get the latest content, then calculate new changes based on current state.',
+            },
+          };
+        }
+      }
+
       // Phase 3.5: Create directory if needed INSIDE CONTAINER
       const dirName = path.dirname(filePath);
       try {
-        await containerFilesystem.mkdir(context.sandboxId!, dirName);
+        await containerFilesystem.mkdir(
+          context.sandboxId!,
+          dirName,
+          true,
+          context.userId
+        );
       } catch (error) {
         return {
           success: false,
@@ -972,7 +1294,8 @@ const replaceTool: EnhancedToolDefinition = {
         await containerFilesystem.writeFile(
           context.sandboxId!,
           filePath,
-          newContent
+          newContent,
+          context.userId
         );
       } catch (error) {
         return {
@@ -984,6 +1307,34 @@ const replaceTool: EnhancedToolDefinition = {
             path: filePath,
           },
         };
+      }
+
+      // Update file hash after successful write
+      if (context.conversationId) {
+        try {
+          const newHash = hashContent(newContent);
+          const state = conversationStateManager.getConversationState(
+            context.conversationId
+          );
+          const readFiles = state?.readFiles || {};
+          readFiles[filePath] = newHash;
+          await conversationStateManager.updateConversationState(
+            context.conversationId,
+            { readFiles }
+          );
+
+          logger.debug('Updated file hash after edit', {
+            filePath,
+            hash: newHash.substring(0, 16) + '...',
+            conversationId: context.conversationId,
+          });
+        } catch (error) {
+          // Don't fail the operation if hash tracking fails
+          logger.warn('Failed to update file hash after edit', {
+            error: error instanceof Error ? error.message : String(error),
+            filePath,
+          });
+        }
       }
 
       // Generate diff for display
@@ -1171,7 +1522,8 @@ const searchFileContentTool: EnhancedToolDefinition = {
       // Phase 3.5: Check if search path exists INSIDE CONTAINER
       const exists = await containerFilesystem.exists(
         context.sandboxId!,
-        searchDir
+        searchDir,
+        context.userId
       );
 
       if (!exists) {
@@ -1192,7 +1544,8 @@ const searchFileContentTool: EnhancedToolDefinition = {
       try {
         const isDir = await containerFilesystem.isDirectory(
           context.sandboxId!,
-          searchDir
+          searchDir,
+          context.userId
         );
 
         if (isDir) {
@@ -1201,7 +1554,8 @@ const searchFileContentTool: EnhancedToolDefinition = {
             context.sandboxId!,
             pattern,
             searchDir,
-            include
+            include,
+            context.userId
           );
 
           // Convert container search results to SearchMatch format
@@ -1214,7 +1568,9 @@ const searchFileContentTool: EnhancedToolDefinition = {
           // Search within a single file
           const fileContent = await containerFilesystem.readFile(
             context.sandboxId!,
-            searchDir
+            searchDir,
+            'utf8',
+            context.userId
           );
 
           const lines = fileContent.split('\n');
@@ -1456,7 +1812,12 @@ const globTool: EnhancedToolDefinition = {
         return sandboxError;
       }
 
-      const { pattern, path: searchPath } = input;
+      const {
+        pattern,
+        path: searchPath,
+        caseSensitive,
+        respectGitIgnore,
+      } = input;
 
       // Validate pattern
       if (!pattern || pattern.trim() === '') {
@@ -1490,7 +1851,10 @@ const globTool: EnhancedToolDefinition = {
       const matchingFiles = await containerFilesystem.findGlob(
         context.sandboxId!,
         searchDir,
-        pattern
+        pattern,
+        context.userId,
+        caseSensitive,
+        respectGitIgnore
       );
 
       if (matchingFiles.length === 0) {

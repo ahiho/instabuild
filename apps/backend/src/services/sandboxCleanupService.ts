@@ -68,61 +68,77 @@ export class SandboxCleanupService {
         idleThreshold: idleThreshold.toISOString(),
       });
 
-      // Find idle sandboxes that should be cleaned up
-      const idleSandboxes = await prisma.conversation.findMany({
+      // Find idle projects with sandboxes
+      // A project is idle if ALL its conversations have been inactive
+      const idleProjects = await prisma.project.findMany({
         where: {
           sandboxId: {
             not: null, // Has a sandbox
           },
           sandboxStatus: 'READY', // Is currently active
-          lastAccessedAt: {
-            lt: idleThreshold, // Last accessed before threshold
-          },
         },
-        select: {
-          id: true,
-          sandboxId: true,
-          lastAccessedAt: true,
+        include: {
+          conversations: {
+            select: {
+              id: true,
+              lastAccessedAt: true,
+            },
+            orderBy: {
+              lastAccessedAt: 'desc',
+            },
+          },
         },
       });
 
-      if (idleSandboxes.length === 0) {
+      // Filter projects where the most recent conversation is idle
+      const projectsToCleanup = idleProjects.filter(project => {
+        if (project.conversations.length === 0) {
+          return true; // No conversations, should cleanup
+        }
+        // Check if the most recently accessed conversation is idle
+        const mostRecentAccess = project.conversations[0].lastAccessedAt;
+        return mostRecentAccess && mostRecentAccess < idleThreshold;
+      });
+
+      if (projectsToCleanup.length === 0) {
         logger.debug('No idle sandboxes to clean up');
         return;
       }
 
-      logger.info('Found idle sandboxes to cleanup', {
-        count: idleSandboxes.length,
+      logger.info('Found idle project sandboxes to cleanup', {
+        count: projectsToCleanup.length,
       });
 
-      // Process each idle sandbox
-      for (const conversation of idleSandboxes) {
+      // Process each idle project sandbox
+      for (const project of projectsToCleanup) {
         try {
-          // Destroy the container
-          if (conversation.sandboxId) {
-            await sandboxManager.destroySandbox(conversation.sandboxId);
+          // Destroy the container using any conversation from this project
+          if (project.sandboxId && project.conversations.length > 0) {
+            await sandboxManager.destroySandbox(project.sandboxId);
           }
 
-          // Mark conversation as failed (cleanup complete)
-          await prisma.conversation.update({
-            where: { id: conversation.id },
+          // Mark project's sandbox status as failed (cleanup complete)
+          await prisma.project.update({
+            where: { id: project.id },
             data: {
               sandboxStatus: 'FAILED',
             },
           });
 
-          logger.info('Cleaned up idle sandbox', {
-            conversationId: conversation.id,
-            sandboxId: conversation.sandboxId,
-            lastAccessedAt: conversation.lastAccessedAt?.toISOString(),
-            idleMinutes:
-              (now.getTime() - (conversation.lastAccessedAt?.getTime() || 0)) /
-              (60 * 1000),
+          const mostRecentAccess = project.conversations[0]?.lastAccessedAt;
+          logger.info('Cleaned up idle project sandbox', {
+            projectId: project.id,
+            sandboxId: project.sandboxId,
+            conversationCount: project.conversations.length,
+            lastAccessedAt: mostRecentAccess?.toISOString(),
+            idleMinutes: mostRecentAccess
+              ? (now.getTime() - mostRecentAccess.getTime()) / (60 * 1000)
+              : undefined,
           });
         } catch (error) {
-          logger.error('Failed to cleanup sandbox', {
-            conversationId: conversation.id,
-            sandboxId: conversation.sandboxId,
+          logger.error('Failed to cleanup project sandbox', {
+            projectId: project.id,
+            sandboxId: project.sandboxId,
             error: error instanceof Error ? error.message : String(error),
           });
           // Continue with next sandbox even if one fails
@@ -130,7 +146,7 @@ export class SandboxCleanupService {
       }
 
       logger.info('Sandbox cleanup check completed', {
-        cleaned: idleSandboxes.length,
+        cleaned: projectsToCleanup.length,
       });
     } catch (error) {
       logger.error('Error during sandbox cleanup', {

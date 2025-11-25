@@ -23,6 +23,7 @@
 
     "baseUrl": ".",
     "paths": {
+      "@/*": ["./apps/frontend/src/*"],
       "@instabuild/shared": ["./packages/shared/src"],
       "@instabuild/shared/*": ["./packages/shared/src/*"]
     }

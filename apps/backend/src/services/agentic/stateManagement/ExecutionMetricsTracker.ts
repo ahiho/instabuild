@@ -134,9 +134,7 @@ export class ExecutionMetricsTracker {
   /**
    * Get most used tool from execution metrics
    */
-  getMostUsedTool(
-    toolExecutions: ToolExecutionMetric[]
-  ): string | null {
+  getMostUsedTool(toolExecutions: ToolExecutionMetric[]): string | null {
     if (toolExecutions.length === 0) return null;
 
     const toolCounts = toolExecutions.reduce(

@@ -5,6 +5,7 @@ import {
   ResizableHandle,
 } from '@/components/ui/resizable';
 import { EditorLayoutProps } from '@/types/editor';
+import { AppHeader } from './AppHeader';
 
 /**
  * EditorLayout component - 2-column resizable layout for the editor page
@@ -33,10 +34,11 @@ export function EditorLayout({
   }, []);
 
   return (
-    <div className={`h-screen bg-black ${className}`}>
+    <div className={`h-screen bg-black flex flex-col ${className}`}>
+      <AppHeader />
       <ResizablePanelGroup
         direction={isMobile ? 'vertical' : 'horizontal'}
-        className="h-full"
+        className="h-full flex-1"
       >
         {/* Chat Panel - Conditionally rendered based on visibility */}
         {isChatVisible && (

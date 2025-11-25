@@ -1,17 +1,26 @@
-import { useState, useEffect } from 'react';
 import { LandingPageVersion } from '@instabuild/shared';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowRight,
-  RefreshCw,
-  PanelLeftClose,
+  Copy,
+  ExternalLink,
   PanelLeft,
+  PanelLeftClose,
+  RefreshCw,
+  Rocket,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { addMessage } from '../services/conversation';
+import { projectService } from '../services/project';
+import { DeploymentDialog } from './deployment/DeploymentDialog';
 import { VersionSelector } from './editor/VersionSelector';
+import { Button } from './ui/button';
 
 interface PreviewPanelProps {
-  pageId: string;
+  projectId?: string;
+  conversationId?: string;
   currentVersion?: LandingPageVersion;
   sandboxPublicUrl?: string;
   onToggleChat?: () => void;
@@ -19,29 +28,35 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({
-  pageId,
-  currentVersion,
+  projectId,
+  conversationId,
   sandboxPublicUrl,
   onToggleChat,
   isChatVisible = true,
 }: PreviewPanelProps) {
-  const [previewContent, setPreviewContent] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [iframeKey, setIframeKey] = useState<number>(0);
-  const [navigationHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState<number>(0);
+  const [showDeployDialog, setShowDeployDialog] = useState<boolean>(false);
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
+    console.log('[PreviewPanel] Sandbox URL updated:', sandboxPublicUrl);
+
     if (sandboxPublicUrl) {
-      // Use the actual sandbox URL for live preview
       setPreviewUrl(sandboxPublicUrl);
-    } else if (currentVersion?.sourceCode) {
-      // Fallback: Convert React component to HTML for preview if no sandbox
-      const htmlContent = convertReactToHtml(currentVersion.sourceCode);
-      setPreviewContent(htmlContent);
-      setPreviewUrl('preview://landing-page');
+      // Add to history when URL changes
+      setNavigationHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(sandboxPublicUrl);
+        return newHistory;
+      });
+      setHistoryIndex(prev => prev + 1);
+    } else {
+      setPreviewUrl('');
     }
-  }, [sandboxPublicUrl, currentVersion]);
+  }, [sandboxPublicUrl, historyIndex]);
 
   const handleReload = () => {
     setIframeKey(prev => prev + 1);
@@ -63,140 +78,208 @@ export function PreviewPanel({
     }
   };
 
-  const handleVersionChange = (versionNumber: number) => {
-    // TODO: Load the selected version
-    console.log('Version changed to:', versionNumber);
-  };
-
   const canGoBack = historyIndex > 0;
   const canGoForward = historyIndex < navigationHistory.length - 1;
 
-  const convertReactToHtml = (reactCode: string): string => {
-    // Simple conversion for MVP - in production, use proper React rendering
-    const html = reactCode
-      .replace(/import.*from.*['"].*['"];?\n?/g, '') // Remove imports
-      .replace(/export default function \w+\(\) \{/, '') // Remove function declaration
-      .replace(/return \(/, '') // Remove return statement
-      .replace(/\);?\s*\}?\s*$/, '') // Remove closing
-      .replace(/className=/g, 'class=') // Convert className to class
-      .replace(/\{`([^`]*)`\}/g, '$1') // Convert template literals
-      .replace(/\{([^}]*)\}/g, '$1'); // Convert simple expressions
+  const handleVersionChange = async (commitSha: string) => {
+    if (!projectId || !conversationId) {
+      console.error('Missing projectId or conversationId for version revert');
+      return;
+    }
 
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Preview</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-          body { margin: 0; padding: 0; }
-        </style>
-      </head>
-      <body>
-        ${html}
-        <script>
-          // Enable element selection communication
-          document.addEventListener('click', function(e) {
-            e.preventDefault();
-            const element = e.target;
-            if (element.id) {
-              window.parent.postMessage({
-                type: 'elementSelected',
-                elementId: element.id,
-                tagName: element.tagName,
-                className: element.className,
-                textContent: element.textContent
-              }, '*');
-            }
-          });
-        </script>
-      </body>
-      </html>
-    `;
+    console.log(
+      'Reverting to commit:',
+      commitSha,
+      'for conversation:',
+      conversationId
+    );
+
+    try {
+      // Call the revert API
+      const result = await projectService.revertProjectToCommit(
+        projectId,
+        commitSha,
+        conversationId
+      );
+
+      if (result.success) {
+        console.log('Successfully reverted to commit:', commitSha);
+
+        // Reload the preview iframe to show the reverted code
+        setIframeKey(prev => prev + 1);
+
+        // Invalidate queries to refresh commit history
+        queryClient.invalidateQueries({
+          queryKey: ['project-commits', projectId],
+        });
+
+        // Send system message to chat panel about the revert
+        try {
+          await addMessage(conversationId, 'system', [
+            {
+              type: 'text',
+              text: `⚠️ Project Version Reverted\n\nThe project has been reverted to commit ${commitSha.substring(0, 7)}. All files in the workspace have been reset to this version.\n\n**Important:** The previous conversation context may be stale as the code has changed. When working with files, please re-read them to get the current content.\n\nMessage: ${result.message}`,
+            },
+          ]);
+          console.log('Added revert notification message to chat');
+        } catch (messageError) {
+          console.error('Failed to add revert message to chat:', messageError);
+          // Don't fail the revert if message addition fails
+        }
+      } else {
+        console.error('Failed to revert:', result.message);
+        alert(`Failed to revert: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error reverting to commit:', error);
+      alert('An error occurred while reverting to the selected version');
+    }
+  };
+
+  const handleCopyUrl = async () => {
+    if (!previewUrl) return;
+    try {
+      await navigator.clipboard.writeText(previewUrl);
+      toast.success('URL copied to clipboard');
+    } catch (err) {
+      toast.error('Failed to copy URL to clipboard');
+      console.error('Failed to copy URL:', err);
+    }
+  };
+
+  const handleOpenInNewTab = () => {
+    if (previewUrl && previewUrl !== 'preview://landing-page') {
+      window.open(previewUrl, '_blank');
+    }
   };
 
   return (
     <div className="flex flex-col h-full">
       {/* Browser Controls */}
-      <div className="border-b border-gray-800 px-2 h-12 flex items-center">
-        <div className="flex items-center gap-2 w-full">
+      <div className="border-b border-gray-800 px-1.5 h-9 flex items-center">
+        <div className="flex items-center gap-1 w-full">
           {/* Toggle Chat Button */}
           <Button
             variant="ghost"
             size="icon"
             onClick={onToggleChat}
-            className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800"
+            className="h-6 w-6 text-gray-400 hover:text-white hover:bg-gray-800"
             aria-label={isChatVisible ? 'Hide chat panel' : 'Show chat panel'}
           >
             {isChatVisible ? (
-              <PanelLeftClose className="h-4 w-4" />
+              <PanelLeftClose className="h-3 w-3" />
             ) : (
-              <PanelLeft className="h-4 w-4" />
+              <PanelLeft className="h-3 w-3" />
             )}
           </Button>
 
           {/* Navigation Buttons */}
-          <div className="flex gap-1">
+          <div className="flex gap-0.5">
             <Button
               variant="ghost"
               size="icon"
               onClick={handleBack}
               disabled={!canGoBack}
-              className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="h-6 w-6 text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
               aria-label="Go back"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3 w-3" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleForward}
               disabled={!canGoForward}
-              className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="h-6 w-6 text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
               aria-label="Go forward"
             >
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3 w-3" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleReload}
-              className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800"
+              className="h-6 w-6 text-gray-400 hover:text-white hover:bg-gray-800"
               aria-label="Reload"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3 w-3" />
             </Button>
           </div>
 
           {/* URL Bar */}
-          <div className="flex-1">
+          <div className="flex-1 relative h-6">
             <input
               type="text"
               value={previewUrl}
               onChange={e => setPreviewUrl(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-700 text-gray-300 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gray-600"
+              className="w-full bg-gray-800/50 border border-gray-700 text-gray-300 text-xs rounded px-2 py-0.5 pr-12 focus:outline-none focus:ring-1 focus:ring-gray-600 h-full"
               readOnly
             />
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+              <button
+                onClick={handleCopyUrl}
+                disabled={!previewUrl}
+                className="p-0.5 text-gray-500 hover:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Copy URL"
+                title="Copy URL"
+                type="button"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+              <button
+                onClick={handleOpenInNewTab}
+                disabled={
+                  !previewUrl || previewUrl === 'preview://landing-page'
+                }
+                className="p-0.5 text-gray-500 hover:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Open in new tab"
+                title="Open in new tab"
+                type="button"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </button>
+            </div>
           </div>
 
           {/* Version Selector */}
-          <VersionSelector
-            pageId={pageId}
-            currentVersionNumber={currentVersion?.versionNumber || 1}
-            onVersionChange={handleVersionChange}
-          />
+          {projectId && (
+            <VersionSelector
+              projectId={projectId}
+              conversationId={conversationId}
+              onVersionChange={handleVersionChange}
+            />
+          )}
+
+          {/* Deploy Button */}
+          {projectId && (
+            <Button
+              variant="default"
+              onClick={() => setShowDeployDialog(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white h-6 px-2 text-xs"
+              aria-label="Deploy project"
+              title="Deploy project"
+            >
+              <Rocket className="size-2.5" strokeWidth={1.5} /> Deploy
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Deployment Dialog */}
+      {projectId && (
+        <DeploymentDialog
+          open={showDeployDialog}
+          onOpenChange={setShowDeployDialog}
+          projectId={projectId}
+        />
+      )}
 
       {/* Preview */}
       <div className="flex-1 bg-gray-900">
         {previewUrl ? (
           <iframe
             key={iframeKey}
-            src={sandboxPublicUrl ? previewUrl : undefined}
-            srcDoc={sandboxPublicUrl ? undefined : previewContent}
+            src={previewUrl}
             className="w-full h-full border-0"
             title="Landing Page Preview"
           />

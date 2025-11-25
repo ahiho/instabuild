@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { UserMenu } from '../auth/UserMenu';
 import { Button } from '../ui/button';
 
 export const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,6 +18,14 @@ export const Header: React.FC = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleSignIn = () => {
+    navigate('/auth/login');
+  };
+
+  const handleGetStarted = () => {
+    navigate('/auth/register');
+  };
 
   return (
     <motion.header
@@ -69,29 +81,45 @@ export const Header: React.FC = () => {
             >
               FAQ
             </a>
+            {isAuthenticated && (
+              <Link
+                to="/dashboard"
+                className="text-gray-300 hover:text-white font-medium transition-colors duration-200"
+              >
+                Dashboard
+              </Link>
+            )}
           </nav>
 
           {/* CTA Buttons */}
           <div className="flex items-center gap-3 sm:gap-4">
-            <Button
-              variant="ghost"
-              className="hidden sm:inline-flex text-white hover:text-gray-300 hover:bg-white/10"
-            >
-              Sign In
-            </Button>
-            <Button
-              className="
-                bg-black
-                hover:bg-gray-900
-                text-white font-semibold
-                border border-white/20
-                hover:border-white/40
-                transition-all duration-200
-                px-4 sm:px-6
-              "
-            >
-              Get Started
-            </Button>
+            {isAuthenticated ? (
+              <UserMenu />
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={handleSignIn}
+                  className="hidden sm:inline-flex text-white hover:text-gray-300 hover:bg-white/10"
+                >
+                  Sign In
+                </Button>
+                <Button
+                  onClick={handleGetStarted}
+                  className="
+                    bg-black
+                    hover:bg-gray-900
+                    text-white font-semibold
+                    border border-white/20
+                    hover:border-white/40
+                    transition-all duration-200
+                    px-4 sm:px-6
+                  "
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

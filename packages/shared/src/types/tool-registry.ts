@@ -8,6 +8,7 @@ export interface ToolExecutionContext {
   conversationId: string;
   toolCallId: string;
   pageId?: string;
+  landingPageId?: string; // Landing page being edited (for GitHub auto-sync)
   selectedElementId?: string;
   // Sandbox isolation field (Phase 1)
   // Presence of sandboxId indicates execution within a Docker container sandbox

@@ -118,19 +118,6 @@ export class ConversationStateManager {
   }
 
   /**
-   * Clean up old conversation states (call periodically)
-   */
-  cleanupOldStates(maxAgeHours: number = 24): void {
-    const cutoffTime = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
-
-    for (const [conversationId, state] of this.conversationStates.entries()) {
-      if (state.lastActivity < cutoffTime) {
-        this.conversationStates.delete(conversationId);
-      }
-    }
-  }
-
-  /**
    * Get all active conversation states
    */
   getAllConversationStates(): Map<string, ConversationState> {

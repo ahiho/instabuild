@@ -10,6 +10,7 @@ export enum ReasoningStepType {
   EXECUTION = 'execution',
   VALIDATION = 'validation',
   ERROR_RECOVERY = 'error_recovery',
+  REFLECTION = 'reflection',
 }
 
 /**
@@ -191,6 +192,9 @@ export class ReasoningTransparencyService {
           break;
         case ReasoningStepType.ERROR_RECOVERY:
           explanation = `🔧 **Recovering**: ${step.description}`;
+          break;
+        case ReasoningStepType.REFLECTION:
+          explanation = `💭 **Thinking**: ${step.description}`;
           break;
         default:
           explanation = `💭 **${step.title}**: ${step.description}`;

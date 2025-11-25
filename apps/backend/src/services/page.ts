@@ -1,17 +1,29 @@
-import { prisma } from '../server.js';
-import { octokit } from '../lib/github.js';
-import { sandboxManager } from './sandboxManager.js';
-import { generateSandboxPreviewUrl } from '../lib/preview-url.js';
-import { logger } from '../lib/logger.js';
 import {
-  NotFoundError,
-  ValidationError,
   CreateLandingPageRequest,
+  NotFoundError,
   UpdateLandingPageRequest,
+  ValidationError,
 } from '@instabuild/shared';
+import { octokit } from '../lib/github.js';
+import { logger } from '../lib/logger.js';
+import { generateSandboxPreviewUrl } from '../lib/preview-url.js';
+import { prisma } from '../server.js';
+import { sandboxManager } from './sandboxManager.js';
 
 export class PageService {
-  async createPage(data: CreateLandingPageRequest) {
+  async createPage(
+    data: CreateLandingPageRequest,
+    userId: string,
+    projectId: string
+  ) {
+    // Validate authentication
+    if (!userId) {
+      throw new ValidationError('User authentication required');
+    }
+
+    if (!projectId) {
+      throw new ValidationError('Project context required');
+    }
     // Validate that at least title or description is provided
     if (!data.title?.trim() && !data.description?.trim()) {
       throw new ValidationError('Either title or description is required');
@@ -35,12 +47,14 @@ export class PageService {
       auto_init: true,
     });
 
-    // Create page record
+    // Create page record with user and project context
     const page = await prisma.landingPage.create({
       data: {
         title,
         description: data.description,
         githubRepoUrl: repo.data.html_url,
+        userId,
+        projectId,
       },
     });
 
@@ -58,50 +72,53 @@ export class PageService {
       data: { currentVersionId: version.id },
     });
 
-    // Phase 3.5: Create conversation and provision sandbox for preview access
+    // Phase 3.5: Check if project has sandbox or provision one for preview access
     let sandboxPublicUrl: string | undefined;
     let sandboxPort: number | undefined;
     try {
-      // Check if a conversation with ready sandbox already exists for this page
-      const existingConversation = await prisma.conversation.findFirst({
-        where: {
-          landingPageId: page.id,
-          sandboxStatus: 'READY',
+      // Check if the project already has a ready sandbox
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          sandboxStatus: true,
+          sandboxId: true,
+          sandboxPublicUrl: true,
+          sandboxPort: true,
         },
-        orderBy: { startTime: 'desc' },
       });
 
-      if (existingConversation && existingConversation.sandboxPublicUrl) {
-        logger.info('Reusing existing sandbox for page', {
+      if (project?.sandboxStatus === 'READY' && project.sandboxPublicUrl) {
+        logger.info('Reusing existing project sandbox for page', {
           pageId: page.id,
-          conversationId: existingConversation.id,
-          sandboxPublicUrl: existingConversation.sandboxPublicUrl,
+          projectId,
+          sandboxPublicUrl: project.sandboxPublicUrl,
         });
-        sandboxPublicUrl = existingConversation.sandboxPublicUrl;
-        sandboxPort = existingConversation.sandboxPort || undefined;
+        sandboxPublicUrl = project.sandboxPublicUrl;
+        sandboxPort = project.sandboxPort || undefined;
         // Skip sandbox creation - already have a ready one
       } else {
-        // Create new conversation and provision sandbox
+        // Create new conversation for this page
         const conversation = await prisma.conversation.create({
           data: {
-            userId: 'system', // TODO: Get from authentication context
-            landingPageId: page.id,
+            userId,
+            projectId,
+            title: `${title} Development`,
             startTime: new Date(),
             lastUpdateTime: new Date(),
             lastAccessedAt: new Date(),
-            sandboxStatus: 'PENDING',
           },
         });
 
         logger.info('Created conversation for page', {
           pageId: page.id,
           conversationId: conversation.id,
-          landingPageId: conversation.landingPageId,
+          projectId: conversation.projectId,
         });
 
         const sandboxRequest = {
-          userId: conversation.userId || 'system',
-          projectId: conversation.id,
+          userId,
+          projectId,
+          conversationId: conversation.id,
         };
 
         const sandboxResponse =
@@ -115,18 +132,7 @@ export class PageService {
             ? `http://localhost:${sandboxPort}`
             : generateSandboxPreviewUrl(conversation.id);
 
-          // Update conversation with sandbox info + port
-          await prisma.conversation.update({
-            where: { id: conversation.id },
-            data: {
-              sandboxId: sandboxResponse.containerId,
-              sandboxPort,
-              sandboxStatus: 'READY',
-              sandboxCreatedAt: new Date(),
-              sandboxPublicUrl,
-            },
-          });
-
+          // Sandbox info is now stored on the project, not the conversation
           logger.info('Sandbox provisioned for landing page', {
             pageId: page.id,
             conversationId: conversation.id,
@@ -143,9 +149,9 @@ export class PageService {
             }
           );
 
-          // Update conversation to mark sandbox as failed
-          await prisma.conversation.update({
-            where: { id: conversation.id },
+          // Update project to mark sandbox as failed
+          await prisma.project.update({
+            where: { id: projectId },
             data: {
               sandboxStatus: 'FAILED',
             },
@@ -167,7 +173,20 @@ export class PageService {
     };
   }
 
-  async getPage(id: string) {
+  async getPage(id: string, userId?: string) {
+    // Validate user access if userId is provided
+    if (userId) {
+      const page = await prisma.landingPage.findFirst({
+        where: {
+          id,
+          userId, // Ensure user owns this page
+        },
+      });
+
+      if (!page) {
+        throw new NotFoundError('Landing page not found or access denied');
+      }
+    }
     const page = await prisma.landingPage.findUnique({
       where: { id },
       include: {
@@ -184,49 +203,44 @@ export class PageService {
     }
 
     // Phase 3.5: Include sandbox information if available
-    // Prioritize conversations with ready sandboxes, fall back to any conversation
-    let conversation = await prisma.conversation.findFirst({
-      where: {
-        landingPageId: id,
-        sandboxStatus: 'READY',
+    // Get sandbox info from the project
+    const project = await prisma.project.findUnique({
+      where: { id: page.projectId },
+      select: {
+        sandboxStatus: true,
+        sandboxPublicUrl: true,
+        sandboxPort: true,
       },
-      orderBy: { startTime: 'desc' },
-      take: 1,
     });
-
-    // If no ready sandbox found, get the most recent conversation
-    if (!conversation) {
-      conversation = await prisma.conversation.findFirst({
-        where: { landingPageId: id },
-        orderBy: { startTime: 'desc' },
-        take: 1,
-      });
-    }
 
     logger.info('GetPage - Sandbox lookup', {
       pageId: id,
-      found: !!conversation,
-      conversationId: conversation?.id,
-      sandboxStatus: conversation?.sandboxStatus,
-      sandboxPublicUrl: conversation?.sandboxPublicUrl,
+      projectId: page.projectId,
+      sandboxStatus: project?.sandboxStatus,
+      sandboxPublicUrl: project?.sandboxPublicUrl,
     });
 
     return {
       ...page,
-      sandboxPublicUrl: conversation?.sandboxPublicUrl,
-      sandboxPort: conversation?.sandboxPort,
-      sandboxStatus: conversation?.sandboxStatus,
+      sandboxPublicUrl: project?.sandboxPublicUrl,
+      sandboxPort: project?.sandboxPort,
+      sandboxStatus: project?.sandboxStatus,
     };
   }
 
-  async updatePage(id: string, data: UpdateLandingPageRequest) {
-    const page = await prisma.landingPage.findUnique({ where: { id } });
+  async updatePage(
+    id: string,
+    data: UpdateLandingPageRequest,
+    userId?: string
+  ) {
+    const whereClause = userId ? { id, userId } : { id };
+    const page = await prisma.landingPage.findUnique({ where: whereClause });
     if (!page) {
-      throw new NotFoundError('Landing page');
+      throw new NotFoundError('Landing page not found or access denied');
     }
 
     return prisma.landingPage.update({
-      where: { id },
+      where: whereClause,
       data: {
         title: data.title || page.title,
         description:
@@ -238,11 +252,13 @@ export class PageService {
   async createVersion(
     pageId: string,
     sourceCode: string,
-    changeDescription: string
+    changeDescription: string,
+    userId?: string
   ) {
-    const page = await prisma.landingPage.findUnique({ where: { id: pageId } });
+    const whereClause = userId ? { id: pageId, userId } : { id: pageId };
+    const page = await prisma.landingPage.findUnique({ where: whereClause });
     if (!page) {
-      throw new NotFoundError('Landing page');
+      throw new NotFoundError('Landing page not found or access denied');
     }
 
     // Get next version number

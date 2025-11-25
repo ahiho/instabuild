@@ -4,10 +4,13 @@
  */
 
 import { logger } from '../lib/logger.js';
-import { registerAssetManagementTools } from './asset-management-tools.js';
 import { registerFilesystemTools } from './filesystem-tools.js';
 import { registerValidationTools } from './validation-tools.js';
 import { registerShellTool } from './shell-tool.js';
+import { registerMemoryTools } from './memory-tools.js';
+import { registerDevServerTool } from './dev-server-tool.js';
+import { registerThinkingTools } from './thinking-tools.js';
+import { registerAssetManagementTools } from './asset-management-tools.js';
 
 /**
  * Register all available tools
@@ -19,8 +22,11 @@ export function registerAllTools() {
 
     registerFilesystemTools();
     registerValidationTools();
-    registerAssetManagementTools();
     registerShellTool();
+    registerMemoryTools();
+    registerDevServerTool();
+    registerThinkingTools();
+    registerAssetManagementTools();
 
     logger.info('All tools registered successfully');
   } catch (error) {

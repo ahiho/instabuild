@@ -11,25 +11,131 @@ datasource db {
 }
 
 enum SandboxStatus {
-  PENDING  // Sandbox is being provisioned
-  READY    // Sandbox is ready and can execute tools
-  FAILED   // Sandbox failed to initialize
+  PENDING // Sandbox is being provisioned
+  READY // Sandbox is ready and can execute tools
+  FAILED // Sandbox failed to initialize
+}
+
+enum DeploymentAccountType {
+  GITHUB
+  CLOUDFLARE
+}
+
+enum DeploymentType {
+  GITHUB_PAGES
+  CLOUDFLARE_PAGES
+}
+
+enum DeploymentStatus {
+  PENDING
+  BUILDING
+  UPLOADING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String? // null for OAuth users
+  displayName   String
+  provider      String    @default("local") // local, google, github
+  providerId    String? // OAuth provider user ID
+  createdAt     DateTime  @default(now())
+  lastLoginAt   DateTime?
+  emailVerified Boolean   @default(false)
+  role          String    @default("user") // admin, user, guest
+  preferences   Json? // User preferences object
+
+  // Sandbox limits (for future paid tiers)
+  // Free tier: 1 concurrent sandbox, Pro tier: 3, Enterprise: unlimited
+  maxConcurrentSandboxes Int @default(1) // Number of sandboxes user can have active simultaneously
+  subscriptionTier       String @default("free") // free, pro, enterprise
+
+  // Relationships
+  projects           Project[]
+  conversations      Conversation[]
+  chatMessages       ChatMessage[]
+  sessions           UserSession[]
+  landingPages       LandingPage[]
+  deploymentAccounts DeploymentAccount[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDefault   Boolean  @default(false)
+
+  // Sandbox fields (moved from Conversation - project-level resource)
+  sandboxId        String?
+  sandboxStatus    SandboxStatus?
+  sandboxCreatedAt DateTime?
+  sandboxPublicUrl String?
+  sandboxPort      Int?
+
+  // GitHub integration fields (project-level code persistence)
+  githubRepoUrl String? // Auto-created GitHub repository URL for this project
+  commitSha     String? // Latest commit SHA from GitHub
+
+  // Relationships
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations     Conversation[]
+  landingPages      LandingPage[]
+  deploymentConfigs DeploymentConfig[]
+
+  @@index([userId])
+  @@index([userId, sandboxStatus])
+  @@map("projects")
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+  isActive  Boolean  @default(true)
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("user_sessions")
 }
 
 model LandingPage {
-  id               String   @id @default(cuid())
-  title            String   @db.VarChar(100)
-  description      String?  @db.VarChar(500)
-  githubRepoUrl    String
-  currentVersionId String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  projectId             String
+  userId                String
+  title                 String   @db.VarChar(100)
+  description           String?  @db.VarChar(500)
+  githubRepoUrl         String?  // Auto-created repo URL
+  commitSha             String?  // Latest commit SHA
+  currentVersionNumber  Int      @default(0) // Next version to create is currentVersionNumber + 1
+  currentVersionId      String?  // Deprecated - kept for migration compatibility
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   // Relationships
-  versions     LandingPageVersion[]
-  chatMessages ChatMessage[]
-  currentVersion LandingPageVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions       LandingPageVersion[] // Deprecated - kept for migration compatibility
+  chatMessages   ChatMessage[]
+  conversations  Conversation[]       // Conversations using this landing page for code backup
+  currentVersion LandingPageVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id]) // Deprecated
 
+  @@index([projectId])
+  @@index([userId])
   @@map("landing_pages")
 }
 
@@ -44,23 +150,23 @@ model LandingPageVersion {
   createdAt         DateTime @default(now())
 
   // Relationships
-  landingPage       LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
-  assets            Asset[]
+  landingPage          LandingPage           @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  assets               Asset[]
   modificationCommands ModificationCommand[]
-  currentForPages   LandingPage[] @relation("CurrentVersion")
+  currentForPages      LandingPage[]         @relation("CurrentVersion")
 
   @@unique([landingPageId, versionNumber])
   @@map("landing_page_versions")
 }
 
 model Asset {
-  id                    String   @id @default(cuid())
-  landingPageVersionId  String
-  filename              String   @db.VarChar(255)
-  mimeType              String   @db.VarChar(100)
-  fileSize              Int
-  storageUrl            String
-  uploadedAt            DateTime @default(now())
+  id                   String   @id @default(cuid())
+  landingPageVersionId String
+  filename             String   @db.VarChar(255)
+  mimeType             String   @db.VarChar(100)
+  fileSize             Int
+  storageUrl           String
+  uploadedAt           DateTime @default(now())
 
   // Relationships
   landingPageVersion LandingPageVersion @relation(fields: [landingPageVersionId], references: [id], onDelete: Cascade)
@@ -70,38 +176,38 @@ model Asset {
 
 model Conversation {
   id             String   @id @default(cuid())
-  userId         String?  // Optional: for future user authentication
-  landingPageId  String?  // Optional: link to landing page if applicable
+  projectId      String // Changed from landingPageId to projectId
+  userId         String // Now required
+  landingPageId  String? // For GitHub code backup integration (optional for backward compatibility)
+  title          String   @default("New Conversation")
   startTime      DateTime @default(now())
   lastUpdateTime DateTime @updatedAt
-  // Phase 1: Sandbox isolation tracking
-  sandboxId      String?  // Docker container ID for this conversation's sandbox
-  sandboxStatus  SandboxStatus? @default(PENDING) // Status: pending, ready, failed
-  sandboxCreatedAt DateTime? // Timestamp when sandbox was provisioned
-  sandboxPublicUrl String? // Public preview URL for accessing sandbox
-  // Phase 3.5: Port mapping for preview access
-  sandboxPort    Int?     // Allocated host port (30000-40000) for preview access
-  // Phase 2: Sandbox lifecycle - 4 hour idle timeout
-  lastAccessedAt DateTime? // Last time this conversation was used (for idle cleanup)
+  lastAccessedAt DateTime @default(now())
+  isArchived     Boolean  @default(false)
+
+  // Sandbox fields removed - now stored at Project level
 
   // Relationships
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  landingPage    LandingPage?    @relation(fields: [landingPageId], references: [id], onDelete: SetNull)
   messages       ChatMessage[]
   toolExecutions ToolExecution[]
   modelUsage     ModelUsage[]
 
-  @@index([sandboxId])  // Index for fast lookups by sandbox
-  @@index([sandboxPort])  // Index for reverse proxy lookups
-  @@index([sandboxStatus])  // Index for cleanup queries
-  @@index([lastAccessedAt])  // Index for idle timeout cleanup
+  @@index([projectId])
+  @@index([userId])
+  @@index([lastAccessedAt])
   @@map("conversations")
 }
 
 model ChatMessage {
   id             String   @id @default(cuid())
   conversationId String
-  landingPageId  String?  // Made optional for backward compatibility
+  userId         String // Now required
+  landingPageId  String? // Made optional for backward compatibility
   role           String   @db.VarChar(20) // user, assistant, system, tool
-  parts          Json?    // AI SDK message parts array - single source of truth
+  parts          Json? // AI SDK message parts array - single source of truth
   // Part types stored in parts array:
   // - text: { type: 'text', text: string }
   // - tool-call: { type: 'tool-call', toolCallId: string, toolName: string, input: object }
@@ -115,23 +221,26 @@ model ChatMessage {
   // - senderType: String (use role instead)
   // - toolCalls: Json (included in parts)
   // - toolResults: Json (included in parts as tool-result parts)
-  metadata       Json?    // Additional metadata (usage, finishReason, etc)
+  metadata       Json? // Additional metadata (usage, finishReason, etc)
   createdAt      DateTime @default(now())
 
   // Relationships
-  conversation         Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  landingPage          LandingPage?  @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  conversation         Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  landingPage          LandingPage?          @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
   modificationCommands ModificationCommand[]
   toolExecutions       ToolExecution[]
 
+  @@index([conversationId])
+  @@index([userId])
   @@map("chat_messages")
 }
 
 model ModificationCommand {
   id               String   @id @default(cuid())
   chatMessageId    String
-  targetElements   Json     // JSON array of element selectors
-  requestedChanges Json     // JSON object describing changes
+  targetElements   Json // JSON array of element selectors
+  requestedChanges Json // JSON object describing changes
   status           String   @default("pending") // pending, processing, completed, failed
   resultVersionId  String?
   errorMessage     String?  @db.Text
@@ -145,18 +254,18 @@ model ModificationCommand {
 }
 
 model ToolExecution {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
-  chatMessageId  String?  // Optional: link to the chat message that triggered this
-  toolCallId     String   @unique
-  toolName       String   @db.VarChar(100)
-  input          Json     // Tool input parameters
-  output         Json?    // Tool execution result
-  error          String?  @db.Text
-  status         String   @db.VarChar(20) // pending, executing, completed, failed, timeout
-  startTime      DateTime @default(now())
+  chatMessageId  String? // Optional: link to the chat message that triggered this
+  toolCallId     String    @unique
+  toolName       String    @db.VarChar(100)
+  input          Json // Tool input parameters
+  output         Json? // Tool execution result
+  error          String?   @db.Text
+  status         String    @db.VarChar(20) // pending, executing, completed, failed, timeout
+  startTime      DateTime  @default(now())
   endTime        DateTime?
-  userId         String   @db.VarChar(100)
+  userId         String    @db.VarChar(100)
 
   // Relationships
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -170,16 +279,16 @@ model ToolExecution {
 }
 
 model ToolAnalytics {
-  id                    String   @id @default(cuid())
-  toolName              String   @db.VarChar(100)
-  date                  DateTime @db.Date
-  executionCount        Int      @default(0)
-  successCount          Int      @default(0)
-  totalExecutionTimeMs  BigInt   @default(0)
-  errorCount            Int      @default(0)
-  uniqueUsers           Int      @default(0)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  toolName             String   @db.VarChar(100)
+  date                 DateTime @db.Date
+  executionCount       Int      @default(0)
+  successCount         Int      @default(0)
+  totalExecutionTimeMs BigInt   @default(0)
+  errorCount           Int      @default(0)
+  uniqueUsers          Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@unique([toolName, date])
   @@map("tool_analytics")
@@ -208,7 +317,7 @@ model ModelUsage {
   modelTier       String   @db.VarChar(20)
   complexityLevel String   @db.VarChar(20)
   tokenCount      Int?
-  estimatedCost   Decimal? @db.Decimal(10,6)
+  estimatedCost   Decimal? @db.Decimal(10, 6)
   executionTimeMs Int?
   success         Boolean
   createdAt       DateTime @default(now())
@@ -220,4 +329,92 @@ model ModelUsage {
   @@index([modelName])
   @@index([createdAt])
   @@map("model_usage")
+}
+
+// ============================================
+// Deployment Feature Models
+// ============================================
+
+model DeploymentAccount {
+  id        String                @id @default(cuid())
+  userId    String
+  type      DeploymentAccountType // 'GITHUB' | 'CLOUDFLARE'
+
+  // Account details
+  email        String
+  username     String?
+  organization String?
+
+  // Authentication tokens (encrypted)
+  accessToken    String?   // GitHub OAuth token or Cloudflare API token
+  refreshToken   String?   // GitHub OAuth refresh token
+  tokenExpiresAt DateTime?
+
+  // Metadata
+  connectedAt DateTime  @default(now())
+  lastUsed    DateTime?
+
+  // Relations
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deploymentConfigs DeploymentConfig[]
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("deployment_accounts")
+}
+
+model DeploymentConfig {
+  id        String         @id @default(cuid())
+  projectId String
+  accountId String
+  type      DeploymentType // 'GITHUB_PAGES' | 'CLOUDFLARE_PAGES'
+
+  // GitHub Pages config
+  githubRepo   String?
+  githubBranch String? @default("gh-pages")
+
+  // Cloudflare Pages config
+  cloudflareProjectName String?
+  cloudflareBranch      String? @default("main")
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  account           DeploymentAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  deploymentHistory DeploymentHistory[]
+
+  @@index([projectId])
+  @@index([accountId])
+  @@map("deployment_configs")
+}
+
+model DeploymentHistory {
+  id       String           @id @default(cuid())
+  configId String
+  status   DeploymentStatus // 'PENDING' | 'BUILDING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+
+  // Timestamps
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  buildDuration   Int? // milliseconds
+  uploadDuration  Int? // milliseconds
+
+  // Logs and output
+  buildLogs    String  @db.Text // Store build output
+  errorMessage String?
+  deployedUrl  String? // Final deployed URL
+
+  // Metadata
+  triggeredBy String? // User ID or 'SYSTEM'
+
+  // Relations
+  config DeploymentConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("deployment_history")
 }

@@ -36,7 +36,7 @@ export interface EnvironmentConfig {
 /**
  * Validate required environment variable
  */
-function requireEnv(key: string): string {
+export function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
     throw new Error(

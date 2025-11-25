@@ -42,6 +42,18 @@ export interface ErrorContext {
 }
 
 /**
+ * Tool execution error tracking
+ */
+export interface ToolExecutionError {
+  toolName: string;
+  toolCallId: string;
+  error: string;
+  args?: Record<string, any>;
+  stepNumber?: number;
+  timestamp: Date;
+}
+
+/**
  * Conversation state tracking
  */
 export interface ConversationState {
@@ -56,12 +68,17 @@ export interface ConversationState {
   toolsUsed: string[];
   filesModified: string[];
   errorCount: number;
+  pendingErrors?: ToolExecutionError[]; // Errors detected in onStepFinish, consumed by prepareStep
+  errorRecoveryAttempts?: number; // Track recovery attempts to prevent infinite loops
   status: 'active' | 'completed' | 'failed' | 'paused';
   context: {
     projectStructure?: string[];
     recentChanges?: string[];
     workingDirectory?: string;
   };
+  // File tracking for read-before-edit enforcement
+  // Using Record instead of Map for JSON serializability
+  readFiles?: Record<string, string>; // Map of file path -> file hash (SHA-256)
 }
 
 /**
@@ -104,20 +121,41 @@ export interface TaskTypeConfig {
 }
 
 /**
- * Analytics summary for a completed conversation
+ * Context for prepareStep callback handler
  */
-export interface AnalyticsSummary {
+export interface PrepareStepContext {
   conversationId: string;
-  duration: number;
-  taskComplexity: TaskComplexity;
-  stepsCompleted: number;
-  toolsUsed: number;
-  uniqueTools: number;
-  successRate: number;
-  errorRate: number;
-  tokensUsed: number;
-  averageStepTime: number;
-  completionStatus: 'success' | 'partial' | 'failed';
-  filesModified: number;
-  mostUsedTool: string | null;
+  userId: string;
+  messageContent: string;
+  detectedComplexity: TaskComplexity;
+  taskConfig: TaskTypeConfig;
+  model: any; // LanguageModel from AI SDK
+  STEP_DELAY_MS: number;
+}
+
+/**
+ * Context for onStepFinish callback handler
+ */
+export interface StepFinishContext {
+  conversationId: string;
+  userId: string;
+  taskConfig: TaskTypeConfig;
+  executionContext: any; // ToolExecutionContext from shared types
+  analysisStepId: string;
+  onProgress?: (progress: {
+    currentStep: number;
+    totalSteps: number;
+    action: string;
+  }) => Promise<void>;
+  onToolCall?: (toolCall: any) => Promise<void>;
+  onStepFinish?: (stepResult: any) => Promise<void>;
+}
+
+/**
+ * Context for onFinish callback handler
+ */
+export interface FinishContext {
+  conversationId: string;
+  userId: string;
+  analysisStepId: string;
 }

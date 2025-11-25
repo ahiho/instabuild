@@ -1,17 +1,15 @@
-import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import path from 'path';
 
-// https://vitejs.dev/config/
+// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
-  },
-  preview: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
+  plugins: [react(), tailwindcss()],
+  base: process.env.BASE_PATH || '/', // For GitHub Pages: /repo-name/
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 });

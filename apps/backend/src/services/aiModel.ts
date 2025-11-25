@@ -12,6 +12,8 @@ export interface AIStreamOptions {
   messages: ChatMessage[];
   systemPrompt?: string;
   context?: Partial<ModelSelectionContext>;
+  userId?: string; // Required for authenticated requests
+  conversationId?: string; // For tracking and analytics
 }
 
 /**
@@ -24,7 +26,12 @@ export class AIModelService {
    * @returns Async generator that yields response chunks
    */
   async *streamChatResponse(options: AIStreamOptions): AsyncGenerator<string> {
-    const { messages, systemPrompt, context } = options;
+    const { messages, systemPrompt, context, userId, conversationId } = options;
+
+    // Validate authentication for AI service access
+    if (!userId) {
+      throw new Error('Authentication required for AI service access');
+    }
 
     try {
       // Get the last user message for model selection
@@ -40,12 +47,15 @@ export class AIModelService {
       };
 
       // Select appropriate model
-      const { model, selection } = modelSelector.getModel(selectionContext);
+      const { model, selection } =
+        await modelSelector.getModel(selectionContext);
 
       logger.info('Streaming AI response', {
         modelSelection: selection.selectedModel,
         reasoning: selection.reasoning,
         messageCount: messages.length,
+        userId,
+        conversationId,
       });
 
       // Prepare system message
@@ -62,7 +72,11 @@ export class AIModelService {
         yield chunk;
       }
     } catch (error) {
-      logger.error('Error streaming AI response', { error });
+      logger.error('Error streaming AI response', {
+        error,
+        userId,
+        conversationId,
+      });
       throw error;
     }
   }

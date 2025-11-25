@@ -1,6 +1,7 @@
 # Sandbox Docker image for Agentic Landing Page Builder
 # Provides secure, isolated Vite + React TypeScript environment
-FROM node:18-alpine
+# Using Node.js 20 LTS for Vite compatibility (requires 20.19+ or 22.12+)
+FROM node:20-alpine
 
 # Install system dependencies for development
 RUN apk add --no-cache \
@@ -16,6 +17,12 @@ RUN chown -R node:node /workspace
 
 # Copy sandbox template files
 COPY --chown=node:node sandbox-template/ /workspace/
+
+# Install git credential helper for GitHub authentication
+COPY apps/backend/docker/git-credential-instabuild /usr/local/bin/git-credential-instabuild
+RUN chmod +x /usr/local/bin/git-credential-instabuild
+
+RUN npm install -g pnpm@10.18.2
 
 # Switch to non-root user for package installation
 USER node
@@ -45,6 +52,11 @@ EXPOSE 5173
 ENV NODE_ENV=development
 ENV HOST=0.0.0.0
 ENV PORT=5173
+
+# Health check - verify Vite dev server is responding
+# Checks every 2 seconds, with 1 second timeout, 5 second startup grace period, 3 retries
+HEALTHCHECK --interval=2s --timeout=1s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:5173 || exit 1
 
 # Default command to start Vite dev server
 # HMR will automatically work through the same port that serves the app

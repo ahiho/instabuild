@@ -21,7 +21,10 @@ export function safeLiteralReplace(
 /**
  * Count occurrences of a string in content
  */
-export function countOccurrences(content: string, searchString: string): number {
+export function countOccurrences(
+  content: string,
+  searchString: string
+): number {
   if (searchString === '') {
     return 0;
   }
@@ -72,7 +75,10 @@ export interface ReplacementCalculation {
   newContent: string;
   occurrences: number;
   error?: {
-    message: string;
+    /** Short, user-friendly error message */
+    display: string;
+    /** Detailed error message with context and suggestions for LLM */
+    raw: string;
     code: string;
     details?: Record<string, unknown>;
   };
@@ -104,7 +110,8 @@ export function calculateReplacement(
         newContent: '',
         occurrences: 0,
         error: {
-          message: 'Cannot create new file with non-empty old_string',
+          display: 'Cannot create new file with non-empty old_string',
+          raw: 'Cannot create new file with non-empty old_string. When creating a new file, old_string must be empty.',
           code: 'INVALID_NEW_FILE_PARAMS',
           details: { oldString, expectedEmpty: true },
         },
@@ -124,7 +131,8 @@ export function calculateReplacement(
       newContent: '',
       occurrences: 0,
       error: {
-        message: 'File content is null or undefined',
+        display: 'File content is null or undefined',
+        raw: 'File content is null or undefined. Cannot perform replacement on non-existent file content.',
         code: 'INVALID_CONTENT',
       },
     };
@@ -137,8 +145,9 @@ export function calculateReplacement(
       newContent: currentContent,
       occurrences: 0,
       error: {
-        message:
+        display:
           'Failed to edit. Attempted to create a file that already exists.',
+        raw: 'Failed to edit. File already exists, cannot create. Use read_file to examine current content before editing.',
         code: 'FILE_ALREADY_EXISTS',
       },
     };
@@ -154,7 +163,8 @@ export function calculateReplacement(
       newContent: currentContent,
       occurrences: 0,
       error: {
-        message: 'Failed to edit, could not find the string to replace.',
+        display: 'Failed to edit, could not find the string to replace.',
+        raw: "Failed to edit, 0 occurrences found for old_string. No edits made. The exact text in old_string was not found. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify current content.",
         code: 'STRING_NOT_FOUND',
         details: {
           searchString: oldString.substring(0, 100),
@@ -172,7 +182,8 @@ export function calculateReplacement(
       newContent: currentContent,
       occurrences,
       error: {
-        message: `Failed to edit, expected ${expectedReplacements} ${occurrenceTerm} but found ${occurrences}.`,
+        display: `Failed to edit, expected ${expectedReplacements} ${occurrenceTerm} but found ${occurrences}.`,
+        raw: `Failed to edit. Expected ${expectedReplacements} ${occurrenceTerm} but found ${occurrences} for old_string. The old_string must uniquely identify the text to change. Include more context lines (at least 3 before and after) to ensure uniqueness. Check whitespace and indentation match exactly.`,
         code: 'OCCURRENCE_MISMATCH',
         details: {
           expected: expectedReplacements,
@@ -189,8 +200,9 @@ export function calculateReplacement(
       newContent: currentContent,
       occurrences,
       error: {
-        message:
+        display:
           'No changes to apply. The old_string and new_string are identical.',
+        raw: 'No changes to apply. The old_string and new_string are identical. Check your replacement parameters.',
         code: 'NO_CHANGE_NEEDED',
       },
     };
@@ -206,9 +218,10 @@ export function calculateReplacement(
       newContent: currentContent,
       occurrences,
       error: {
-        message:
+        display: 'Failed to apply replacement.',
+        raw:
           error instanceof Error
-            ? error.message
+            ? `Replacement error: ${error.message}`
             : 'Unknown error during replacement',
         code: 'REPLACEMENT_ERROR',
       },
@@ -222,8 +235,9 @@ export function calculateReplacement(
       newContent: currentContent,
       occurrences,
       error: {
-        message:
+        display:
           'No changes to apply. The new content is identical to the current content.',
+        raw: 'No changes to apply. The new content is identical to the current content. Verify your old_string and new_string parameters are correct.',
         code: 'NO_CONTENT_CHANGE',
       },
     };

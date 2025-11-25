@@ -1,3 +1,4 @@
+@plugin 'tailwindcss-animate';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

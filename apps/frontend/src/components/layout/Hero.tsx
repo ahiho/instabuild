@@ -4,8 +4,13 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { useAuth } from '../../contexts/AuthContext';
+import { useProject } from '../../contexts/ProjectContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { VignetteShader } from '../../shaders/vignetteShader';
+import { conversationService } from '../../services/project';
+import { SignInPopup } from '../auth/SignInPopup';
 import { Particles } from '../home/Particles';
 
 const suggestions = [
@@ -17,13 +22,18 @@ const suggestions = [
 
 export function Hero() {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { createProject } = useProject();
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isFocused, setIsFocused] = useState(false); // New state for input focus
+  const [isFocused, setIsFocused] = useState(false);
+
+  const [showSignInPopup, setShowSignInPopup] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Guard against duplicate calls
   const isMobile = useMediaQuery('(max-width: 768px)');
   const fov = isMobile ? 55 : 45;
 
@@ -60,7 +70,7 @@ export function Hero() {
   }, [displayedText, isDeleting, suggestionIndex]);
 
   /**
-   * Handle the "Next" button click to create a new page and navigate to the editor
+   * Handle the "Next" button click to create a new project and conversation
    */
   const handleNext = async () => {
     // Validate input
@@ -69,41 +79,72 @@ export function Hero() {
       return;
     }
 
+    // Check authentication first
+    if (!isAuthenticated) {
+      // Store query in localStorage for after login
+      localStorage.setItem('pendingHeroQuery', userInput.trim());
+      setShowSignInPopup(true);
+      toast.error('Authentication Required', {
+        description: 'Please sign in to create your landing page',
+      });
+      return;
+    }
+
+    // If authenticated, call handleAuthSuccess directly
+    await handleAuthSuccess();
+  };
+
+  const handleAuthSuccess = async () => {
+    // Guard against duplicate calls (can happen in StrictMode or due to event handlers firing twice)
+    if (isProcessing) {
+      console.log('[Hero] Ignoring duplicate handleAuthSuccess call');
+      return;
+    }
+
+    // Get stored query from localStorage
+    const storedQuery = localStorage.getItem('pendingHeroQuery');
+    const queryToUse = storedQuery || userInput.trim();
+
+    if (!queryToUse) {
+      return;
+    }
+
     try {
+      setIsProcessing(true);
       setIsLoading(true);
       setError(null);
 
-      // Create a new page via API - backend will decide the title
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/pages`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            description: userInput,
-          }),
-        }
-      );
+      // Create new project with a generated name
+      const projectName = `Project ${new Date().toLocaleDateString()}`;
+      const newProject = await createProject(projectName, queryToUse);
 
-      if (!response.ok) {
-        throw new Error(`Failed to create page: ${response.statusText}`);
-      }
+      // Create new conversation in the project with idempotency key to prevent duplicates
+      const idempotencyKey = `hero-${Date.now()}-${Math.random()}`;
+      const conversation = await conversationService.createConversation({
+        projectId: newProject.id,
+        title: 'New Conversation',
+        idempotencyKey,
+      });
 
-      const page = await response.json();
+      // Clear stored query
+      localStorage.removeItem('pendingHeroQuery');
 
-      // Navigate to the editor page with the new page ID
-      navigate(`/editor/${page.id}`);
+      // Navigate to editor with conversation ID and pass the query as state
+      navigate(`/editor/${conversation.id}`, {
+        state: { initialMessage: queryToUse },
+      });
+
+      toast.success('Project created!', {
+        description: 'Your new project is ready',
+      });
     } catch (err) {
-      console.error('Error creating page:', err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to create page. Please try again.'
-      );
+      console.error('Error creating project:', err);
+      toast.error('Failed to create project', {
+        description: err instanceof Error ? err.message : 'Please try again',
+      });
     } finally {
       setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -203,7 +244,7 @@ export function Hero() {
             />
             <button
               onClick={handleNext}
-              disabled={isLoading || !userInput.trim()}
+              disabled={isLoading || !userInput.trim() || authLoading}
               className="absolute bottom-4 right-4 flex items-center justify-center size-8 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
@@ -213,9 +254,15 @@ export function Hero() {
               )}
             </button>
           </div>
+
+          {/* Error message */}
           {error && (
-            <p className="text-center text-sm text-red-400 mt-2">{error}</p>
+            <div className="text-center mt-2">
+              <p className="text-sm text-red-400 mb-2">{error}</p>
+            </div>
           )}
+
+          {/* Success message */}
           {!error && (
             <p className="text-center text-sm text-gray-400 mt-2">
               Trusted by <span className="font-bold text-purple-300">1M+</span>{' '}
@@ -224,6 +271,13 @@ export function Hero() {
           )}
         </motion.div>
       </motion.div>
+
+      {/* Sign In Popup */}
+      <SignInPopup
+        isOpen={showSignInPopup}
+        onClose={() => setShowSignInPopup(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </section>
   );
 }

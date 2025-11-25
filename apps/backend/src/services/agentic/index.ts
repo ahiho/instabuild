@@ -3,7 +3,7 @@
  *
  * This file exports all modules for the agentic AI service.
  * The service provides multi-step execution capabilities with task complexity analysis,
- * error recovery strategies, state management, and analytics.
+ * error recovery strategies, and state management.
  */
 
 // Main service
@@ -19,7 +19,6 @@ export {
   type ExecutionMetrics,
   type ToolExecutionMetric,
   type TaskTypeConfig,
-  type AnalyticsSummary,
 } from './types.js';
 
 // Task configuration
@@ -57,9 +56,3 @@ export {
   SystemPromptBuilder,
   systemPromptBuilder,
 } from './prompts/SystemPromptBuilder.js';
-
-// Analytics
-export {
-  AnalyticsGenerator,
-  analyticsGenerator,
-} from './analytics/AnalyticsGenerator.js';
