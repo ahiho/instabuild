@@ -45,7 +45,7 @@ export function ThinkingStep({
       <div className="flex items-center gap-2">
         <Brain className="h-5 w-5 text-purple-600 dark:text-purple-400" />
         <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">
-          ∴ Thinking…
+          Thinking…
         </span>
       </div>
 

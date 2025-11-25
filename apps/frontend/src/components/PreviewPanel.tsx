@@ -47,16 +47,12 @@ export function PreviewPanel({
     if (sandboxPublicUrl) {
       setPreviewUrl(sandboxPublicUrl);
       // Add to history when URL changes
-      setNavigationHistory(prev => {
-        const newHistory = prev.slice(0, historyIndex + 1);
-        newHistory.push(sandboxPublicUrl);
-        return newHistory;
-      });
+      setNavigationHistory(prev => [...prev, sandboxPublicUrl]);
       setHistoryIndex(prev => prev + 1);
     } else {
       setPreviewUrl('');
     }
-  }, [sandboxPublicUrl, historyIndex]);
+  }, [sandboxPublicUrl]);
 
   const handleReload = () => {
     setIframeKey(prev => prev + 1);
