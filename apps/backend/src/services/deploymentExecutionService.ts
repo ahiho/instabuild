@@ -8,6 +8,8 @@ import { BuildService } from './buildService.js';
 import { GitHubPagesService } from './githubPagesService.js';
 import { CloudflarePagesService } from './cloudflarePagesService.js';
 import { DeploymentAccountService } from './deploymentAccountService.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export interface DeploymentProgress {
   id: string;
@@ -312,6 +314,12 @@ export class DeploymentExecutionService {
           `Deploying to Cloudflare Pages: ${config.cloudflareProjectName}\n`
         );
 
+        // Create wrangler.jsonc for Cloudflare Pages
+        await this.createWranglerConfig(
+          buildOutputDir,
+          config.cloudflareProjectName
+        );
+
         deployedUrl = await this.cloudflareService.deployToCloudflare(
           accessToken,
           config.cloudflareProjectName,
@@ -394,12 +402,24 @@ export class DeploymentExecutionService {
         `\n=== Deployment failed ===\nError: ${errorMessage}\n`
       );
     } finally {
-      // Clean up temporary directory
+      // Clean up temporary directory (unless debugging)
+      const debugMode = process.env.DEBUG_MODE === 'true';
+
       if (tempDir) {
-        console.log(
-          `[Deployment ${deploymentId}] Cleaning up temporary directory: ${tempDir}`
-        );
-        await this.buildService.cleanup(tempDir);
+        if (debugMode) {
+          console.log(
+            `[Deployment ${deploymentId}] KEEPING temporary directory for debugging: ${tempDir}`
+          );
+          await this.appendLog(
+            deploymentId,
+            `\n[DEBUG] Temp files kept at: ${tempDir}\n`
+          );
+        } else {
+          console.log(
+            `[Deployment ${deploymentId}] Cleaning up temporary directory: ${tempDir}`
+          );
+          await this.buildService.cleanup(tempDir);
+        }
       }
     }
   }
@@ -590,6 +610,47 @@ export class DeploymentExecutionService {
           buildLogs: deployment.buildLogs + log,
         },
       });
+    }
+  }
+
+  /**
+   * Create wrangler.jsonc configuration for Cloudflare Pages
+   */
+  private async createWranglerConfig(
+    buildOutputDir: string,
+    projectName: string
+  ): Promise<void> {
+    const wranglerConfig = {
+      $schema: './node_modules/wrangler/config-schema.json',
+      name: projectName,
+      compatibility_date: new Date().toISOString().split('T')[0],
+      assets: {
+        directory: '.',
+        not_found_handling: 'single-page-application',
+      },
+    };
+
+    const configPath = path.join(buildOutputDir, 'wrangler.jsonc');
+    const configContent = JSON.stringify(wranglerConfig, null, 2);
+    await fs.writeFile(configPath, configContent);
+
+    console.log(
+      `Created wrangler.jsonc configuration at ${configPath}:`,
+      wranglerConfig
+    );
+
+    // List files in build output directory for debugging
+    const files = await fs.readdir(buildOutputDir);
+    console.log(`Files in build output directory (${buildOutputDir}):`, files);
+
+    // Check for index.html
+    const hasIndexHtml = files.includes('index.html');
+    console.log(`Has index.html in root: ${hasIndexHtml}`);
+
+    if (!hasIndexHtml) {
+      console.warn(
+        'WARNING: No index.html found in build output root. This may cause 500 errors on the deployed site.'
+      );
     }
   }
 }

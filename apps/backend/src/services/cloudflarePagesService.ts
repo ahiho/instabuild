@@ -1,10 +1,13 @@
 import Cloudflare from 'cloudflare';
 import * as fs from 'fs/promises';
-import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 /**
  * Service for deploying to Cloudflare Pages
- * Handles project creation and file uploads
+ * Handles project creation and deployments via Wrangler CLI
  */
 export class CloudflarePagesService {
   /**
@@ -25,20 +28,19 @@ export class CloudflarePagesService {
       // Ensure project exists
       await this.ensureProject(cloudflare, accountId, projectName);
 
-      // Read all files from directory
-      const files = await this.readDirectory(filesDir);
-
-      if (files.size === 0) {
+      // Verify directory exists and has files
+      const files = await fs.readdir(filesDir);
+      if (files.length === 0) {
         throw new Error('No files found to deploy');
       }
 
-      // Upload files to Cloudflare Pages
+      // Deploy files to Cloudflare Pages using Wrangler CLI
       const deploymentUrl = await this.uploadFiles(
         cloudflare,
         accountId,
         projectName,
         branch,
-        files
+        filesDir
       );
 
       return deploymentUrl;
@@ -92,12 +94,21 @@ export class CloudflarePagesService {
         error.status === 404
       ) {
         console.log(`Creating Cloudflare Pages project ${projectName}`);
-        // TODO: Implement proper Cloudflare project creation
-        // The Cloudflare SDK types are complex and require specific parameters
-        // For now, assume project exists or is created manually
-        console.warn(
-          'Project creation not implemented - please create project manually in Cloudflare dashboard'
-        );
+        try {
+          await cloudflare.pages.projects.create({
+            account_id: accountId,
+            name: projectName,
+            production_branch: 'main',
+          });
+          console.log(
+            `Successfully created Cloudflare Pages project: ${projectName}`
+          );
+        } catch (createError) {
+          console.error('Failed to create Cloudflare Pages project:', createError);
+          throw new Error(
+            `Failed to create project ${projectName}: ${createError instanceof Error ? createError.message : 'Unknown error'}`
+          );
+        }
       } else {
         throw error;
       }
@@ -105,122 +116,100 @@ export class CloudflarePagesService {
   }
 
   /**
-   * Upload files to Cloudflare Pages using Direct Upload
+   * Upload files to Cloudflare Pages using Wrangler CLI
+   * Ensures multi-user isolation by passing environment variables per execution
+   * Always deploys to production (main branch) to get production URL
    */
   private async uploadFiles(
-    _cloudflare: Cloudflare,
-    _accountId: string,
+    cloudflare: Cloudflare,
+    accountId: string,
     projectName: string,
-    _branch: string,
-    files: Map<string, Buffer>
+    _branch: string, // Ignored - always deploy to production
+    filesDir: string
   ): Promise<string> {
     try {
-      // Cloudflare Pages Direct Upload API
-      // This uploads the files directly without going through Git
+      // Always deploy to production branch to get production URL instead of preview URL
+      const productionBranch = 'main';
 
-      // TODO: Implement Cloudflare Pages Direct Upload
-      // Cloudflare Pages Direct Upload API is complex and requires:
-      // 1. Creating a deployment
-      // 2. Uploading files via Direct Upload API
-      // 3. Finalizing the deployment
-      //
-      // For now, this is a placeholder that returns the expected URL
-      // Production implementation should use: https://developers.cloudflare.com/api/operations/pages-deployment-create
-      console.log(`TODO: Upload ${files.size} files to Cloudflare Pages`);
-      console.log(
-        'Cloudflare Pages deployment requires Direct Upload API implementation'
-      );
+      console.log(`Deploying to Cloudflare Pages via Wrangler CLI...`);
+      console.log(`  Project: ${projectName}`);
+      console.log(`  Branch: ${productionBranch} (production)`);
+      console.log(`  Directory: ${filesDir}`);
 
-      // Get deployment URL
-      const deploymentUrl = `https://${projectName}.pages.dev`;
+      // Get API token from cloudflare instance
+      const apiToken = cloudflare.apiToken;
+      if (!apiToken) {
+        throw new Error('Cloudflare API token not available');
+      }
 
-      console.log(
-        `Successfully deployed to Cloudflare Pages: ${deploymentUrl}`
-      );
-      return deploymentUrl;
+      // Verify directory exists and has files
+      const files = await fs.readdir(filesDir);
+      console.log(`  Files in directory: ${files.length}`);
+
+      if (files.length === 0) {
+        throw new Error('No files found in deployment directory');
+      }
+
+      // Build wrangler command with explicit commit info to avoid auto-detection
+      // Using npx ensures we always use latest wrangler without global install requirement
+      const timestamp = new Date().toISOString();
+      const commitHash = `deploy-${Date.now()}`; // Unique identifier for this deployment
+
+      const command = `npx wrangler@latest pages deploy '${filesDir}' --project-name='${projectName}' --branch='${productionBranch}' --commit-message='Deployment at ${timestamp}' --commit-hash='${commitHash}' --commit-dirty=false`;
+
+      console.log(`Executing: ${command}`);
+
+      // Execute wrangler with isolated environment variables per deployment
+      // This ensures multi-user support - each deployment gets its own token/account
+      const { stdout, stderr } = await execAsync(command, {
+        env: {
+          ...process.env,
+          CLOUDFLARE_API_TOKEN: apiToken,
+          CLOUDFLARE_ACCOUNT_ID: accountId,
+        },
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
+        timeout: 600000, // 10 minute timeout
+      });
+
+      console.log('=== WRANGLER OUTPUT ===');
+      console.log(stdout);
+      if (stderr) {
+        console.log('=== WRANGLER STDERR ===');
+        console.log(stderr);
+      }
+      console.log('=======================');
+
+      // Parse the deployment URL from wrangler output
+      // Wrangler outputs: "✨ Deployment complete! Take a peek over at https://..."
+      // Format: https://[deployment-id].[project-name].pages.dev or https://[project-name].pages.dev
+      const urlMatch = stdout.match(/https:\/\/([a-zA-Z0-9-]+\.)?([a-zA-Z0-9-]+)\.pages\.dev/);
+
+      if (!urlMatch) {
+        console.error('Could not parse deployment URL from wrangler output');
+        console.log('Stdout:', stdout);
+        throw new Error('Failed to extract deployment URL from wrangler output');
+      }
+
+      // Extract the project name (group 2) and construct production URL
+      const projectNameFromUrl = urlMatch[2]; // e.g., "lab-pro-3kq"
+      const productionUrl = `https://${projectNameFromUrl}.pages.dev`;
+
+      console.log('=== DEPLOYMENT COMPLETE ===');
+      console.log(`Parsed from wrangler: ${urlMatch[0]}`);
+      console.log(`Production URL: ${productionUrl}`);
+      console.log('===========================');
+
+      return productionUrl;
     } catch (error) {
-      console.error('Error uploading to Cloudflare Pages:', error);
-      throw error;
+      console.error('Error deploying to Cloudflare Pages via Wrangler:', error);
+      // Log stderr if available for debugging
+      if (error instanceof Error && 'stderr' in error) {
+        console.error('Wrangler stderr:', (error as any).stderr);
+      }
+      throw new Error(
+        `Failed to deploy to Cloudflare Pages: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
-  /**
-   * Recursively read all files from a directory
-   */
-  private async readDirectory(
-    dir: string,
-    basePath: string = ''
-  ): Promise<Map<string, Buffer>> {
-    const files = new Map<string, Buffer>();
-
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      const relativePath = path.join(basePath, entry.name);
-
-      // Skip node_modules, .git, etc.
-      if (this.shouldIgnore(entry.name)) {
-        continue;
-      }
-
-      if (entry.isDirectory()) {
-        // Recursively read subdirectories
-        const subFiles = await this.readDirectory(fullPath, relativePath);
-        for (const [filePath, content] of subFiles.entries()) {
-          files.set(filePath, content);
-        }
-      } else if (entry.isFile()) {
-        // Read file as buffer
-        const content = await fs.readFile(fullPath);
-        files.set(relativePath, content);
-      }
-    }
-
-    return files;
-  }
-
-  /**
-   * Check if a file/directory should be ignored
-   */
-  private shouldIgnore(name: string): boolean {
-    const ignoreList = [
-      'node_modules',
-      '.git',
-      '.env',
-      '.env.local',
-      '.DS_Store',
-      'Thumbs.db',
-    ];
-
-    return ignoreList.includes(name) || name.startsWith('.');
-  }
-
-  /**
-   * Get content type based on file extension
-   * TODO: Will be used when Direct Upload API is implemented
-   */
-  // @ts-expect-error - Unused for now, will be used when Direct Upload API is implemented
-
-  private getContentType(filePath: string): string {
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      '.html': 'text/html',
-      '.css': 'text/css',
-      '.js': 'application/javascript',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon',
-      '.woff': 'font/woff',
-      '.woff2': 'font/woff2',
-      '.ttf': 'font/ttf',
-      '.eot': 'application/vnd.ms-fontobject',
-    };
-
-    return mimeTypes[ext] || 'application/octet-stream';
-  }
 }

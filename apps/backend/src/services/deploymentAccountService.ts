@@ -187,9 +187,12 @@ export class DeploymentAccountService {
         throw new Error('Invalid Cloudflare API token');
       }
 
-      // Get email from Cloudflare API (or fallback to user ID)
-      const email = user.email || `${user.id}@cloudflare.user`;
-      const username = user.email?.split('@')[0] || user.id;
+      // Cloudflare user.get() doesn't return email, so we skip it
+      // Use first_name/last_name if available, otherwise use user ID for username
+      const username =
+        user.first_name && user.last_name
+          ? `${user.first_name.toLowerCase()}.${user.last_name.toLowerCase()}`
+          : user.id;
 
       // Encrypt token before storing
       const encryptedToken = this.encryptToken(apiToken);
@@ -205,13 +208,11 @@ export class DeploymentAccountService {
         update: {
           accessToken: encryptedToken,
           username,
-          email,
           lastUsed: new Date(),
         },
         create: {
           userId,
           type: DeploymentAccountType.CLOUDFLARE,
-          email,
           username,
           accessToken: encryptedToken,
         },
