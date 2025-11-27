@@ -418,13 +418,13 @@ function ConversationHeader({
   };
 
   return (
-    <div className="flex items-center justify-between border-b border-gray-800 px-4 h-12">
+    <div className="flex items-center justify-between border-b border-gray-800 px-4 h-9">
       {isEditing ? (
         <div className="flex items-center gap-2 flex-1">
           <Input
             value={editTitle}
             onChange={e => setEditTitle(e.target.value)}
-            className="h-8 text-sm"
+            className="h-7 text-sm border-0 focus-visible:ring-0 bg-transparent p-0"
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 handleSaveTitle();
@@ -434,10 +434,20 @@ function ConversationHeader({
             }}
             autoFocus
           />
-          <Button size="sm" onClick={handleSaveTitle}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-[#A78BFA] hover:text-[#A78BFA] hover:bg-transparent h-7"
+            onClick={handleSaveTitle}
+          >
             Save
           </Button>
-          <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-gray-400 hover:text-gray-300 hover:bg-transparent h-7"
+            onClick={handleCancelEdit}
+          >
             Cancel
           </Button>
         </div>
@@ -448,7 +458,7 @@ function ConversationHeader({
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 text-gray-400 hover:text-gray-300"
+                className="h-7 w-7 text-gray-400 hover:text-gray-300"
                 onClick={onToggleConversationList}
                 title="Open conversation list"
               >
@@ -462,7 +472,7 @@ function ConversationHeader({
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-gray-400 hover:text-gray-300"
+            className="h-7 w-7 text-gray-400 hover:text-gray-300"
             onClick={() => setIsEditing(true)}
           >
             <Edit3 className="h-4 w-4" />
@@ -887,7 +897,7 @@ export function ChatPanel({
         </Conversation>
 
         {/* Input Area */}
-        <div className="border-t border-gray-800 p-4">
+        <div className="border-gray-800 p-3">
           <PromptInput
             onSubmit={handleSendMessage}
             className="border-0"

@@ -370,28 +370,11 @@ function EditorPageContent() {
     );
   }
 
-  // Show loading UI only when actively provisioning/retrying/failed
-  // Don't show loading if sandboxStatus is null (not yet determined from conversation data)
-  if (
+  // Determine if we should show the sandbox loading UI in the preview panel
+  const showSandboxLoadingInPreview =
     sandboxStatus === 'PENDING' ||
     sandboxStatus === 'RETRYING' ||
-    sandboxStatus === 'FAILED'
-  ) {
-    return (
-      <>
-        <SandboxLoadingUI
-          status={sandboxStatus === 'RETRYING' ? 'RETRYING' : 'PENDING'}
-          message={
-            sandboxError
-              ? `${sandboxError}\n\nPlease try again.`
-              : sandboxMessage
-          }
-          onRetry={handleSandboxRetry}
-          showRetryButton={showSandboxRetry}
-        />
-      </>
-    );
-  }
+    sandboxStatus === 'FAILED';
 
   return (
     <EditorLayout
@@ -440,15 +423,28 @@ function EditorPageContent() {
       previewPanel={
         <Card className="h-full bg-black/40 backdrop-blur-sm border-gray-800 rounded-none">
           <div className="h-full">
-            <PreviewPanel
-              pageId={conversationId}
-              projectId={conversation.projectId}
-              conversationId={conversationId}
-              currentVersion={undefined}
-              sandboxPublicUrl={conversation.project?.sandboxPublicUrl}
-              onToggleChat={handleToggleChat}
-              isChatVisible={isChatVisible}
-            />
+            {showSandboxLoadingInPreview ? (
+              <SandboxLoadingUI
+                status={sandboxStatus === 'RETRYING' ? 'RETRYING' : 'PENDING'}
+                message={
+                  sandboxError
+                    ? `${sandboxError}\n\nPlease try again.`
+                    : sandboxMessage
+                }
+                onRetry={handleSandboxRetry}
+                showRetryButton={showSandboxRetry}
+              />
+            ) : (
+              <PreviewPanel
+                pageId={conversationId}
+                projectId={conversation.projectId}
+                conversationId={conversationId}
+                currentVersion={undefined}
+                sandboxPublicUrl={conversation.project?.sandboxPublicUrl}
+                onToggleChat={handleToggleChat}
+                isChatVisible={isChatVisible}
+              />
+            )}
           </div>
         </Card>
       }

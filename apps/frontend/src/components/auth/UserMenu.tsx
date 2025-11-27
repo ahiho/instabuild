@@ -60,16 +60,16 @@ export function UserMenu(): JSX.Element {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-            <Avatar className="h-8 w-8">
+          <Button variant="ghost" className="relative h-7 w-7 rounded-full">
+            <Avatar className="h-7 w-7">
               {getAvatarUrl() ? (
                 <img
                   src={getAvatarUrl()}
                   alt={user.displayName}
-                  className="h-8 w-8 rounded-full"
+                  className="h-7 w-7 rounded-full"
                 />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
                   {getInitials(user.displayName)}
                 </div>
               )}

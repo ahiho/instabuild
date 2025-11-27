@@ -42,15 +42,15 @@ export const Header: React.FC = () => {
       transition={{ duration: 0.5, ease: 'easeOut' }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+        <div className="flex items-center justify-between h-12 sm:h-14">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black rounded flex items-center justify-center group-hover:opacity-80 transition-opacity duration-200">
-              <span className="text-white font-bold text-lg sm:text-xl">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-black rounded flex items-center justify-center group-hover:opacity-80 transition-opacity duration-200">
+              <span className="text-white font-bold text-sm sm:text-base">
                 IB
               </span>
             </div>
-            <span className="text-xl sm:text-2xl font-bold text-white">
+            <span className="text-lg sm:text-xl font-bold text-white">
               InstaBuild
             </span>
           </Link>

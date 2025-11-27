@@ -52,21 +52,21 @@ export function SandboxLoadingUI({
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen w-full bg-gradient-to-b from-slate-900 to-slate-950">
+    <div className="flex items-center justify-center h-full w-full bg-gradient-to-b from-[#1e0d2b] via-slate-900 to-slate-950">
       <div className="flex flex-col items-center gap-6 p-8 text-center max-w-md">
         {/* Loading spinner */}
         <div className="relative w-16 h-16">
           <div
             className="absolute inset-0 rounded-full border-4 border-slate-700"
             style={{
-              background: `conic-gradient(from 0deg, #3b82f6 0deg, #3b82f6 ${status === 'RETRYING' ? '180' : '120'}deg, transparent ${status === 'RETRYING' ? '180' : '120'}deg)`,
+              background: `conic-gradient(from 0deg, #334155 0deg, #7e22ce ${status === 'RETRYING' ? '180' : '120'}deg, transparent ${status === 'RETRYING' ? '180' : '120'}deg)`,
               animation:
                 status === 'RETRYING'
                   ? 'spin 0.6s linear infinite reverse'
                   : 'spin 1.5s linear infinite',
             }}
           />
-          <div className="absolute inset-1 bg-slate-950 rounded-full" />
+          <div className="absolute inset-2 bg-slate-950 rounded-full" />
         </div>
 
         {/* Status text */}
@@ -80,20 +80,6 @@ export function SandboxLoadingUI({
         </div>
 
         {/* Info items */}
-        <div className="w-full space-y-2 py-4 border-y border-slate-700">
-          <div className="flex items-center justify-between text-sm text-slate-400">
-            <span>Docker container initialization</span>
-            <span className="text-blue-400">●</span>
-          </div>
-          <div className="flex items-center justify-between text-sm text-slate-400">
-            <span>Network configuration</span>
-            <span className="text-blue-400">●</span>
-          </div>
-          <div className="flex items-center justify-between text-sm text-slate-400">
-            <span>Environment setup</span>
-            <span className="text-blue-400">●</span>
-          </div>
-        </div>
 
         {/* Time elapsed */}
         <p className="text-xs text-slate-500">
