@@ -341,7 +341,7 @@ model DeploymentAccount {
   type      DeploymentAccountType // 'GITHUB' | 'CLOUDFLARE'
 
   // Account details
-  email        String
+  email        String? // Optional - some providers don't return email
   username     String?
   organization String?
 
