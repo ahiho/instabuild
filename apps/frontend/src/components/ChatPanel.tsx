@@ -61,6 +61,8 @@ interface ChatPanelProps {
   isConversationListOpen?: boolean;
   onToggleConversationList?: () => void;
   isLoadingConversation?: boolean;
+  initialMessage?: string;
+  sandboxStatus?: 'PENDING' | 'RETRYING' | 'READY' | 'FAILED' | null;
 }
 
 /**
@@ -490,11 +492,14 @@ export function ChatPanel({
   isConversationListOpen,
   onToggleConversationList,
   isLoadingConversation,
+  initialMessage,
+  sandboxStatus,
 }: ChatPanelProps) {
   const { success, error: showError } = useToast();
   const { currentProject } = useProject();
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [hasAutoSentInitialMessage, setHasAutoSentInitialMessage] = useState(false);
 
   // Load conversation messages when conversation changes
   const loadMessages = useCallback(async () => {
@@ -589,6 +594,31 @@ export function ChatPanel({
       showError('Chat Error', error.message || 'Failed to send message');
     }
   }, [error, showError]);
+
+  // Auto-send initial message when conversation is loaded and sandbox is ready
+  useEffect(() => {
+    if (
+      initialMessage &&
+      conversation &&
+      !isLoadingMessages &&
+      sandboxStatus === 'READY' &&
+      !hasAutoSentInitialMessage
+    ) {
+      console.log(
+        '[ChatPanel] Auto-sending initial message:',
+        initialMessage.substring(0, 50)
+      );
+      setHasAutoSentInitialMessage(true);
+      sendMessage({ text: initialMessage });
+    }
+  }, [
+    initialMessage,
+    conversation,
+    isLoadingMessages,
+    sandboxStatus,
+    hasAutoSentInitialMessage,
+    sendMessage,
+  ]);
 
   const handleCopyMessage = (text: string) => {
     navigator.clipboard.writeText(text);

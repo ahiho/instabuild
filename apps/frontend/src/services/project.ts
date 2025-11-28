@@ -217,6 +217,22 @@ export const projectService = {
     }>(response);
     return result.data;
   },
+
+  /**
+   * Generate a project name from a user query using AI
+   */
+  async generateProjectName(query: string): Promise<string> {
+    const response = await fetch(`${API_BASE_URL}/projects/generate-name`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ query }),
+    });
+    const result = await handleResponse<{
+      success: boolean;
+      data: { name: string };
+    }>(response);
+    return result.data.name;
+  },
 };
 
 // Conversation API functions

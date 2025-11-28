@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ChatPanel } from '../components/ChatPanel';
 import { ConversationList } from '../components/conversation/ConversationList';
 import { EditorLayout } from '../components/layout/EditorLayout';
@@ -14,9 +14,13 @@ import { conversationService } from '../services/project';
 import type { Conversation } from '../types/project';
 
 function EditorPageContent() {
-  const { conversationId } = useParams<{ conversationId: string }>();
+  const { projectId, conversationId } = useParams<{
+    projectId: string;
+    conversationId: string;
+  }>();
   const navigate = useNavigate();
-  const { currentProject, setCurrentProject, projects } = useProject();
+  const location = useLocation();
+  const { setCurrentProject, projects } = useProject();
   const queryClient = useQueryClient();
   const [isChatVisible, setIsChatVisible] = useState(true);
   const [isConversationListOpen, setIsConversationListOpen] = useState(false);
@@ -24,6 +28,10 @@ function EditorPageContent() {
     useState<Conversation | null>(null);
   // Track if we've synced the project on initial load to avoid overwriting user selection
   const hasInitialSyncRef = useRef(false);
+
+  // Get initial message from navigation state (set by Hero component)
+  const initialMessage = (location.state as Record<string, unknown> | null)
+    ?.initialMessage as string | undefined;
 
   // Sandbox provisioning state
   const [sandboxStatus, setSandboxStatus] = useState<
@@ -47,20 +55,23 @@ function EditorPageContent() {
     enabled: !!conversationId,
     // Poll every 5 seconds to check for sandbox updates when not READY
     refetchInterval: data => {
+      if (!data) return false;
+
       // Poll if:
       // 1. Sandbox is PENDING (being provisioned)
       // 2. Sandbox is FAILED (need to retry)
       // 3. Sandbox status is null/undefined (unknown state)
+      const conversationData = data as unknown as Conversation;
       const shouldPoll =
-        data?.sandboxStatus === 'PENDING' ||
-        data?.sandboxStatus === 'FAILED' ||
-        data?.sandboxStatus === null ||
-        data?.sandboxStatus === undefined;
+        conversationData.project?.sandboxStatus === 'PENDING' ||
+        conversationData.project?.sandboxStatus === 'FAILED' ||
+        conversationData.project?.sandboxStatus === null ||
+        conversationData.project?.sandboxStatus === undefined;
 
       if (shouldPoll) {
         console.log(
           '[EditorPage] Polling enabled, sandbox status:',
-          data?.sandboxStatus
+          conversationData.project?.sandboxStatus
         );
         return 5000;
       }
@@ -84,7 +95,7 @@ function EditorPageContent() {
 
   const handleConversationSelect = (conversation: Conversation | null) => {
     if (conversation) {
-      // Navigate to editor with conversation ID in URL
+      // Navigate to editor with project and conversation ID in URL
       // Only navigate if we're switching to a different conversation
       if (conversationId !== conversation.id) {
         console.log(
@@ -93,7 +104,9 @@ function EditorPageContent() {
           'to',
           conversation.id
         );
-        navigate(`/editor/${conversation.id}`);
+        navigate(
+          `/project/${conversation.projectId}/conversation/${conversation.id}`
+        );
       } else {
         console.log('[EditorPage] Already on conversation', conversationId);
       }
@@ -320,9 +333,27 @@ function EditorPageContent() {
   }, [conversation, selectedConversation]);
 
   // Update currentProject when conversation is first loaded to ensure correct project context
-  // Only sync on initial load, not on every conversation change (user should be able to switch projects)
+  // Validate that the URL projectId matches the conversation's projectId
   useEffect(() => {
-    if (conversation && conversation.projectId && !hasInitialSyncRef.current) {
+    if (
+      conversation &&
+      conversation.projectId &&
+      projectId &&
+      !hasInitialSyncRef.current
+    ) {
+      // Validate URL projectId matches conversation's projectId
+      if (conversation.projectId !== projectId) {
+        console.error(
+          '[EditorPage] URL projectId does not match conversation projectId',
+          {
+            urlProjectId: projectId,
+            conversationProjectId: conversation.projectId,
+          }
+        );
+        navigate('/dashboard');
+        return;
+      }
+
       // Find the project that matches this conversation's projectId
       const conversationProject = projects.find(
         p => p.id === conversation.projectId
@@ -337,12 +368,12 @@ function EditorPageContent() {
         hasInitialSyncRef.current = true;
       }
     }
-  }, [conversation, projects, setCurrentProject]); // Only trigger on conversation or projects list change
+  }, [conversation, projectId, projects, setCurrentProject, navigate]); // Only trigger on conversation or projects list change
 
-  // Reset selected conversation when project changes
+  // Reset selected conversation when project changes (via URL)
   useEffect(() => {
     setSelectedConversation(null);
-  }, [currentProject?.id]);
+  }, [projectId]);
 
   if (isLoading) {
     return (
@@ -416,6 +447,8 @@ function EditorPageContent() {
                 setIsConversationListOpen(!isConversationListOpen)
               }
               isLoadingConversation={isLoading}
+              initialMessage={initialMessage}
+              sandboxStatus={sandboxStatus}
             />
           </Card>
         </div>

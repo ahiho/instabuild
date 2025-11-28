@@ -9,8 +9,8 @@ import {
   streamText,
 } from 'ai';
 import { logger } from '../../lib/logger.js';
+import { formatMemoryAsMessage, loadMemory } from '../../lib/memory-loader.js';
 import { optimizeMessagesForLLM } from '../../lib/message-conversion.js';
-import { loadMemory, formatMemoryAsMessage } from '../../lib/memory-loader.js';
 import { modelSelector } from '../model-selector.js';
 import {
   ReasoningStepType,
@@ -23,15 +23,15 @@ import { toolCallRepairManager } from './errorRecovery/ToolCallRepair.js';
 import { systemPromptBuilder } from './prompts/SystemPromptBuilder.js';
 import { conversationStateManager } from './stateManagement/ConversationStateManager.js';
 import { executionMetricsTracker } from './stateManagement/ExecutionMetricsTracker.js';
+import { tokenRateLimiter } from './stateManagement/TokenRateLimiter.js';
 import { taskConfigurationManager } from './taskConfiguration.js';
 import {
-  TaskComplexity,
-  ToolExecutionError,
+  FinishContext,
   PrepareStepContext,
   StepFinishContext,
-  FinishContext,
+  TaskComplexity,
+  ToolExecutionError,
 } from './types.js';
-import { tokenRateLimiter } from './stateManagement/TokenRateLimiter.js';
 
 /**
  * Agentic AI Service that leverages Vercel AI SDK's built-in multi-step capabilities
@@ -306,7 +306,14 @@ export class AgenticAIService {
           }
         }
       } catch (persistError) {
-        // Failed to persist AI message
+        // Failed to persist AI message - log error to prevent silent data loss
+        logger.error('Failed to persist AI messages onFinish', {
+          conversationId: context.conversationId,
+          error:
+            persistError instanceof Error
+              ? persistError.message
+              : String(persistError),
+        });
       }
 
       // Complete reasoning step
@@ -783,7 +790,7 @@ export class AgenticAIService {
         const prunedMessages = pruneMessages({
           messages,
           reasoning: 'before-last-message', // Remove reasoning except in last message
-          toolCalls: 'before-last-5-messages', // Keep tool context for last 5 messages (more conservative)
+          toolCalls: 'before-last-10-messages', // Keep tool context for last 5 messages (more conservative)
           emptyMessages: 'remove', // Remove any messages that become empty after pruning
         });
 
@@ -808,78 +815,10 @@ export class AgenticAIService {
           note: 'System messages with guidelines are preserved (never pruned)',
         });
 
-        // STEP 2: Apply existing trimming logic on pruned messages
-        // Strategy: Keep system message (0) + most recent messages
-        // BUT: In AI SDK v5.0, assistant and tool messages come in pairs:
-        //   assistant message with tool-calls
-        //   tool message with corresponding tool-results
-        // We MUST NOT split these pairs!
-
-        const targetCount = contextConfig.keepCount;
-        const recentMessages: any[] = [];
-
-        // Work backwards from the most recent messages
-        // Collect messages while preserving tool-call/tool-result pairs
-        let idx = prunedMessages.length - 1;
-        while (idx >= 1 && recentMessages.length < targetCount - 1) {
-          // -1 to account for system message
-          const currentMessage = prunedMessages[idx];
-
-          // If this is a tool message (role='tool'), check if we need the preceding assistant message
-          if (currentMessage.role === 'tool' && idx > 0) {
-            const precedingMessage = prunedMessages[idx - 1];
-            if (precedingMessage.role === 'assistant') {
-              // We need both messages - add them as a pair
-              // Check if we have room for both
-              if (recentMessages.length + 2 <= targetCount - 1) {
-                // Add in correct order (assistant first, then tool)
-                recentMessages.unshift(currentMessage);
-                recentMessages.unshift(precedingMessage);
-                idx -= 2; // Skip both messages
-                continue;
-              } else {
-                // Not enough room for the pair, stop here
-                break;
-              }
-            }
-          }
-
-          // If this is an assistant message followed by a tool message, keep them together
-          if (
-            currentMessage.role === 'assistant' &&
-            idx < prunedMessages.length - 1
-          ) {
-            const nextMessage = prunedMessages[idx + 1];
-            if (nextMessage.role === 'tool') {
-              // This pair was already processed when we encountered the tool message
-              idx--;
-              continue;
-            }
-          }
-
-          // Regular message (user, system, or standalone assistant)
-          recentMessages.unshift(currentMessage);
-          idx--;
-        }
-
-        // Combine system message + recent messages
-        const trimmedMessages = [prunedMessages[0], ...recentMessages];
-
-        logger.debug('[PREPARE STEP] Final message trimming', {
-          conversationId: context.conversationId,
-          stepNumber,
-          afterPruneCount: prunedMessages.length,
-          targetCount,
-          finalCount: trimmedMessages.length,
-          totalRemoved: beforePruneCount - trimmedMessages.length,
-          percentReduction: (
-            ((beforePruneCount - trimmedMessages.length) / beforePruneCount) *
-            100
-          ).toFixed(1),
-        });
-
+        // The fragile manual pruning logic has been removed.
+        // We now directly return the result from the AI SDK's pruneMessages function.
         return {
-          messages: trimmedMessages,
+          messages: prunedMessages,
           ...(dynamicModel && { model: dynamicModel }),
         };
       }
@@ -1047,16 +986,15 @@ export class AgenticAIService {
       modelInfo: selection.reasoning,
     });
 
-    // Filter out 'tool' role messages - AI SDK only supports 'user', 'assistant', 'system'
-    // Tool results should already be embedded in assistant message parts
-    const filteredMessages = messagesWithMemory.filter(
-      msg => msg.role !== 'tool'
-    );
+    // ✅ FIXED: Pass complete message history including tool messages
+    // AI SDK v5.0+ fully supports 'tool' role messages (previously incorrect assumption)
+    // Tool messages contain tool-result parts that are ESSENTIAL for the agentic loop
+    // convertToModelMessages() properly handles all message roles including 'tool'
 
     // Configure multi-step execution with Vercel AI SDK 5.0
     const result = streamText({
       model,
-      messages: convertToModelMessages(filteredMessages),
+      messages: convertToModelMessages(messagesWithMemory),
       tools: availableTools,
       // AI SDK 5.0: Use stopWhen instead of maxSteps
       stopWhen: finalStopConditions,

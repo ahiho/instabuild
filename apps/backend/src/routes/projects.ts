@@ -1258,4 +1258,67 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /**
+   * POST /api/v1/projects/generate-name
+   * Generate a project name from a user query using AI
+   */
+  fastify.post<{
+    Body: { query: string };
+    Reply: ApiResponse<{ name: string }>;
+  }>(
+    '/projects/generate-name',
+    {
+      preHandler: authMiddleware.requireAuth(),
+      schema: {
+        body: {
+          type: 'object',
+          required: ['query'],
+          properties: {
+            query: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 1000,
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { query } = request.body;
+
+        // Use a lightweight model to generate a concise project name (5-10 words max)
+        const { generateText } = await import('ai');
+        const { createOpenAI } = await import('@ai-sdk/openai');
+
+        const openai = createOpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        });
+
+        const name = await generateText({
+          model: openai('gpt-4o-mini'),
+          system:
+            'You are a helpful assistant that generates concise landing page project names. Return ONLY the project name (3-7 words max), no quotes or additional text.',
+          prompt: `Generate a project name for: "${query}"`,
+          maxOutputTokens: 50,
+          temperature: 0.7,
+        });
+
+        const response = createApiResponse(true, {
+          name: name.text.trim(),
+        });
+        return reply.code(200).send(response);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate project name';
+
+        const response = createApiResponse(false, undefined, errorMessage);
+        return reply.code(500).send(response);
+      }
+    }
+  );
 }

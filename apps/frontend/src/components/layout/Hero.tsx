@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { VignetteShader } from '../../shaders/vignetteShader';
-import { conversationService } from '../../services/project';
+import { conversationService, projectService } from '../../services/project';
 import { SignInPopup } from '../auth/SignInPopup';
 import { Particles } from '../home/Particles';
 
@@ -114,9 +114,17 @@ export function Hero() {
       setIsLoading(true);
       setError(null);
 
-      // Create new project with a generated name
-      const projectName = `Project ${new Date().toLocaleDateString()}`;
-      const newProject = await createProject(projectName, queryToUse);
+      // Generate a project name from the user's query using AI
+      let projectName: string;
+      try {
+        projectName = await projectService.generateProjectName(queryToUse);
+      } catch (nameError) {
+        console.warn('Failed to generate project name, using fallback:', nameError);
+        projectName = `Project ${new Date().toLocaleDateString()}`;
+      }
+
+      // Create new project with the AI-generated name
+      const newProject = await createProject(projectName);
 
       // Create new conversation in the project with idempotency key to prevent duplicates
       const idempotencyKey = `hero-${Date.now()}-${Math.random()}`;
@@ -129,8 +137,8 @@ export function Hero() {
       // Clear stored query
       localStorage.removeItem('pendingHeroQuery');
 
-      // Navigate to editor with conversation ID and pass the query as state
-      navigate(`/editor/${conversation.id}`, {
+      // Navigate to editor with project and conversation IDs, pass the query as state
+      navigate(`/project/${newProject.id}/conversation/${conversation.id}`, {
         state: { initialMessage: queryToUse },
       });
 

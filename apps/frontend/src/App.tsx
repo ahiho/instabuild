@@ -53,7 +53,7 @@ function App() {
                 }
               />
               <Route
-                path="/editor/:conversationId"
+                path="/project/:projectId/conversation/:conversationId"
                 element={
                   <ProtectedRoute>
                     <EditorPage />

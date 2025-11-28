@@ -3,7 +3,7 @@
  */
 
 import { FolderPlus, MessageSquare, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '../components/layout/AppHeader';
 import { NewProjectDialog } from '../components/project/NewProjectDialog';
@@ -20,8 +20,13 @@ import { useProject } from '../contexts/ProjectContext';
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { projects = [], isLoading } = useProject();
+  const { projects = [], isLoading, setCurrentProject } = useProject();
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
+
+  // Clear current project on dashboard (no project should be selected on dashboard)
+  useEffect(() => {
+    setCurrentProject(null);
+  }, [setCurrentProject]);
 
   const handleProjectClick = (projectId: string) => {
     navigate(`/dashboard/projects/${projectId}/conversations`);

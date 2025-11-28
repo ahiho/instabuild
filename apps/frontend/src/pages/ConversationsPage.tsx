@@ -22,11 +22,18 @@ import type { Conversation } from '../types/project';
 export function ConversationsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { projects } = useProject();
+  const { projects, setCurrentProject } = useProject();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const currentProject = projects.find(p => p.id === projectId);
+
+  // Set current project when viewing this project's conversations
+  useEffect(() => {
+    if (currentProject) {
+      setCurrentProject(currentProject);
+    }
+  }, [currentProject, setCurrentProject]);
 
   const handleCreateConversation = useCallback(async () => {
     if (!projectId) return;
@@ -40,7 +47,7 @@ export function ConversationsPage() {
       });
 
       // Navigate to the editor with the new conversation
-      navigate(`/editor/${newConversation.id}`);
+      navigate(`/project/${projectId}/conversation/${newConversation.id}`);
     } catch (err) {
       console.error('Failed to create conversation:', err);
       toast.error('Failed to create conversation', {
@@ -85,7 +92,8 @@ export function ConversationsPage() {
   }, [projectId, handleCreateConversation]);
 
   const handleConversationClick = (conversationId: string) => {
-    navigate(`/editor/${conversationId}`);
+    if (!projectId) return;
+    navigate(`/project/${projectId}/conversation/${conversationId}`);
   };
 
   const formatDate = (dateString: string) => {
