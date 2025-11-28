@@ -49,6 +49,106 @@ export class AgenticAIService {
   }
 
   /**
+   * Normalize messages for Vercel AI SDK's convertToModelMessages
+   * AI SDK v5.0 expects UIMessage format with 'parts' array, NOT 'content' field
+   * This prevents the "Cannot read properties of undefined (reading 'filter')" error
+   */
+  private normalizeMessagesForConversion(messages: any[]): any[] {
+    return messages
+      .filter((msg, idx) => {
+        // Filter out undefined/null messages
+        if (!msg) {
+          logger.warn('[NORMALIZE MESSAGES] Skipping undefined message at index', {
+            index: idx,
+          });
+          return false;
+        }
+        return true;
+      })
+      .map((msg, idx) => {
+        try {
+          // Ensure message has required fields
+          if (!msg.role) {
+            logger.warn('[NORMALIZE MESSAGES] Message missing role field', {
+              index: idx,
+              hasContent: !!msg.content,
+              hasParts: !!msg.parts,
+            });
+            msg.role = 'assistant'; // Default to assistant
+          }
+
+          // AI SDK v5 expects 'parts' array (UIMessage format)
+          // Remove 'content' field if present to avoid conflicts
+          const normalized: any = {
+            role: msg.role,
+          };
+
+          // Copy over any additional fields except content
+          Object.keys(msg).forEach(key => {
+            if (key !== 'content' && key !== 'role') {
+              normalized[key] = msg[key];
+            }
+          });
+
+          // Ensure parts is a valid array
+          if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+            // Validate that parts have proper structure
+            const validParts = msg.parts.filter((part: any) => {
+              if (!part || typeof part !== 'object') {
+                logger.warn(
+                  '[NORMALIZE MESSAGES] Invalid part structure',
+                  {
+                    index: idx,
+                    partType: typeof part,
+                  }
+                );
+                return false;
+              }
+              return true;
+            });
+
+            if (validParts.length > 0) {
+              normalized.parts = validParts;
+              return normalized;
+            }
+          }
+
+          // If message has content but no valid parts, convert to parts format
+          if (msg.content !== undefined && msg.content !== null) {
+            if (typeof msg.content === 'string') {
+              // Convert string content to text part
+              normalized.parts = [{ type: 'text', text: msg.content }];
+              return normalized;
+            } else if (Array.isArray(msg.content)) {
+              // Content is already an array, use it as parts
+              normalized.parts = msg.content;
+              return normalized;
+            }
+          }
+
+          // Fallback: create empty text part
+          logger.warn('[NORMALIZE MESSAGES] No valid content or parts, creating empty', {
+            index: idx,
+            role: msg.role,
+          });
+          normalized.parts = [{ type: 'text', text: '' }];
+          return normalized;
+        } catch (error) {
+          logger.error('[NORMALIZE MESSAGES] Error normalizing message', {
+            index: idx,
+            error: error instanceof Error ? error.message : String(error),
+            msgKeys: msg ? Object.keys(msg) : 'null',
+          });
+          // Return safe default
+          return {
+            role: msg?.role || 'assistant',
+            parts: [{ type: 'text', text: '' }],
+          };
+        }
+      });
+  }
+
+  /**
    * Get max tokens budget based on task complexity
    */
   private getMaxTokensForComplexity(complexity: TaskComplexity): number {
@@ -172,6 +272,15 @@ export class AgenticAIService {
       return messages;
     }
 
+    // Safety check: ensure messages array is valid
+    if (!messages || messages.length === 0) {
+      logger.warn('loadConversationMemory called with empty messages array', {
+        sandboxId,
+        userId,
+      });
+      return messages || [];
+    }
+
     const memoryResult = await loadMemory(sandboxId, userId);
 
     if (!memoryResult.exists || memoryResult.isEmpty) {
@@ -197,197 +306,208 @@ export class AgenticAIService {
     context: FinishContext
   ): (finalResult: any) => Promise<void> {
     return async finalResult => {
-      try {
-        // Save assistant message to database BEFORE finishing
-        const { prisma } = await import('../../server.js');
+      // Detach the handler so it completes independently of the HTTP stream
+      // This ensures messages are saved even if the client stops the request
+      setImmediate(async () => {
+        await this.persistMessagesAsync(finalResult, context);
+      });
+    };
+  }
 
-        // Save all response messages from AI SDK
-        if (finalResult.response && finalResult.response.messages) {
-          // AI SDK v5.0 provides messages in the correct format:
-          // - Assistant messages contain tool-call parts
-          // - Separate tool messages (role='tool') contain tool-result parts
-          // - Each tool-result references its tool-call via toolCallId
-          // We must preserve this structure for the SDK to work correctly
+  /**
+   * Persist messages to database - runs independently of HTTP stream
+   */
+  private async persistMessagesAsync(
+    finalResult: any,
+    context: FinishContext
+  ): Promise<void> {
+    try {
+      // Save assistant message to database BEFORE finishing
+      const { prisma } = await import('../../server.js');
 
-          const processedMessages: any[] = [];
+      // Save all response messages from AI SDK
+      if (finalResult.response && finalResult.response.messages) {
+        // AI SDK v5.0 provides messages in the correct format:
+        // - Assistant messages contain tool-call parts
+        // - Separate tool messages (role='tool') contain tool-result parts
+        // - Each tool-result references its tool-call via toolCallId
+        // We must preserve this structure for the SDK to work correctly
 
-          for (const message of finalResult.response.messages) {
-            // Save assistant, user, system, AND tool messages
-            // Tool messages are required - they contain tool-result parts
-            if (
-              ['assistant', 'user', 'system', 'tool'].includes(message.role)
-            ) {
-              processedMessages.push({
-                role: message.role as 'assistant' | 'user' | 'system' | 'tool',
-                content: message.content,
-              });
-            }
-          }
+        const processedMessages: any[] = [];
 
-          // Now save all messages (including tool messages)
-          for (const message of processedMessages) {
-            // ⚠️ DEDUPLICATION: Skip system messages already saved in prepareStep
-            // Error recovery messages are saved immediately in prepareStep
-            // to ensure they're persisted even if the SDK doesn't include them
-            if (message.role === 'system') {
-              const messageText =
-                typeof message.content === 'string'
-                  ? message.content
-                  : Array.isArray(message.content) &&
-                      message.content[0]?.type === 'text'
-                    ? message.content[0].text
-                    : '';
-
-              // Check if this is an error recovery message (by content marker)
-              const isErrorRecoveryMessage =
-                messageText.includes('🚨 CRITICAL') ||
-                messageText.includes('Multiple error recovery attempts failed');
-
-              if (isErrorRecoveryMessage) {
-                // Double-check: Query DB to confirm this message already exists
-                const existingMessage = await prisma.chatMessage.findFirst({
-                  where: {
-                    conversationId: context.conversationId,
-                    role: 'system',
-                    metadata: {
-                      path: ['injectedInPrepareStep'],
-                      equals: true,
-                    },
-                  },
-                  orderBy: {
-                    createdAt: 'desc',
-                  },
-                  take: 1,
-                });
-
-                if (existingMessage) {
-                  continue; // Skip duplicate
-                }
-              }
-            }
-
-            let parts: any = [];
-            let toolCallsCount = 0;
-            let toolResultsCount = 0;
-
-            // Use message content as-is
-            if (Array.isArray(message.content)) {
-              parts = [...message.content];
-
-              // Count tool calls and results
-              toolCallsCount = message.content.filter(
-                (part: any) => part.type === 'tool-call'
-              ).length;
-
-              toolResultsCount = message.content.filter(
-                (part: any) => part.type === 'tool-result'
-              ).length;
-            } else if (typeof message.content === 'string') {
-              // Convert string content to parts format
-              parts = [{ type: 'text', text: message.content }];
-            }
-
-            // Save message to database
-            await prisma.chatMessage.create({
-              data: {
-                conversationId: context.conversationId,
-                userId: context.userId,
-                role: message.role as 'user' | 'assistant' | 'system' | 'tool',
-                parts,
-                metadata: {
-                  totalSteps: finalResult.steps?.length || 0,
-                  finishReason: finalResult.finishReason,
-                  totalUsage: finalResult.usage,
-                  toolCallsCount,
-                  toolResultsCount,
-                },
-              },
+        for (const message of finalResult.response.messages) {
+          // Skip user messages - they're already saved immediately in chat.ts
+          // Only save assistant, system, and tool messages here
+          // This prevents duplicate user messages from appearing at the end of conversations
+          if (['assistant', 'system', 'tool'].includes(message.role)) {
+            processedMessages.push({
+              role: message.role as 'assistant' | 'system' | 'tool',
+              content: message.content,
             });
           }
         }
-      } catch (persistError) {
-        // Failed to persist AI message - log error to prevent silent data loss
-        logger.error('Failed to persist AI messages onFinish', {
-          conversationId: context.conversationId,
-          error:
-            persistError instanceof Error
-              ? persistError.message
-              : String(persistError),
-        });
+
+        // Now save all messages (including tool messages)
+        for (const message of processedMessages) {
+          // ⚠️ DEDUPLICATION: Skip system messages already saved in prepareStep
+          // Error recovery messages are saved immediately in prepareStep
+          // to ensure they're persisted even if the SDK doesn't include them
+          if (message.role === 'system') {
+            const messageText =
+              typeof message.content === 'string'
+                ? message.content
+                : Array.isArray(message.content) &&
+                    message.content[0]?.type === 'text'
+                  ? message.content[0].text
+                  : '';
+
+            // Check if this is an error recovery message (by content marker)
+            const isErrorRecoveryMessage =
+              messageText.includes('🚨 CRITICAL') ||
+              messageText.includes('Multiple error recovery attempts failed');
+
+            if (isErrorRecoveryMessage) {
+              // Double-check: Query DB to confirm this message already exists
+              const existingMessage = await prisma.chatMessage.findFirst({
+                where: {
+                  conversationId: context.conversationId,
+                  role: 'system',
+                  metadata: {
+                    path: ['injectedInPrepareStep'],
+                    equals: true,
+                  },
+                },
+                orderBy: {
+                  createdAt: 'desc',
+                },
+                take: 1,
+              });
+
+              if (existingMessage) {
+                continue; // Skip duplicate
+              }
+            }
+          }
+
+          let parts: any = [];
+          let toolCallsCount = 0;
+          let toolResultsCount = 0;
+
+          // Use message content as-is
+          if (Array.isArray(message.content)) {
+            parts = [...message.content];
+
+            // Count tool calls and results
+            toolCallsCount = message.content.filter(
+              (part: any) => part.type === 'tool-call'
+            ).length;
+
+            toolResultsCount = message.content.filter(
+              (part: any) => part.type === 'tool-result'
+            ).length;
+          } else if (typeof message.content === 'string') {
+            // Convert string content to parts format
+            parts = [{ type: 'text', text: message.content }];
+          }
+
+          // Save message to database
+          await prisma.chatMessage.create({
+            data: {
+              conversationId: context.conversationId,
+              userId: context.userId,
+              role: message.role as 'user' | 'assistant' | 'system' | 'tool',
+              parts,
+              metadata: {
+                totalSteps: finalResult.steps?.length || 0,
+                finishReason: finalResult.finishReason,
+                totalUsage: finalResult.usage,
+                toolCallsCount,
+                toolResultsCount,
+              },
+            },
+          });
+        }
       }
+    } catch (persistError) {
+      // Failed to persist AI message - log error to prevent silent data loss
+      logger.error('Failed to persist AI messages onFinish', {
+        conversationId: context.conversationId,
+        error:
+          persistError instanceof Error
+            ? persistError.message
+            : String(persistError),
+      });
+    }
 
-      // Complete reasoning step
-      reasoningTransparencyService.completeReasoningStep(
-        context.conversationId,
-        context.analysisStepId
-      );
+    // Complete reasoning step
+    reasoningTransparencyService.completeReasoningStep(
+      context.conversationId,
+      context.analysisStepId
+    );
 
-      // Add completion reasoning step
-      reasoningTransparencyService.addReasoningStep(
-        context.conversationId,
-        ReasoningStepType.VALIDATION,
-        'Task Completed',
-        'Successfully completed your request and validated the results.'
-      );
+    // Add completion reasoning step
+    reasoningTransparencyService.addReasoningStep(
+      context.conversationId,
+      ReasoningStepType.VALIDATION,
+      'Task Completed',
+      'Successfully completed your request and validated the results.'
+    );
 
-      // Finalize conversation state
-      await conversationStateManager.finalizeConversationState(
+    // Finalize conversation state
+    await conversationStateManager.finalizeConversationState(
+      context.conversationId,
+      finalResult
+    );
+
+    // Complete execution metrics
+    const initialState = conversationStateManager.getConversationState(
+      context.conversationId
+    );
+    if (initialState) {
+      await executionMetricsTracker.completeExecutionMetrics(
         context.conversationId,
+        initialState.startTime,
         finalResult
       );
+    }
 
-      // Complete execution metrics
-      const initialState = conversationStateManager.getConversationState(
-        context.conversationId
-      );
-      if (initialState) {
-        await executionMetricsTracker.completeExecutionMetrics(
-          context.conversationId,
-          initialState.startTime,
-          finalResult
-        );
-      }
+    // Log token usage summary
+    if (finalResult.usage) {
+      const totalRate = tokenRateLimiter.getCurrentRate(context.conversationId);
+      const percentOfLimit = ((totalRate / 90000) * 100).toFixed(1);
 
-      // Log token usage summary
-      if (finalResult.usage) {
-        const totalRate = tokenRateLimiter.getCurrentRate(
-          context.conversationId
-        );
-        const percentOfLimit = ((totalRate / 90000) * 100).toFixed(1);
+      logger.info('[ON FINISH] Conversation token usage summary', {
+        conversationId: context.conversationId,
+        totalSteps: finalResult.steps?.length || 0,
+        promptTokens: finalResult.usage.promptTokens,
+        completionTokens: finalResult.usage.completionTokens,
+        totalTokens: finalResult.usage.totalTokens,
+        currentRatePerMinute: totalRate,
+        percentOfLimit: percentOfLimit + '%',
+        finishReason: finalResult.finishReason,
+        status:
+          totalRate > 80000
+            ? 'CRITICAL - Very high token rate'
+            : totalRate > 70000
+              ? 'WARNING - High token rate'
+              : 'NORMAL - Healthy token rate',
+      });
 
-        logger.info('[ON FINISH] Conversation token usage summary', {
-          conversationId: context.conversationId,
-          totalSteps: finalResult.steps?.length || 0,
-          promptTokens: finalResult.usage.promptTokens,
-          completionTokens: finalResult.usage.completionTokens,
-          totalTokens: finalResult.usage.totalTokens,
-          currentRatePerMinute: totalRate,
-          percentOfLimit: percentOfLimit + '%',
-          finishReason: finalResult.finishReason,
-          status:
-            totalRate > 80000
-              ? 'CRITICAL - Very high token rate'
-              : totalRate > 70000
-                ? 'WARNING - High token rate'
-                : 'NORMAL - Healthy token rate',
-        });
+      // Clear token usage data for this conversation
+      tokenRateLimiter.clearConversation(context.conversationId);
+    }
 
-        // Clear token usage data for this conversation
-        tokenRateLimiter.clearConversation(context.conversationId);
-      }
+    // End reasoning session
+    reasoningTransparencyService.endReasoningSession(context.conversationId);
 
-      // End reasoning session
-      reasoningTransparencyService.endReasoningSession(context.conversationId);
-
-      // Sync project code to GitHub after successful completion
-      // Only sync if the loop completed with code changes (not errors or max steps)
-      if (
-        finalResult.finishReason === 'stop' ||
-        finalResult.finishReason === 'end-turn'
-      ) {
-        await this.syncProjectToGitHubAsync(context);
-      }
-    };
+    // Sync project code to GitHub after successful completion
+    // Only sync if the loop completed with code changes (not errors or max steps)
+    if (
+      finalResult.finishReason === 'stop' ||
+      finalResult.finishReason === 'end-turn'
+    ) {
+      await this.syncProjectToGitHubAsync(context);
+    }
   }
 
   /**
@@ -848,6 +968,7 @@ export class AgenticAIService {
       action: string;
     }) => Promise<void>;
     onReasoningUpdate?: (reasoning: string) => Promise<void>;
+    onAbort?: (abortInfo: { steps: any[]; response: any }) => Promise<void>;
   }) {
     const {
       messages,
@@ -862,6 +983,7 @@ export class AgenticAIService {
       onToolCall,
       onProgress,
       onReasoningUpdate,
+      onAbort,
     } = options;
 
     // Get the latest user message for model selection
@@ -950,6 +1072,17 @@ export class AgenticAIService {
       filtered: detectedComplexity === TaskComplexity.SIMPLE,
     });
 
+    // Validate messages array before processing
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      logger.error('[PROCESS AGENTIC CHAT] Invalid messages array', {
+        conversationId,
+        messagesType: typeof messages,
+        isArray: Array.isArray(messages),
+        length: messages?.length,
+      });
+      throw new Error('Messages array is required and must not be empty');
+    }
+
     // Optimize messages for LLM by stripping unnecessary data from tool results
     // This reduces context size while keeping full data in database for UI
     const optimizedMessages = optimizeMessagesForLLM(messages);
@@ -960,6 +1093,69 @@ export class AgenticAIService {
       sandboxId,
       userId
     );
+
+    // Normalize messages for Vercel AI SDK's convertToModelMessages
+    // Ensures all messages have 'content' field instead of 'parts'
+    logger.debug('[PROCESS AGENTIC CHAT] Before normalization', {
+      conversationId,
+      messageCount: messagesWithMemory.length,
+      firstMessage: messagesWithMemory[0]
+        ? {
+            role: messagesWithMemory[0].role,
+            content: !!messagesWithMemory[0].content,
+            parts: !!messagesWithMemory[0].parts,
+            partsType: Array.isArray(messagesWithMemory[0].parts)
+              ? 'array'
+              : typeof messagesWithMemory[0].parts,
+          }
+        : null,
+      lastMessage: messagesWithMemory[messagesWithMemory.length - 1]
+        ? {
+            role: messagesWithMemory[messagesWithMemory.length - 1].role,
+            content: !!messagesWithMemory[messagesWithMemory.length - 1].content,
+            parts: !!messagesWithMemory[messagesWithMemory.length - 1].parts,
+          }
+        : null,
+    });
+
+    const normalizedMessages = this.normalizeMessagesForConversion(
+      messagesWithMemory
+    );
+
+    logger.debug('[PROCESS AGENTIC CHAT] After normalization', {
+      conversationId,
+      messageCount: normalizedMessages.length,
+      firstMessage: normalizedMessages[0]
+        ? {
+            role: normalizedMessages[0].role,
+            contentType: Array.isArray(normalizedMessages[0].content)
+              ? 'array'
+              : typeof normalizedMessages[0].content,
+            contentLength: Array.isArray(normalizedMessages[0].content)
+              ? normalizedMessages[0].content.length
+              : 0,
+          }
+        : null,
+    });
+
+    // Final validation before passing to AI SDK
+    if (
+      !normalizedMessages ||
+      !Array.isArray(normalizedMessages) ||
+      normalizedMessages.length === 0
+    ) {
+      logger.error(
+        '[PROCESS AGENTIC CHAT] Invalid messages after normalization',
+        {
+          conversationId,
+          normalizedMessagesType: typeof normalizedMessages,
+          isArray: Array.isArray(messagesWithMemory),
+          length: messagesWithMemory?.length,
+          originalMessagesLength: messages.length,
+        }
+      );
+      throw new Error('Failed to prepare messages for AI processing');
+    }
 
     // Determine final step limit (override takes precedence)
     const finalMaxSteps = maxSteps || taskConfig.maxSteps;
@@ -991,10 +1187,25 @@ export class AgenticAIService {
     // Tool messages contain tool-result parts that are ESSENTIAL for the agentic loop
     // convertToModelMessages() properly handles all message roles including 'tool'
 
+    // Log messages structure right before conversion
+    logger.debug('[PROCESS AGENTIC CHAT] About to convert messages', {
+      conversationId,
+      normalizedMessagesLength: normalizedMessages.length,
+      normalizedMessagesType: typeof normalizedMessages,
+      isArray: Array.isArray(normalizedMessages),
+      firstMessage: normalizedMessages[0]
+        ? {
+            role: normalizedMessages[0].role,
+            hasContent: !!normalizedMessages[0].content,
+            hasParts: !!normalizedMessages[0].parts,
+          }
+        : 'NO_FIRST_MESSAGE',
+    });
+
     // Configure multi-step execution with Vercel AI SDK 5.0
     const result = streamText({
       model,
-      messages: convertToModelMessages(messagesWithMemory),
+      messages: convertToModelMessages(normalizedMessages),
       tools: availableTools,
       // AI SDK 5.0: Use stopWhen instead of maxSteps
       stopWhen: finalStopConditions,
@@ -1065,6 +1276,8 @@ export class AgenticAIService {
         userId,
         analysisStepId,
       }),
+
+      onAbort,
     });
 
     return result;

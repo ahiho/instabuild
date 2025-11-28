@@ -32,8 +32,8 @@ export class TokenRateLimiter {
   private readonly CRITICAL_THRESHOLD = 15000;
 
   // Adaptive delays (in milliseconds)
-  private readonly WARNING_DELAY_ADD = 10000;
-  private readonly CRITICAL_DELAY_ADD = 60000;
+  private readonly WARNING_DELAY_ADD = 3000;
+  private readonly CRITICAL_DELAY_ADD = 25000;
 
   // Window size (60 seconds)
   private readonly WINDOW_MS = 60000;

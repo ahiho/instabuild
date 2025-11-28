@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { consumeStream } from 'ai';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../server.js';
 import { agenticAIService } from '../services/agentic/index.js';
@@ -161,6 +162,8 @@ export async function chatRoutes(fastify: FastifyInstance) {
       );
 
       // Save user message to database immediately
+      let updatedConversationTitle: string | null = null;
+
       if (latestUserMessage && messageContent.trim()) {
         try {
           await prisma.chatMessage.create({
@@ -184,6 +187,24 @@ export async function chatRoutes(fastify: FastifyInstance) {
             conversationId: conversation.id,
             messageLength: messageContent.length,
           });
+
+          // Generate conversation title from first message using AI (non-blocking)
+          // Fire and forget - don't wait for this to complete
+          chatPersistenceService
+            .generateConversationTitle(conversation.id, user.id)
+            .then(updatedConv => {
+              updatedConversationTitle = updatedConv.title;
+              logger.info('Conversation title generated', {
+                conversationId: conversation.id,
+                newTitle: updatedConv.title,
+              });
+            })
+            .catch(error => {
+              logger.warn('Failed to generate conversation title', {
+                conversationId: conversation.id,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
         } catch (error) {
           logger.error('Failed to persist user message', {
             conversationId: conversation.id,
@@ -233,6 +254,55 @@ export async function chatRoutes(fastify: FastifyInstance) {
           });
           // In a real implementation, this could be sent via WebSocket to the frontend
         },
+        onAbort: async ({ steps, response }) => {
+          // Handle stream abort (user clicked stop)
+          // Save partial response before abort finishes
+          logger.info('Chat stream aborted by user', {
+            conversationId: conversation.id,
+            stepsCompleted: steps?.length || 0,
+          });
+
+          // Persist partial messages from the aborted stream
+          if (response?.messages && response.messages.length > 0) {
+            try {
+              for (const message of response.messages) {
+                if (['assistant', 'user', 'system', 'tool'].includes(message.role)) {
+                  let parts: any = [];
+
+                  if (Array.isArray(message.content)) {
+                    parts = [...message.content];
+                  } else if (typeof message.content === 'string') {
+                    parts = [{ type: 'text', text: message.content }];
+                  }
+
+                  await prisma.chatMessage.create({
+                    data: {
+                      conversationId: conversation.id,
+                      userId: user.id,
+                      role: message.role as 'user' | 'assistant' | 'system' | 'tool',
+                      parts,
+                      metadata: {
+                        finishReason: 'abort',
+                        stepsCompleted: steps?.length || 0,
+                        abortedByUser: true,
+                      },
+                    },
+                  });
+                }
+              }
+
+              logger.info('Saved partial messages from aborted stream', {
+                conversationId: conversation.id,
+                messageCount: response.messages.length,
+              });
+            } catch (persistError) {
+              logger.error('Failed to persist partial messages on abort', {
+                conversationId: conversation.id,
+                error: persistError instanceof Error ? persistError.message : String(persistError),
+              });
+            }
+          }
+        },
       });
 
       // Return the streaming response
@@ -250,14 +320,24 @@ export async function chatRoutes(fastify: FastifyInstance) {
         messageMetadata: ({ part }) => {
           // Include usage metadata when generation finishes
           if (part.type === 'finish') {
-            return {
+            const metadata: any = {
               totalUsage: part.totalUsage,
               conversationId: conversation.id,
               taskComplexity: 'moderate', // This would be determined by the service
               timestamp: new Date().toISOString(),
             };
+
+            // Include updated conversation title if it was generated
+            if (updatedConversationTitle) {
+              metadata.updatedConversationTitle = updatedConversationTitle;
+            }
+
+            return metadata;
           }
         },
+        // CRITICAL: Use consumeStream to ensure onFinish is called even when client aborts
+        // This prevents message loss when user clicks stop button
+        consumeSseStream: consumeStream,
       });
     }
   );

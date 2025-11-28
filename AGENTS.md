@@ -190,6 +190,59 @@ pnpm add <package>    # Install a package (NOT npm install)
 - **Conventional commits** - Structured commit messages
 - **Husky pre-commit hooks** - Automated quality checks
 
+## Sandbox Template - Theme System & Animations (NEW - ✅ IMPLEMENTED)
+
+**Purpose**: Help AI generate distinctive landing pages instead of generic defaults.
+
+**Location**: `/sandbox-template/`
+
+### 10 Pre-Built Themes (Prevents AI Laziness)
+- **Professional/SaaS**: Minimal, Tech, B2B, Fintech, Education
+- **Startup/Creative**: Vibrant, Portfolio
+- **Premium**: Luxury
+- **Commerce**: E-commerce
+- **Health**: Wellness
+
+Each theme includes:
+- Color palettes (primary, secondary, accent) with light/dark variants
+- Component variant recommendations (which hero/navbar/footer pairs well together)
+- Animation style (subtle, energetic, smooth, playful, enterprise)
+- Usage guidelines for AI decision-making
+
+**Files**:
+- `src/lib/themes.ts` - 1000+ lines with 10 complete theme definitions
+- `src/contexts/ThemeContext.tsx` - Theme provider + useTheme hook
+- `sandbox-template/AGENTS.md` - Complete theme selection guide + anti-patterns
+
+### 40+ Animation Patterns (Organized by Use Case)
+Expanded from 15 basic animations:
+- **Entrance** (15+): fadeInUp, scaleIn, bounceIn, flipInY, zoomIn, etc.
+- **Text Effects** (5): textCharacterReveal, textEmphasisPulse, highlightBgReveal, etc.
+- **Scroll-Triggered** (5): progressiveSlideInUp, cascadeUp, gridMeshReveal, etc.
+- **Hover** (5): hoverLift, hoverGlow, hoverScale, hoverBorderPulse
+- **Container** (3): cardShineEffect, cardShadowGrow, cardBorderGradientPulse
+- **Stagger** (3+): staggerContainer, staggerContainerFast, staggerContainerSlow
+- **Transitions** (8+): smooth, spring, bouncy, fast, slow, etc.
+
+**File**: `src/lib/animations.ts` - 550+ lines with copy-paste examples
+
+### 10 Anti-Patterns (How to Avoid "AI Slop")
+Documented in `sandbox-template/AGENTS.md`:
+1. No theme selected → Use theme system (Minimal, Vibrant, Luxury, etc.)
+2. Same component variants everywhere → Mix variants for visual variety
+3. No animations → Add entrance/scroll/hover animations
+4. No hover effects → Use hoverLift, hoverGlow on interactive elements
+5. Broken/placeholder images → Use Unsplash URLs or PlaceholderImage component
+6. Inconsistent typography → Use clear heading hierarchy
+7. Wrong component variants for theme → Use theme's recommended variants
+8. No whitespace/breathing room → Use generous section spacing
+9. Unclear CTAs → Make primary CTA larger and more prominent
+10. Repetitive layouts → Vary section structures (full-width → split → grid → timeline)
+
+**Reference**: `sandbox-template/AGENTS.md` - Full anti-patterns guide with before/after examples
+
+---
+
 ## Current Implementation Status
 
 ### ✅ Completed Features
@@ -472,6 +525,51 @@ pnpm add <package>    # Install a package (NOT npm install)
 - `apps/backend/src/tools/memory-tools.ts` - Removed `readGuidelinesTool` definition and registration
 
 **Status**: ✅ Complete, type-checked, ready for `pruneMessages()` integration
+
+#### System Prompt Update - Theme System & Animations Integration (NEW - ✅ IMPLEMENTED)
+
+**Implementation Date**: 2025-11-28
+
+**Purpose**: Keep system prompt in sync with sandbox template improvements for distinctive AI-generated landing pages.
+
+**Updates to `SystemPromptBuilder.ts`**:
+
+1. **New Theme System Section** - Guides AI to pick a specific theme first
+   - Lists all 10 themes with use cases
+   - Explains theme selection process (call `think` to match context to theme)
+   - Notes that themes provide color palettes, component recommendations, and animation styles
+   - Removes manual `index.css` color editing (themes handle it automatically)
+
+2. **Updated Core Workflow** - Theme selection now step 3
+   - Step 1: Reason first
+   - Step 2: Assess if request is complete
+   - **Step 3: Theme selection (CRITICAL)** - Pick specific theme first to prevent AI laziness
+   - Steps 4-8: Continue with planning, images, implementation, validation
+
+3. **Expanded Animation Patterns Section** - 40+ patterns with organization
+   - 7 categories listed (Entrance, Text, Scroll-Triggered, Hover, Container, Stagger, Transitions)
+   - Copy-paste ready code examples
+   - Animation themes matched to design themes
+   - Reference to sandbox-template/AGENTS.md for complete 40+ list
+
+4. **New Anti-Patterns Checklist** - 10 concrete items to avoid
+   - Brief, actionable guidance for each anti-pattern
+   - Quick mental checklist format
+   - Prevents "AI slop" (generic designs)
+
+**Token Efficiency**:
+- Used bullet points instead of prose
+- One-liners for anti-patterns
+- Cross-references to AGENTS.md (avoid duplication)
+- Copy-paste code for animations
+- ~40% more concise than previous version
+
+**Files Modified**:
+- `apps/backend/src/services/agentic/prompts/SystemPromptBuilder.ts` - Theme system section, updated workflow, animation patterns, anti-patterns
+
+**Status**: ✅ Complete, verified to compile without errors
+
+**Impact**: Backend AI now has up-to-date guidance for using 10 themes and 40+ animations, preventing lazy defaults and generic designs.
 
 ### 🚧 In Progress
 

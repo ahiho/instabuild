@@ -925,6 +925,7 @@ export const PromptInputActionMenuItem = ({
 
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus;
+  onStop?: () => void;
 };
 
 export const PromptInputSubmit = ({
@@ -932,26 +933,31 @@ export const PromptInputSubmit = ({
   variant = 'default',
   size = 'icon-sm',
   status,
+  onStop,
   children,
   ...props
 }: PromptInputSubmitProps) => {
   let Icon = <ArrowUp className="size-4" />;
 
-  if (status === 'submitted') {
-    Icon = <Loader2Icon className="size-4 animate-spin" />;
-  } else if (status === 'streaming') {
+  if (status === 'submitted' || status === 'streaming') {
     Icon = <SquareIcon className="size-4" />;
   } else if (status === 'error') {
     Icon = <XIcon className="size-4" />;
   }
 
+  // When streaming or submitted, use stop button behavior
+  const isStoppingState = status === 'submitted' || status === 'streaming';
+  const buttonType = isStoppingState ? 'button' : 'submit';
+  const handleClick = isStoppingState ? onStop : undefined;
+
   return (
     <InputGroupButton
-      aria-label="Submit"
+      aria-label={isStoppingState ? 'Stop' : 'Submit'}
       className={cn(className)}
       size={size}
-      type="submit"
+      type={buttonType}
       variant={variant}
+      onClick={handleClick}
       {...props}
     >
       {children ?? Icon}

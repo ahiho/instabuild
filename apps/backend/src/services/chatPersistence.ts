@@ -168,7 +168,7 @@ export class ChatPersistenceService {
   }
 
   /**
-   * Generate automatic conversation title based on first user message
+   * Generate automatic conversation title based on first user message using AI
    * @param conversationId - The conversation ID
    * @param userId - Required user ID for access validation
    * @returns Updated conversation with generated title
@@ -213,23 +213,57 @@ export class ChatPersistenceService {
         .join(' ');
 
       if (textParts.trim()) {
-        // Generate title from first 50 characters of the message
-        generatedTitle = textParts.trim().substring(0, 50);
-        if (textParts.length > 50) {
-          generatedTitle += '...';
+        try {
+          // Use lightweight AI model to generate a concise title (3-8 words max)
+          const { generateText } = await import('ai');
+          const { createOpenAI } = await import('@ai-sdk/openai');
+
+          const openai = createOpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+          });
+
+          const aiGeneratedTitle = await generateText({
+            model: openai('gpt-4o-mini'),
+            system:
+              'You are a helpful assistant that generates concise conversation titles. Return ONLY a short title (3-8 words max) that summarizes the user\'s request, no quotes or additional text.',
+            prompt: `Generate a conversation title for this user message: "${textParts.substring(0, 200)}"`,
+            maxOutputTokens: 30,
+            temperature: 0.7,
+          });
+
+          generatedTitle = aiGeneratedTitle.text.trim();
+
+          logger.info('AI-generated conversation title', {
+            conversationId,
+            generatedTitle,
+            messagePreview: textParts.substring(0, 100),
+          });
+        } catch (error) {
+          // Fallback to first 50 characters if AI generation fails
+          logger.warn('Failed to generate AI title, falling back to excerpt', {
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          generatedTitle = textParts.trim().substring(0, 50);
+          if (textParts.length > 50) {
+            generatedTitle += '...';
+          }
+          // Clean up the title
+          generatedTitle = generatedTitle.replace(/\n/g, ' ').trim();
         }
-        // Clean up the title
-        generatedTitle = generatedTitle.replace(/\n/g, ' ').trim();
       }
     }
 
-    return prisma.conversation.update({
+    const updatedConversation = await prisma.conversation.update({
       where: { id: conversationId },
       data: {
         title: generatedTitle,
         lastUpdateTime: new Date(),
       },
     });
+
+    return updatedConversation;
   }
 
   /**

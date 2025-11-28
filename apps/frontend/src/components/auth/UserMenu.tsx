@@ -97,7 +97,6 @@ export function UserMenu(): JSX.Element {
           <DropdownMenuItem onClick={() => navigate('/dashboard/deployments')}>
             Deployment Accounts
           </DropdownMenuItem>
-          <DropdownMenuItem>Usage & Billing</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout} disabled={isLoading}>
             {isLoading ? 'Signing out...' : 'Sign out'}

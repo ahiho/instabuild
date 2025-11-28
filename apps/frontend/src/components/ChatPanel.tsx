@@ -1,4 +1,4 @@
-import { useChat, type UIMessage } from '@ai-sdk/react';
+import { type UIMessage } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import {
   Copy,
@@ -12,8 +12,10 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useProject } from '../contexts/ProjectContext';
+import { useChatWithTitleUpdate } from '../hooks/useChatWithTitleUpdate';
 import { useToast } from '../hooks/useToast';
 import { getToolMetadata } from '../lib/tool-metadata';
+import { cn } from '../lib/utils';
 import { conversationService } from '../services/project';
 import type { Conversation as ConversationType } from '../types/project';
 import { Action, Actions } from './ai-elements/actions';
@@ -46,10 +48,16 @@ import {
   ToolOutput,
 } from './ai-elements/tool';
 import { usePromptInputAttachments } from './ai-elements/use-prompt-input';
+import { ThinkingStep } from './chat/ThinkingStep';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { cn } from '../lib/utils';
-import { ThinkingStep } from './chat/ThinkingStep';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 
 interface ChatPanelProps {
   conversation?: ConversationType | null;
@@ -499,7 +507,9 @@ export function ChatPanel({
   const { currentProject } = useProject();
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [hasAutoSentInitialMessage, setHasAutoSentInitialMessage] = useState(false);
+  const [hasAutoSentInitialMessage, setHasAutoSentInitialMessage] =
+    useState(false);
+  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
 
   // Load conversation messages when conversation changes
   const loadMessages = useCallback(async () => {
@@ -535,15 +545,16 @@ export function ChatPanel({
     loadMessages();
   }, [loadMessages]);
 
-  // Use AI SDK's useChat hook with custom transport
+  // Use custom hook that handles title updates from response metadata
   const {
     messages: chatMessages,
     sendMessage,
     status,
     error,
     stop,
-  } = useChat({
+  } = useChatWithTitleUpdate({
     id: conversation?.id || '',
+    conversationId: conversation?.id,
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: `${import.meta.env.VITE_API_BASE_URL}/chat`,
@@ -560,6 +571,12 @@ export function ChatPanel({
         projectId: currentProject?.id,
       },
     }),
+    // Handle title updates from response metadata
+    onTitleUpdate: (newTitle: string) => {
+      if (conversation && onConversationTitleChange) {
+        onConversationTitleChange(conversation.id, newTitle);
+      }
+    },
   });
 
   // Merge initial messages with chat messages
@@ -948,20 +965,28 @@ export function ChatPanel({
                 <div className="flex items-center justify-between">
                   <AttachButton />
                   <div className="flex items-center gap-2">
-                    {(status === 'submitted' || status === 'streaming') && (
-                      <button
-                        type="button"
-                        onClick={() => stop()}
-                        className="text-xs text-gray-400 hover:text-gray-300"
-                      >
-                        Stop
-                      </button>
-                    )}
+                    <Select
+                      value={selectedModel}
+                      onValueChange={setSelectedModel}
+                    >
+                      <SelectTrigger className="h-7 w-[120px] bg-transparent border-0 text-gray-400 text-[11px] hover:text-gray-300">
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <PromptInputSubmit
                       status={status}
+                      onStop={() => stop()}
                       size="icon"
                       className="rounded-lg bg-purple-600 text-white hover:bg-purple-700 h-7 w-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!conversation || status !== 'ready'}
+                      disabled={
+                        !conversation ||
+                        (status !== 'ready' &&
+                          status !== 'submitted' &&
+                          status !== 'streaming')
+                      }
                     />
                   </div>
                 </div>
